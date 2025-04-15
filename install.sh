@@ -1,18 +1,18 @@
 #!/bin/bash
 
-# install.sh - Automated installation script for Nix/nix-darwin configuration
-# Based on Mitchell Hashimoto's approach
+# Standalone installation script for Nix configuration
+# Run with: curl -L https://your-host.com/install.sh | bash
 
 set -e
 
 # Default values
-HOST_NAME=${1:-$(hostname -s)}
-MACHINE_TYPE=${2:-""}
-MACHINE_NAME=${3:-"$HOST_NAME"}
-NIXOS_USERNAME=${4:-$(whoami)}
-REPO_URL=${5:-"https://github.com/yourusername/your-nixos-config.git"}
-REPO_BRANCH=${6:-"main"}
-REPO_DIR=${HOME}/.config/nixpkgs
+HOST_NAME=$(hostname -s)
+MACHINE_TYPE=""
+MACHINE_NAME="$HOST_NAME"
+NIXOS_USERNAME=$(whoami)
+REPO_URL="https://github.com/lucamaraschi/nix-me.git"
+REPO_BRANCH="main"
+REPO_DIR="$HOME/.config/nixpkgs"
 
 # Print header
 echo "======================================================================"
@@ -31,7 +31,6 @@ echo ""
 sudo -v || { echo "Authentication failed"; exit 1; }
 
 # Start a background job to refresh sudo credentials every 60 seconds
-# This process will run until the main script finishes.
 ( while true; do sudo -v; sleep 60; done ) &
 SUDO_REFRESH_PID=$!
 
@@ -149,7 +148,18 @@ function setup_darwin_based_host() {
     # Build and activate configuration
     echo "🚀 Building and activating your configuration..."
     cd "$REPO_DIR"
-    make HOSTNAME="$HOST_NAME" MACHINE_TYPE="$MACHINE_TYPE" MACHINE_NAME="$MACHINE_NAME" switch
+    
+    # Auto-detect machine type if not specified
+    if [[ -z "$MACHINE_TYPE" ]]; then
+        if [[ "$HOST_NAME" == *"macbook"* || "$HOST_NAME" == *"mba"* ]]; then
+            MACHINE_TYPE="macbook"
+        elif [[ "$HOST_NAME" == *"mini"* ]]; then
+            MACHINE_TYPE="macmini"
+        fi
+    fi
+    
+    # Run the build
+    HOSTNAME="$HOST_NAME" MACHINE_TYPE="$MACHINE_TYPE" MACHINE_NAME="$MACHINE_NAME" darwin-rebuild switch --flake .
     
     echo "✅ Installation completed successfully!"
     echo "🔧 You may need to restart your terminal or computer to apply all changes."
@@ -168,5 +178,5 @@ echo ""
 echo "   Next steps:"
 echo "   1. Restart your terminal or run 'source /etc/bashrc'"
 echo "   2. Customize your configuration in $REPO_DIR"
-echo "   3. Apply changes with 'make switch'"
+echo "   3. Apply changes with 'cd $REPO_DIR && make switch'"
 echo "======================================================================"
