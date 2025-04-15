@@ -56,7 +56,11 @@ switch:
 ifeq ($(DRY_RUN), 1)
 	@echo "[DRY RUN] HOSTNAME=$(HOSTNAME) MACHINE_TYPE=$(MACHINE_TYPE) MACHINE_NAME=\"$(MACHINE_NAME)\" darwin-rebuild switch --flake $(FLAKE_DIR)"
 else
-	@HOSTNAME=$(HOSTNAME) MACHINE_TYPE=$(MACHINE_TYPE) MACHINE_NAME="$(MACHINE_NAME)" darwin-rebuild switch --flake $(FLAKE_DIR)
+	ifeq ($(MACHINE_TYPE), vm)
+		@HOSTNAME=$(HOSTNAME) MACHINE_TYPE=$(MACHINE_TYPE) MACHINE_NAME="$(MACHINE_NAME)" sudo darwin-rebuild switch --flake $(FLAKE_DIR) -I vm-fix=$(FLAKE_DIR)/vm-fix.nix
+	else
+		@HOSTNAME=$(HOSTNAME) MACHINE_TYPE=$(MACHINE_TYPE) MACHINE_NAME="$(MACHINE_NAME)" sudo darwin-rebuild switch --flake $(FLAKE_DIR)
+	endif
 endif
 
 # Run a syntax check on the flake

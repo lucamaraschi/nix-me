@@ -12,12 +12,17 @@
       TrackpadThreeFingerDrag = true;
       ActuationStrength = 1; # Lighter click force
     };
-    
-    # Energy saving preferences
-    NSGlobalDomain = {
-      NSAutomaticTermination = true; # Auto-terminate inactive apps
-      NSQuitAlwaysKeepsWindows = false; # Don't keep windows when quitting
+
+    # Dock settings for laptops (smaller icons to save space)
+    dock = {
+      tilesize = lib.mkForce 32; # Smaller icons for laptop screens
     };
+    
+    # # Energy saving preferences
+    # NSGlobalDomain = {
+    #   # NSAutomaticTermination = true; # Auto-terminate inactive apps
+    #   NSQuitAlwaysKeepsWindows = false; # Don't keep windows when quitting
+    # };
     
     # Custom power management settings
     CustomUserPreferences = {
@@ -41,9 +46,15 @@
     "ghostty"
     "github"
   ];
+
+  homebrew.masApps = {
+    Tailscale = 1475387142;
+    Xcode = 497799835;
+    "iA-Writer" = 775737590;
+  };
   
   # Power management scripts
-  system.activationScripts.extraActivation.text = ''
+  system.activationScripts.macbookOptimization.text = ''
     # Set energy saving preferences for laptops
     echo "Setting energy preferences for MacBook..." >&2
     

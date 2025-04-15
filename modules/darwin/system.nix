@@ -1,95 +1,91 @@
-{ ... }:
+# modules/darwin/system.nix
+{ lib, ... }:
 
 {
-  # macOS system preferences
+  # macOS system preferences - all defaults that can be overridden by machine-specific configs
   system.defaults = {
     # Dock preferences
     dock = {
-      autohide = true;
-      show-recents = false;
-      static-only = true;
-      tilesize = 20;
-      mineffect = "scale";
-      minimize-to-application = true;
-      orientation = "bottom";
-      showhidden = true;
+      autohide = lib.mkDefault true;
+      show-recents = lib.mkDefault false;
+      static-only = lib.mkDefault true;
+      tilesize = lib.mkDefault 20;
+      mineffect = lib.mkDefault "scale";
+      minimize-to-application = lib.mkDefault true;
+      orientation = lib.mkDefault "bottom";
+      showhidden = lib.mkDefault true;
     };
     
     # Finder preferences
     finder = {
-      AppleShowAllExtensions = true;
-      AppleShowAllFiles = true;
-      FXEnableExtensionChangeWarning = false;
-      QuitMenuItem = true;
-      _FXShowPosixPathInTitle = true;
-      CreateDesktop = false; # Hide desktop icons
-      ShowPathbar = true;
-      ShowStatusBar = true;
+      AppleShowAllExtensions = lib.mkDefault true;
+      AppleShowAllFiles = lib.mkDefault true;
+      FXEnableExtensionChangeWarning = lib.mkDefault false;
+      QuitMenuItem = lib.mkDefault true;
+      _FXShowPosixPathInTitle = lib.mkDefault true;
+      CreateDesktop = lib.mkDefault false; # Default to hide desktop icons
+      ShowPathbar = lib.mkDefault true;
+      ShowStatusBar = lib.mkDefault true;
     };
     
     # Login window settings
     loginwindow = {
-      GuestEnabled = false;
-      DisableConsoleAccess = true;
+      GuestEnabled = lib.mkDefault false;
+      DisableConsoleAccess = lib.mkDefault true;
     };
     
     # Launch Services
-    LaunchServices.LSQuarantine = true;
+    LaunchServices.LSQuarantine = lib.mkDefault true;
     
     # Power management
-    menuExtraClock.ShowSeconds = true;
-    screencapture.location = "~/Pictures/Screenshots";
+    menuExtraClock.ShowSeconds = lib.mkDefault true;
+    screencapture.location = lib.mkDefault "~/Pictures/Screenshots";
     
     # Software Update
     SoftwareUpdate = {
-      AutomaticallyInstallMacOSUpdates = true;
+      AutomaticallyInstallMacOSUpdates = lib.mkDefault true;
     };
     
     # Global preferences
     NSGlobalDomain = {
       # Appearance
-      AppleInterfaceStyle = "Dark";
-      AppleShowAllExtensions = true;
-      AppleShowAllFiles = true;
+      AppleInterfaceStyle = lib.mkDefault "Dark";
+      AppleShowAllExtensions = lib.mkDefault true;
+      AppleShowAllFiles = lib.mkDefault true;
       
       # Keyboard and input
-      AppleKeyboardUIMode = 3;
-      ApplePressAndHoldEnabled = false;
-      InitialKeyRepeat = 15;
-      KeyRepeat = 2;
+      AppleKeyboardUIMode = lib.mkDefault 3;
+      ApplePressAndHoldEnabled = lib.mkDefault false;
+      InitialKeyRepeat = lib.mkDefault 15;
+      KeyRepeat = lib.mkDefault 2;
       
       # Document behavior
-      NSDocumentSaveNewDocumentsToCloud = false;
+      NSDocumentSaveNewDocumentsToCloud = lib.mkDefault false;
       
       # Text behavior
-      NSAutomaticCapitalizationEnabled = false;
-      NSAutomaticDashSubstitutionEnabled = false;
-      NSAutomaticPeriodSubstitutionEnabled = false;
-      NSAutomaticQuoteSubstitutionEnabled = false;
-      NSAutomaticSpellingCorrectionEnabled = false;
+      NSAutomaticCapitalizationEnabled = lib.mkDefault false;
+      NSAutomaticDashSubstitutionEnabled = lib.mkDefault false;
+      NSAutomaticPeriodSubstitutionEnabled = lib.mkDefault false;
+      NSAutomaticQuoteSubstitutionEnabled = lib.mkDefault false;
+      NSAutomaticSpellingCorrectionEnabled = lib.mkDefault false;
       
       # UI behavior
-      NSNavPanelExpandedStateForSaveMode = true;
-      NSNavPanelExpandedStateForSaveMode2 = true;
+      NSNavPanelExpandedStateForSaveMode = lib.mkDefault true;
+      NSNavPanelExpandedStateForSaveMode2 = lib.mkDefault true;
       
       # Misc
-      _HIHideMenuBar = false;
+      _HIHideMenuBar = lib.mkDefault false;
     };
     
-    # Trackpad
+    # Trackpad - defaults that can be overridden by machine-specific configs
     trackpad = {
-      Clicking = true;
-      TrackpadRightClick = true;
-      TrackpadThreeFingerDrag = true;
-    };
-    
-    # Transparency
-    universalaccess = {
-      reduceTransparency = true;
+      Clicking = lib.mkDefault true;
+      TrackpadRightClick = lib.mkDefault true;
+      TrackpadThreeFingerDrag = lib.mkDefault true;
     };
     
     # Custom preferences
-    CustomUserPreferences = {
+    CustomUserPreferences = lib.mkDefault {
       "~/Library/Preferences/ByHost/com.apple.controlcenter".BatteryShowPercentage = true;
       "com.apple.AdLib".allowApplePersonalizedAdvertising = false;
       "com.apple.WindowManager".GloballyEnabled = true;
@@ -98,8 +94,8 @@
   
   # Firewall settings
   system.defaults.alf = {
-    globalstate = 1; # on for specific services
-    allowsignedenabled = 1;
-    allowdownloadsignedenabled = 1;
+    globalstate = lib.mkDefault 1; # on for specific services
+    allowsignedenabled = lib.mkDefault 1;
+    allowdownloadsignedenabled = lib.mkDefault 1;
   };
 }

@@ -1,9 +1,9 @@
-{ pkgs, config, ... }:
+{ pkgs, config, lib, ... }:
 
 {
   # Import common modules
   imports = [
-    ../../modules/darwin
+    ../../modules/darwin/default.nix
   ];
 
   # Base system configuration
@@ -16,11 +16,12 @@
       ShowPathbar = true;
     };
     
-    # Common dock preferences
+    # Common dock preferences (these can be overridden by machine-specific configs)
     dock = {
-      autohide = true;
-      showhidden = true;
-      minimize-to-application = true;
+      autohide = lib.mkDefault true;
+      showhidden = lib.mkDefault true;
+      minimize-to-application = lib.mkDefault true;
+      tilesize = lib.mkDefault 20; # Default size, can be overridden
     };
     
     # Common global domain preferences
@@ -33,33 +34,14 @@
     };
   };
   
-  # Shared homebrew packages
-  homebrew = {
-    enable = true;
-    
-    # Common command-line tools
-    brews = [
-      "coreutils"
-      "git"
-      "jq"
-      "ripgrep"
-    ];
-    
-    # Common applications for all machines
-    casks = [
-      "1password"
-      "google-chrome"
-      "rectangle"
-      "visual-studio-code"
-    ];
-  };
-  
   # Security settings
-  security.pam.enableSudoTouchIdAuth = true;
+  security.pam.services.sudo_local.touchIdAuth = true;
   
   # Common fonts
   fonts.packages = with pkgs; [
-    (nerdfonts.override { fonts = [ "FiraCode" "JetBrainsMono" ]; })
+    nerd-fonts.fira-code
+    nerd-fonts.jetbrains-mono
+    
     font-awesome
   ];
   

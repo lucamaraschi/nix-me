@@ -3,8 +3,43 @@
 {
   programs.fish = {
     enable = true;
-    
+
+     # Create custom plugins using packageDir
     interactiveShellInit = ''
+      # Load the plugins from plugin directories
+      for plugin_dir in $__fish_config_dir/plugins/*
+        if test -d $plugin_dir
+          set -a fish_function_path $plugin_dir/functions
+          set -a fish_complete_path $plugin_dir/completions
+          for file in $plugin_dir/conf.d/*.fish
+            if test -f $file
+              source $file
+            end
+          end
+        end
+      end
+
+      # Colored man pages
+      function man --wraps man
+          set -l bold_ansi_code "\u001b[1m"
+          set -l underline_ansi_code "\u001b[4m"
+          set -l reversed_ansi_code "\u001b[7m"
+          set -l reset_ansi_code "\u001b[0m"
+          set -l teal_ansi_code "\u001b[36m"
+          set -l green_ansi_code "\u001b[32m"
+          set -l blue_ansi_code "\u001b[34m"
+          set -l yellow_ansi_code "\u001b[33m"
+
+          set -x LESS_TERMCAP_md (echo -e $bold_ansi_code$teal_ansi_code)
+          set -x LESS_TERMCAP_me (echo -e $reset_ansi_code)
+          set -x LESS_TERMCAP_us (echo -e $underline_ansi_code$green_ansi_code)
+          set -x LESS_TERMCAP_ue (echo -e $reset_ansi_code)
+          set -x LESS_TERMCAP_so (echo -e $reversed_ansi_code$blue_ansi_code)
+          set -x LESS_TERMCAP_se (echo -e $reset_ansi_code)
+
+          command man $argv
+      end
+
       # Set fish greeting
       set fish_greeting ""
       
@@ -61,27 +96,8 @@
       end
     '';
     
+    # Add functionality directly in home-manager instead of plugins
     plugins = [
-      # Z for directory jumping
-      {
-        name = "z";
-        src = pkgs.fetchFromGitHub {
-          owner = "jethrokuan";
-          repo = "z";
-          rev = "e0e1b9dfdba362f8ab1ae8c1afc7ccf62b89f7eb";
-          sha256 = "0dbnir6jbwjpjalz14snzd3cgdysgcs3raznsijd6savad3qhijc";
-        };
-      }
-      # Fish colored man pages
-      {
-        name = "fish-colored-man";
-        src = pkgs.fetchFromGitHub {
-          owner = "decors";
-          repo = "fish-colored-man";
-          rev = "1ad8fff696d48dcd8a683277e025ec2dfc1fe21f";
-          sha256 = "0yc3xf9smqshj7cc94h8nai0gihs8g8qj95nqfify2jy7kgr0dkm";
-        };
-      }
     ];
     
     shellAliases = {
@@ -134,12 +150,29 @@
       };
     };
   };
+
+  # Create plugin directories manually
+  home.file = {
+    # autopair
+    ".config/fish/plugins/autopair/conf.d/autopair.fish".source = pkgs.fetchurl {
+      url = "https://raw.githubusercontent.com/jorgebucaran/autopair.fish/main/conf.d/autopair.fish";
+      sha256 = "sha256-EgOrd1uBBz5J61DPJEoGP6+tCwXY79oEILM32Xix70Q=";
+    };
+
+    #fzf
+    ".config/fish/plugins/autopair/conf.d/fzf.fish".source = pkgs.fetchurl {
+      url = "https://raw.githubusercontent.com/PatrickF1/fzf.fish/refs/heads/main/conf.d/fzf.fish";
+      sha256 = "sha256-71siHJOn3og0HR37ju2K/sFd7KaXgpBDCV+vjyfJr+0=";
+    }; 
+    # Include any other plugins you want using the same pattern
+  };
   
   # Install additional tools that complement fish
   home.packages = with pkgs; [
     bat       # Better cat
-    exa       # Better ls
+    eza       # Better ls
     fd        # Better find
+    fzf
     ripgrep   # Better grep
     starship  # Customizable prompt
   ];

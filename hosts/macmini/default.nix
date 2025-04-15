@@ -7,23 +7,23 @@
   system.defaults = {
     # Dock settings optimized for desktop
     dock = {
-      autohide = false; # Keep dock visible on a desktop
-      tilesize = 48; # Larger icons for desktop display
-      magnification = true;
-      largesize = 64;
-      orientation = "bottom";
+      autohide = lib.mkForce false; # Keep dock visible on a desktop
+      tilesize = lib.mkForce 48; # Larger icons for desktop display
+      magnification = lib.mkForce true;
+      largesize = lib.mkForce 64;
+      orientation = lib.mkForce "bottom";
     };
     
     # UI settings for desktop use
     finder = {
-      CreateDesktop = true; # Show desktop icons
+      CreateDesktop = lib.mkForce true; # Show desktop icons
     };
     
-    NSGlobalDomain = {
-      NSWindowResizeTime = 0.1; # Faster window resizing
-      NSAutomaticTermination = false; # Don't auto-terminate apps on desktop
-      NSQuitAlwaysKeepsWindows = true; # Keep windows when quitting
-    };
+    # NSGlobalDomain = {
+    #   NSWindowResizeTime = 0.1; # Faster window resizing
+    #   # NSAutomaticTermination = false; # Don't auto-terminate apps on desktop
+    #   NSQuitAlwaysKeepsWindows = true; # Keep windows when quitting
+    # };
   };
   
   # Mac Mini-specific applications
@@ -47,7 +47,7 @@
   ];
   
   # Mac Mini specific activation scripts
-  system.activationScripts.extraActivation.text = ''
+  system.activationScripts.macminiOptimization.text = ''
     # Set energy settings for desktop use
     echo "Setting energy preferences for Mac Mini..." >&2
     
