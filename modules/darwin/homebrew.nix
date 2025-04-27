@@ -1,4 +1,39 @@
-"terraform"
+# modules/darwin/homebrew.nix
+{ ... }:
+
+{
+  # macOS applications managed through Homebrew
+  homebrew = {
+    enable = true;
+    onActivation = {
+      autoUpdate = true;
+      cleanup = "zap";
+    };
+    
+    # Homebrew taps
+    taps = [
+      "homebrew/cask"
+      "homebrew/cask-fonts"
+      "homebrew/cask-versions"
+      "homebrew/services"
+    ];
+    
+    # Command-line tools
+    brews = [
+      "coreutils"
+      "direnv"
+      "fd" 
+      "gcc"
+      "git"
+      "grep"
+      "helm"
+      "jq"
+      "k3d"
+      "mas"  # Mac App Store CLI
+      "pnpm"
+      "ripgrep"
+      "svn"
+      "terraform"
       "trash"
     ];
     

@@ -2,8 +2,13 @@
 
 {
   imports = [
+    ./direnv.nix
     ./fish.nix
+    ./ghostty.nix
     ./git.nix
+    ./rectangle.nix
+    ./ssh.nix
+    ./vscode.nix
   ];
   
   # Home Manager basics
