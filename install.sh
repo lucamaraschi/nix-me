@@ -173,32 +173,45 @@ function setup_darwin_based_host() {
         git checkout "$REPO_BRANCH"
     fi
     
-    # Install nix-darwin
+      # Install nix-darwin
     if ! command -v darwin-rebuild &> /dev/null; then
         echo "🛠 Installing nix-darwin"
         
-        # Create a temporary nix-darwin configuration
-        mkdir -p ~/.config/darwin
-        cat > ~/.config/darwin/configuration.nix << EOF
+        # Clone nix-darwin repository
+        DARWIN_DIR=$(mktemp -d)
+        git clone https://github.com/LnL7/nix-darwin "$DARWIN_DIR"
+        
+        # Create a minimal configuration
+        mkdir -p ~/.nixpkgs
+        cat > ~/.nixpkgs/darwin-configuration.nix << EOF
 { pkgs, ... }:
 {
   environment.systemPackages = [ ];
   programs.zsh.enable = true;
   services.nix-daemon.enable = true;
-  system.defaults.NSGlobalDomain.AppleShowScrollBars = "Always";
+  nix.settings.experimental-features = [ "nix-command" "flakes" ];
   system.stateVersion = 4;
-  nixpkgs.hostPlatform = "$([ "$(uname -m)" = "arm64" ] && echo "aarch64-darwin" || echo "x86_64-darwin")";
 }
 EOF
         
-        # Install nix-darwin using flakes
-        nix --extra-experimental-features "nix-command flakes" \
-            run --no-write-lock-file github:lnl7/nix-darwin/master \
-            -- switch --flake "github:lnl7/nix-darwin/master#simple"
-            
-        # Source darwin environment
-        if [ -e "/etc/static/zshrc" ]; then
-            . /etc/static/zshrc
+        # Run the manual bootstrap script
+        echo "yes" | $DARWIN_DIR/bootstrap.sh
+        
+        # Clean up
+        rm -rf "$DARWIN_DIR"
+        
+        # Ensure darwin-rebuild is in the PATH
+        export PATH=$HOME/.nix-profile/bin:$PATH
+        
+        # Source new environment if possible
+        if [ -e /etc/static/bashrc ]; then
+            . /etc/static/bashrc
+        fi
+        
+        # Verify darwin-rebuild is available
+        if ! command -v darwin-rebuild &> /dev/null; then
+            echo "⚠️ darwin-rebuild not found in PATH. Adding ~/.nix-profile/bin to PATH."
+            export PATH=$HOME/.nix-profile/bin:$PATH
         fi
     else
         echo "✅ nix-darwin already installed"
