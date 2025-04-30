@@ -68,25 +68,25 @@
     {
       # Define specific machine configurations
       darwinConfigurations = {
-        # # MacBook configurations
-        # "macbook-pro" = mkDarwinSystem { 
-        #   hostname = "macbook-pro";
-        #   machineType = "macbook";
-        #   machineName = "MacBook Pro";
-        # };
+        # MacBook configurations
+        "gotham" = mkDarwinSystem { 
+          hostname = "gotham";
+          machineType = "macbook";
+          machineName = "Gotham";
+        };
         
-        # "macbook-air" = mkDarwinSystem {
-        #   hostname = "macbook-air"; 
-        #   machineType = "macbook";
-        #   machineName = "MacBook Air";
-        # };
+        "macbook-air" = mkDarwinSystem {
+          hostname = "macbook-air"; 
+          machineType = "macbook";
+          machineName = "MacBook Air";
+        };
         
-        # # Mac Mini configurations
-        # "mac-mini" = mkDarwinSystem { 
-        #   hostname = "mac-mini";
-        #   machineType = "macmini";
-        #   machineName = "Mac Mini";
-        # };
+        # Mac Mini configurations
+        "mac-mini" = mkDarwinSystem { 
+          hostname = "mac-mini";
+          machineType = "macmini";
+          machineName = "Mac Mini";
+        };
         
         # Dynamic configuration (used by the Makefile)
         "${builtins.getEnv "HOSTNAME"}" = 
