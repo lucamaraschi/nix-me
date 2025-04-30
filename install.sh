@@ -172,40 +172,23 @@ function setup_darwin_based_host() {
         git checkout "$REPO_BRANCH"
     fi
     
-    # Install nix-darwin without using bootstrap.sh
+    # Install nix-darwin using the flake directly
 if ! command -v darwin-rebuild &> /dev/null; then
-    echo "🛠 Installing nix-darwin directly"
+    echo "🛠 Installing nix-darwin via flake"
     
-    # Install nix-darwin using nix-env
-    nix-env -iA nixpkgs.nixDarwin
+    # Ensure flakes are enabled
+    mkdir -p ~/.config/nix
+    echo "experimental-features = nix-command flakes" > ~/.config/nix/nix.conf
     
-    # Create basic directories that nix-darwin needs
-    sudo mkdir -p /etc/nix-darwin
-    sudo mkdir -p /etc/static
+    # Use your existing flake to bootstrap nix-darwin
+    cd "$REPO_DIR"
+    nix build .#darwinConfigurations."$HOST_NAME".system
     
-    # Create a minimal configuration
-    mkdir -p ~/.nixpkgs
-    cat > ~/.nixpkgs/darwin-configuration.nix << EOF
-{ pkgs, ... }:
-{
-# Minimal config
-environment.systemPackages = [];
-programs.zsh.enable = true;
-services.nix-daemon.enable = true;
-nix.settings.experimental-features = ["nix-command" "flakes"];
-system.stateVersion = 4;
-}
-EOF
+    # Create necessary directories
+    sudo mkdir -p /etc/nix-darwin /etc/static
     
-    # Build the basic system
-    echo "Building initial nix-darwin system..."
-    darwin-rebuild switch
-    
-    # Verify darwin-rebuild is available
-    if ! command -v darwin-rebuild &> /dev/null; then
-        echo "⚠️ darwin-rebuild still not found in PATH. Adding nix paths to PATH."
-        export PATH=$HOME/.nix-profile/bin:/nix/var/nix/profiles/default/bin:$PATH
-    fi
+    # Activate the system
+    ./result/sw/bin/darwin-rebuild switch --flake .
 else
     echo "✅ nix-darwin already installed"
 fi
