@@ -131,20 +131,19 @@ function setup_darwin_based_host() {
     
     # Install Nix if not already installed
     if [[ $(command -v nix) == "" ]]; then
-        echo "📦 Installing Nix"
-        sh <(curl -L https://nixos.org/nix/install) --daemon
+        echo "📦 Installing Nix using Determinate Systems installer"
+        curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
         
         # Source Nix environment
         if [ -e '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' ]; then
             . '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
         fi
-        
-        # Configure Nix
-        mkdir -p $HOME/.config/nix
-        echo "experimental-features = nix-command flakes" > $HOME/.config/nix/nix.conf
     else
         echo "✅ Nix already installed"
     fi
+    
+    # Make sure PATH includes the Nix directories
+    export PATH=$HOME/.nix-profile/bin:/nix/var/nix/profiles/default/bin:$PATH
     
     # Back up existing Nix configuration
     if [ -f "/etc/nix/nix.conf" ] && [ ! -f "/etc/nix/nix.conf.before-nix-darwin" ]; then
@@ -173,45 +172,45 @@ function setup_darwin_based_host() {
         git checkout "$REPO_BRANCH"
     fi
     
-      # Install nix-darwin
+    # Install nix-darwin
     if ! command -v darwin-rebuild &> /dev/null; then
         echo "🛠 Installing nix-darwin"
         
-        # Clone nix-darwin repository
-        DARWIN_DIR=$(mktemp -d)
-        git clone https://github.com/LnL7/nix-darwin "$DARWIN_DIR"
+        # Download and install nix-darwin
+        cd $(mktemp -d)
+        git clone https://github.com/LnL7/nix-darwin
+        cd nix-darwin
         
-        # Create a minimal configuration
+        # Create a minimal configuration for bootstrap
         mkdir -p ~/.nixpkgs
         cat > ~/.nixpkgs/darwin-configuration.nix << EOF
 { pkgs, ... }:
 {
-  environment.systemPackages = [ ];
+  # Minimal config
+  environment.systemPackages = [];
   programs.zsh.enable = true;
   services.nix-daemon.enable = true;
-  nix.settings.experimental-features = [ "nix-command" "flakes" ];
+  nix.settings.experimental-features = ["nix-command" "flakes"];
   system.stateVersion = 4;
 }
 EOF
         
-        # Run the manual bootstrap script
-        echo "yes" | $DARWIN_DIR/bootstrap.sh
+        # Run bootstrap and answer "yes" to all prompts
+        echo "y
+y
+y
+y
+y
+y
+" | ./bootstrap.sh
         
-        # Clean up
-        rm -rf "$DARWIN_DIR"
-        
-        # Ensure darwin-rebuild is in the PATH
-        export PATH=$HOME/.nix-profile/bin:$PATH
-        
-        # Source new environment if possible
-        if [ -e /etc/static/bashrc ]; then
-            . /etc/static/bashrc
-        fi
+        # Cleanup
+        cd -
         
         # Verify darwin-rebuild is available
         if ! command -v darwin-rebuild &> /dev/null; then
-            echo "⚠️ darwin-rebuild not found in PATH. Adding ~/.nix-profile/bin to PATH."
-            export PATH=$HOME/.nix-profile/bin:$PATH
+            echo "⚠️ darwin-rebuild not found in PATH. Adding nix paths to PATH."
+            export PATH=$HOME/.nix-profile/bin:/nix/var/nix/profiles/default/bin:$PATH
         fi
     else
         echo "✅ nix-darwin already installed"
@@ -220,6 +219,21 @@ EOF
     # Build and activate configuration
     echo "🚀 Building and activating your configuration..."
     cd "$REPO_DIR"
+    
+    # Source nix environment if it's not already sourced
+    if ! command -v nix &>/dev/null; then
+        if [ -e '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' ]; then
+            . '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
+        fi
+    fi
+    
+    # Source darwin environment if it's not already sourced
+    if ! command -v darwin-rebuild &>/dev/null; then
+        PATH=$HOME/.nix-profile/bin:$PATH
+        if [ -e /etc/static/bashrc ]; then
+            . /etc/static/bashrc
+        fi
+    fi
     
     # Use the Makefile from the repository
     if [ -f "$REPO_DIR/Makefile" ]; then
