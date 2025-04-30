@@ -1,18 +1,28 @@
 #!/bin/bash
 
-# Standalone installation script for Nix configuration
-# Run with: curl -L https://your-host.com/install.sh | bash
+# Installation script for Nix/nix-darwin configuration
+# Usage: ./install.sh [hostname] [machine-type] [machine-name]
 
 set -e
 
-# Default values
-HOST_NAME=$(hostname -s)
-MACHINE_TYPE=""
-MACHINE_NAME="$HOST_NAME"
-NIXOS_USERNAME=$(whoami)
-REPO_URL="https://github.com/lucamaraschi/nix-me.git"
-REPO_BRANCH="main"
-REPO_DIR="$HOME/.config/nixpkgs"
+# Default values with proper handling of command-line arguments
+HOST_NAME=${1:-$(hostname -s)}
+MACHINE_TYPE=${2:-""}
+MACHINE_NAME=${3:-"$HOST_NAME"}
+NIXOS_USERNAME=${4:-$(whoami)}
+REPO_URL=${5:-"https://github.com/yourusername/your-nixos-config.git"}
+REPO_BRANCH=${6:-"main"}
+REPO_DIR=${HOME}/.config/nixpkgs
+
+# Auto-detect machine type if not provided
+if [[ -z "$MACHINE_TYPE" ]]; then
+  if [[ "$HOST_NAME" == *"macbook"* || "$HOST_NAME" == *"mba"* ]]; then
+    MACHINE_TYPE="macbook"
+  elif [[ "$HOST_NAME" == *"mini"* ]]; then
+    MACHINE_TYPE="macmini"
+  fi
+  echo "Auto-detected machine type: $MACHINE_TYPE"
+fi
 
 # Print header
 echo "======================================================================"
@@ -22,8 +32,6 @@ echo "   Hostname: $HOST_NAME"
 echo "   Machine Type: $MACHINE_TYPE"
 echo "   Machine Name: $MACHINE_NAME"
 echo "   Username: $NIXOS_USERNAME"
-echo "   Repository: $REPO_URL"
-echo "   Branch: $REPO_BRANCH"
 echo "======================================================================"
 echo ""
 
@@ -74,23 +82,57 @@ function setup_darwin_based_host() {
         echo "🔄 Configuring Homebrew environment"
         if [[ -f /opt/homebrew/bin/brew ]]; then
             # Apple Silicon Mac
-            (echo; echo 'eval "$(/opt/homebrew/bin/brew shellenv)"') >> $HOME/.zprofile
+            echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> $HOME/.zprofile
             eval "$(/opt/homebrew/bin/brew shellenv)"
+            
+            # Also add to current session
+            export PATH="/opt/homebrew/bin:$PATH"
         else
             # Intel Mac
-            (echo; echo 'eval "$(/usr/local/bin/brew shellenv)"') >> $HOME/.zprofile
+            echo 'eval "$(/usr/local/bin/brew shellenv)"' >> $HOME/.zprofile
             eval "$(/usr/local/bin/brew shellenv)"
+            
+            # Also add to current session
+            export PATH="/usr/local/bin:$PATH"
         fi
     else
         echo "✅ Homebrew already installed"
+        
+        # Ensure Homebrew is in PATH for this session regardless
+        if [[ -f /opt/homebrew/bin/brew ]]; then
+            export PATH="/opt/homebrew/bin:$PATH"
+            eval "$(/opt/homebrew/bin/brew shellenv)"
+        elif [[ -f /usr/local/bin/brew ]]; then
+            export PATH="/usr/local/bin:$PATH"
+            eval "$(/usr/local/bin/brew shellenv)"
+        fi
+        
         echo "🔄 Updating Homebrew"
         brew update
+    fi
+    
+    # Verify Homebrew is in PATH
+    if ! command -v brew &>/dev/null; then
+        echo "⚠️ Warning: Homebrew installation appears successful but 'brew' command not found in PATH"
+        echo "Adding Homebrew to PATH for this session..."
+        
+        if [[ -f /opt/homebrew/bin/brew ]]; then
+            export PATH="/opt/homebrew/bin:$PATH"
+        elif [[ -f /usr/local/bin/brew ]]; then
+            export PATH="/usr/local/bin:$PATH"
+        fi
+        
+        # Verify again
+        if ! command -v brew &>/dev/null; then
+            echo "⛔ Error: Unable to find 'brew' command. Installation may have failed."
+            exit 1
+        fi
     fi
     
     # Install Nix if not already installed
     if [[ $(command -v nix) == "" ]]; then
         echo "📦 Installing Nix"
-        curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
+        sh <(curl -L https://nixos.org/nix/install) --daemon
         
         # Source Nix environment
         if [ -e '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' ]; then
@@ -134,12 +176,29 @@ function setup_darwin_based_host() {
     # Install nix-darwin
     if ! command -v darwin-rebuild &> /dev/null; then
         echo "🛠 Installing nix-darwin"
-        nix-build https://github.com/LnL7/nix-darwin/archive/master.tar.gz -A installer
-        ./result/bin/darwin-installer
         
-        # Source darwin environment (if installer didn't do it already)
-        if [ -e "$HOME/.nix-profile/etc/profile.d/nix-darwin.sh" ]; then
-            . "$HOME/.nix-profile/etc/profile.d/nix-darwin.sh"
+        # Create a temporary nix-darwin configuration
+        mkdir -p ~/.config/darwin
+        cat > ~/.config/darwin/configuration.nix << EOF
+{ pkgs, ... }:
+{
+  environment.systemPackages = [ ];
+  programs.zsh.enable = true;
+  services.nix-daemon.enable = true;
+  system.defaults.NSGlobalDomain.AppleShowScrollBars = "Always";
+  system.stateVersion = 4;
+  nixpkgs.hostPlatform = "$([ "$(uname -m)" = "arm64" ] && echo "aarch64-darwin" || echo "x86_64-darwin")";
+}
+EOF
+        
+        # Install nix-darwin using flakes
+        nix --extra-experimental-features "nix-command flakes" \
+            run --no-write-lock-file github:lnl7/nix-darwin/master \
+            -- switch --flake "github:lnl7/nix-darwin/master#simple"
+            
+        # Source darwin environment
+        if [ -e "/etc/static/zshrc" ]; then
+            . /etc/static/zshrc
         fi
     else
         echo "✅ nix-darwin already installed"
@@ -149,17 +208,14 @@ function setup_darwin_based_host() {
     echo "🚀 Building and activating your configuration..."
     cd "$REPO_DIR"
     
-    # Auto-detect machine type if not specified
-    if [[ -z "$MACHINE_TYPE" ]]; then
-        if [[ "$HOST_NAME" == *"macbook"* || "$HOST_NAME" == *"mba"* ]]; then
-            MACHINE_TYPE="macbook"
-        elif [[ "$HOST_NAME" == *"mini"* ]]; then
-            MACHINE_TYPE="macmini"
-        fi
+    # Use the Makefile from the repository
+    if [ -f "$REPO_DIR/Makefile" ]; then
+        make HOSTNAME="$HOST_NAME" MACHINE_TYPE="$MACHINE_TYPE" MACHINE_NAME="$MACHINE_NAME" switch
+    else
+        # Fallback in case the Makefile is missing for some reason
+        echo "⚠️ Warning: Makefile not found in the repository. Using direct command."
+        HOSTNAME="$HOST_NAME" MACHINE_TYPE="$MACHINE_TYPE" MACHINE_NAME="$MACHINE_NAME" darwin-rebuild switch --flake "$REPO_DIR"
     fi
-    
-    # Run the build
-    HOSTNAME="$HOST_NAME" MACHINE_TYPE="$MACHINE_TYPE" MACHINE_NAME="$MACHINE_NAME" darwin-rebuild switch --flake .
     
     echo "✅ Installation completed successfully!"
     echo "🔧 You may need to restart your terminal or computer to apply all changes."
@@ -178,5 +234,5 @@ echo ""
 echo "   Next steps:"
 echo "   1. Restart your terminal or run 'source /etc/bashrc'"
 echo "   2. Customize your configuration in $REPO_DIR"
-echo "   3. Apply changes with 'cd $REPO_DIR && make switch'"
+echo "   3. Apply changes with 'make switch'"
 echo "======================================================================"
