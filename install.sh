@@ -172,55 +172,38 @@ function setup_darwin_based_host() {
         git checkout "$REPO_BRANCH"
     fi
     
-    # Install nix-darwin
+    # Install nix-darwin without using bootstrap.sh
 if ! command -v darwin-rebuild &> /dev/null; then
-    echo "🛠 Installing nix-darwin"
+    echo "🛠 Installing nix-darwin directly"
     
-    # Create a temporary directory
-    TEMP_DIR=$(mktemp -d)
-    echo "Cloning nix-darwin to $TEMP_DIR"
+    # Install nix-darwin using nix-env
+    nix-env -iA nixpkgs.nixDarwin
     
-    # Clone nix-darwin repository
-    cd "$TEMP_DIR"
-    git clone https://github.com/LnL7/nix-darwin
-    
-    # Verify the bootstrap.sh file exists
-    if [ ! -f "$TEMP_DIR/nix-darwin/bootstrap.sh" ]; then
-        echo "⛔ Error: bootstrap.sh not found in the cloned repository."
-        echo "Contents of $TEMP_DIR/nix-darwin:"
-        ls -la "$TEMP_DIR/nix-darwin"
-        exit 1
-    fi
+    # Create basic directories that nix-darwin needs
+    sudo mkdir -p /etc/nix-darwin
+    sudo mkdir -p /etc/static
     
     # Create a minimal configuration
     mkdir -p ~/.nixpkgs
     cat > ~/.nixpkgs/darwin-configuration.nix << EOF
 { pkgs, ... }:
 {
-  # Minimal config
-  environment.systemPackages = [];
-  programs.zsh.enable = true;
-  services.nix-daemon.enable = true;
-  nix.settings.experimental-features = ["nix-command" "flakes"];
-  system.stateVersion = 4;
+# Minimal config
+environment.systemPackages = [];
+programs.zsh.enable = true;
+services.nix-daemon.enable = true;
+nix.settings.experimental-features = ["nix-command" "flakes"];
+system.stateVersion = 4;
 }
 EOF
     
-    # Run bootstrap with explicit path and answer "yes" to all prompts
-    echo "y
-y
-y
-y
-y
-y
-" | "$TEMP_DIR/nix-darwin/bootstrap.sh"
-    
-    # Cleanup
-    rm -rf "$TEMP_DIR"
+    # Build the basic system
+    echo "Building initial nix-darwin system..."
+    darwin-rebuild switch
     
     # Verify darwin-rebuild is available
     if ! command -v darwin-rebuild &> /dev/null; then
-        echo "⚠️ darwin-rebuild not found in PATH. Adding nix paths to PATH."
+        echo "⚠️ darwin-rebuild still not found in PATH. Adding nix paths to PATH."
         export PATH=$HOME/.nix-profile/bin:/nix/var/nix/profiles/default/bin:$PATH
     fi
 else
