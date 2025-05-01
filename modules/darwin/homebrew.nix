@@ -1,5 +1,5 @@
 # modules/darwin/homebrew.nix
-{ ... }:
+{ pkgs, ... }:
 
 {
   # macOS applications managed through Homebrew
