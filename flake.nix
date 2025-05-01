@@ -15,6 +15,33 @@
 
   outputs = inputs@{ nixpkgs, darwin, home-manager, ... }:
     let
+    # Function to determine username from various sources
+      getUsername = 
+        # Try several methods to find the username, in order of preference
+      let
+        # 1. Check if USER env var is set
+        fromEnv = builtins.getEnv "USER";
+        
+        # 2. Try to get from the HOME path
+        fromHome = let
+          home = builtins.getEnv "HOME";
+          parts = if home != "" then builtins.split "/" home else [];
+          lastIndex = if builtins.length parts > 0 then builtins.length parts - 1 else 0;
+          username = if lastIndex > 0 then builtins.elemAt parts lastIndex else "";
+        in username;
+        
+        # 3. Fall back to LOGNAME
+        fromLogname = builtins.getEnv "LOGNAME";
+        
+        # 4. Last resort default
+        defaultUser = "lucamaraschi";
+      in
+        if fromEnv != "" then fromEnv
+        else if fromHome != "" then fromHome
+        else if fromLogname != "" then fromLogname
+        else defaultUser;
+      
+      username = getUsername;
       # Function to create a darwin configuration
       mkDarwinSystem = { 
         hostname,
@@ -51,7 +78,7 @@
             {
               home-manager.useGlobalPkgs = true;
               home-manager.useUserPackages = true;
-              home-manager.users.${builtins.getEnv "USER"} = import ./modules/home-manager;
+              home-manager.users.${username} = import ./modules/home-manager;
             }
             
             # Overlays
@@ -62,7 +89,7 @@
               ];
             }
           ] ++ extraModules;
-          specialArgs = { inherit inputs hostname machineType machineName; };
+          specialArgs = { inherit inputs hostname machineType machineName username; };
         };
     in
     {
