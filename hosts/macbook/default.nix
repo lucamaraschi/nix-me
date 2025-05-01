@@ -15,7 +15,7 @@
     
     # Energy saving preferences
     NSGlobalDomain = {
-      NSAutomaticTermination = true; # Auto-terminate inactive apps
+      # NSAutomaticTermination = true; # Auto-terminate inactive apps
       NSQuitAlwaysKeepsWindows = false; # Don't keep windows when quitting
     };
     

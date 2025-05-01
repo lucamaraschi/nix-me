@@ -21,7 +21,7 @@
     
     NSGlobalDomain = {
       NSWindowResizeTime = 0.1; # Faster window resizing
-      NSAutomaticTermination = false; # Don't auto-terminate apps on desktop
+      # NSAutomaticTermination = false; # Don't auto-terminate apps on desktop
       NSQuitAlwaysKeepsWindows = true; # Keep windows when quitting
     };
   };
