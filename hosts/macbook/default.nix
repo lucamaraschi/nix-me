@@ -13,11 +13,11 @@
       ActuationStrength = 1; # Lighter click force
     };
     
-    # Energy saving preferences
-    NSGlobalDomain = {
-      # NSAutomaticTermination = true; # Auto-terminate inactive apps
-      NSQuitAlwaysKeepsWindows = false; # Don't keep windows when quitting
-    };
+    # # Energy saving preferences
+    # NSGlobalDomain = {
+    #   # NSAutomaticTermination = true; # Auto-terminate inactive apps
+    #   NSQuitAlwaysKeepsWindows = false; # Don't keep windows when quitting
+    # };
     
     # Custom power management settings
     CustomUserPreferences = {

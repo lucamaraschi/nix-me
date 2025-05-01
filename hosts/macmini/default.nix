@@ -19,11 +19,11 @@
       CreateDesktop = true; # Show desktop icons
     };
     
-    NSGlobalDomain = {
-      NSWindowResizeTime = 0.1; # Faster window resizing
-      # NSAutomaticTermination = false; # Don't auto-terminate apps on desktop
-      NSQuitAlwaysKeepsWindows = true; # Keep windows when quitting
-    };
+    # NSGlobalDomain = {
+    #   NSWindowResizeTime = 0.1; # Faster window resizing
+    #   # NSAutomaticTermination = false; # Don't auto-terminate apps on desktop
+    #   NSQuitAlwaysKeepsWindows = true; # Keep windows when quitting
+    # };
   };
   
   # Mac Mini-specific applications
