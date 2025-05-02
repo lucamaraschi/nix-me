@@ -136,7 +136,7 @@ function setup_darwin_based_host() {
         
         # Source Nix environment
         if [ -e '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' ]; then
-            . '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
+            . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
         fi
     else
         echo "✅ Nix already installed"
