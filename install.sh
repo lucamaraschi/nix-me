@@ -10,7 +10,7 @@ HOST_NAME=${1:-$(hostname -s)}
 MACHINE_TYPE=${2:-""}
 MACHINE_NAME=${3:-"$HOST_NAME"}
 NIXOS_USERNAME=${4:-$(whoami)}
-REPO_URL=${5:-"https://github.com/yourusername/your-nixos-config.git"}
+REPO_URL=${5:-"https://github.com/lucamaraschi/nix-me.git"}
 REPO_BRANCH=${6:-"main"}
 REPO_DIR=${HOME}/.config/nixpkgs
 
@@ -165,7 +165,7 @@ function setup_darwin_based_host() {
         git checkout "$REPO_BRANCH"
         git pull
     else
-        echo "📥 Cloning configuration repository"
+        echo "📥 Cloning configuration repository $REPO_URL"
         mkdir -p "$REPO_DIR"
         git clone "$REPO_URL" "$REPO_DIR"
         cd "$REPO_DIR"
