@@ -89,7 +89,9 @@
               ];
             }
           ] ++ extraModules;
-          specialArgs = { inherit inputs hostname machineType machineName username; };
+          specialArgs = { 
+            inherit inputs hostname machineType machineName username; 
+          };
         };
     in
     {
