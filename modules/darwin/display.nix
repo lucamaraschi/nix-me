@@ -9,7 +9,7 @@
     echo "Setting display resolution to maximum (More Space)..." >&2
     
     # Create a script to handle display configuration
-    mkdir -p $HOME/.config/nixpkgs/scripts
+    mkdir -p "$HOME"/.config/nixpkgs/scripts
     cat > "$HOME"/.config/nixpkgs/scripts/configure-displays.sh << 'EOF'
 #!/bin/bash
 

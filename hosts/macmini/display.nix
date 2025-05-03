@@ -7,7 +7,7 @@
     # For Mac Mini, we might have a specific multi-monitor setup
     if [[ "$(hostname -s)" == "mac-mini" ]]; then
       # Example: If this is a known setup with specific arrangement
-      $HOME/.config/nixpkgs/scripts/configure-displays.sh
+      "$HOME"/.config/nixpkgs/scripts/configure-displays.sh
     fi
   '';
 }

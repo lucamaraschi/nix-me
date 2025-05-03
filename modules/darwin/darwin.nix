@@ -8,8 +8,8 @@
     echo "Configuring multiple displays with maximum resolution..." >&2
     
     # Create a script to handle display configuration
-    mkdir -p $HOME/.config/nixpkgs/scripts
-    cat > $HOME/.config/nixpkgs/scripts/configure-displays.sh << 'EOF'
+    mkdir -p "$HOME"/.config/nixpkgs/scripts
+    cat > "$HOME"/.config/nixpkgs/scripts/configure-displays.sh << 'EOF'
 #!/bin/bash
 
 # Script to configure all displays to their maximum resolution
@@ -84,10 +84,10 @@ fi
 EOF
 
     # Make the script executable
-    chmod +x $HOME/.config/nixpkgs/scripts/configure-displays.sh
+    chmod +x "$HOME"/.config/nixpkgs/scripts/configure-displays.sh
     
     # Run the display configuration script
-    $HOME/.config/nixpkgs/scripts/configure-displays.sh
+    "$HOME"/.config/nixpkgs/scripts/configure-displays.sh
   '';
   
   # Install required packages
