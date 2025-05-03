@@ -98,17 +98,6 @@
     
     # Add functionality directly in home-manager instead of plugins
     plugins = [
-      # Add PatrickF1/fzf.fish plugin
-      {
-        name = "fzf-fish";
-        src = pkgs.fetchFromGitHub {
-          owner = "PatrickF1";
-          repo = "fzf.fish";
-          # You may want to update this to the latest revision
-          rev = "v9.2"; # Check for the latest version on GitHub
-          sha256 = "0k6cy6ycnhnrvcknj3hzqnzdhk176l7cfkgmr0x8rrbk6gf2krkh"; # This is an example hash - you need to update it
-        };
-      }
     ];
     
     shellAliases = {
@@ -167,7 +156,13 @@
     # autopair
     ".config/fish/plugins/autopair/conf.d/autopair.fish".source = pkgs.fetchurl {
       url = "https://raw.githubusercontent.com/jorgebucaran/autopair.fish/main/conf.d/autopair.fish";
-      sha256 = "sha256-EgOrd1uBBz5J61DPJEoGP6+tCwXY79oEILM32Xix70Q=";  # Updated hash from error message
+      sha256 = "sha256-EgOrd1uBBz5J61DPJEoGP6+tCwXY79oEILM32Xix70Q=";
+    };
+
+    #fzf
+    ".config/fish/plugins/autopair/conf.d/fzf.fish".source = pkgs.fetchurl {
+      url = "https://raw.githubusercontent.com/PatrickF1/fzf.fish/refs/heads/main/conf.d/fzf.fish";
+      sha256 = "sha256-XmRGe39O3xXmTvfawwT2mCwLIyXOlQm7f40mH5tzz+s=";
     }; 
     # Include any other plugins you want using the same pattern
   };
