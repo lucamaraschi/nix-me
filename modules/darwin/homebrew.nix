@@ -96,7 +96,7 @@
     echo "setting up ~/Applications..." >&2
     rm -rf ~/Applications/Nix\ Apps
     mkdir -p ~/Applications/Nix\ Apps
-    for app in $(find ${pkgs.config.system.build.applications}/Applications -maxdepth 1 -type l); do
+    for app in $(find ${config.system.build.applications}/Applications -maxdepth 1 -type l 2>/dev/null || echo ""); do
       ln -sf "$app" ~/Applications/Nix\ Apps/
     done
   '';
