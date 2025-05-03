@@ -130,16 +130,47 @@ function setup_darwin_based_host() {
     fi
     
     # Install Nix if not already installed
-    if [[ $(command -v nix) == "" ]]; then
-        echo "📦 Installing Nix using Determinate Systems installer"
+    # Check for Nix installation and daemon status
+    if ! command -v nix &> /dev/null; then
+        echo "📦 Nix is not installed. Installing Nix..."
         curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
         
         # Source Nix environment
         if [ -e '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' ]; then
-            . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
+            . '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
         fi
     else
-        echo "✅ Nix already installed"
+        echo "✅ Nix is already installed."
+        
+        # Check if nix-daemon is running
+        if ! pgrep -x "nix-daemon" &> /dev/null; then
+            echo "🔄 Nix daemon is not running. Starting nix-daemon..."
+            
+            # Check platform-specific daemon start methods
+            if [ -e "/Library/LaunchDaemons/org.nixos.nix-daemon.plist" ]; then
+                # macOS LaunchDaemon
+                sudo launchctl load /Library/LaunchDaemons/org.nixos.nix-daemon.plist
+            elif [ -e "/etc/systemd/system/nix-daemon.service" ]; then
+                # Linux systemd
+                sudo systemctl start nix-daemon
+            else
+                # Fallback for other platforms or installation methods
+                echo "⚠️ Could not determine how to start nix-daemon automatically."
+                echo "Please start the nix-daemon manually and run this script again."
+                exit 1
+            fi
+            
+            # Verify daemon started
+            sleep 2
+            if pgrep -x "nix-daemon" &> /dev/null; then
+                echo "✅ Nix daemon started successfully."
+            else
+                echo "⛔ Failed to start nix-daemon. Please start it manually and run this script again."
+                exit 1
+            fi
+        else
+            echo "✅ Nix daemon is already running."
+        fi
     fi
     
     # Make sure PATH includes the Nix directories
