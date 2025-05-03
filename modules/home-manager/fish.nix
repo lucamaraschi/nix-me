@@ -73,14 +73,14 @@
         };
       }
       
-      # Fish colored man pages
+      # Alternative: fzf.fish includes colored man pages and more
       {
-        name = "colored-man-pages";
+        name = "fzf-fish";
         src = pkgs.fetchFromGitHub {
-          owner = "decors";
-          repo = "fish-colored-man";
-          rev = "1ad8fff696d48dcd8a683277e025ec2dfc1fe21f"; # Last commit
-          sha256 = "sha256-GI5/ufIeI11kCtezKXp/xpUQwiQvXsbO/8pEEwKiJ2U=";
+          owner = "PatrickF1";
+          repo = "fzf.fish";
+          rev = "6d8e962f3ed84e42583cac7d5af39b91590a5a95"; # Current master
+          sha256 = "sha256-0rnd8oJzLw8x/U7OLqy5ILOEaRRe+UWtChz0oszP90k=";
         };
       }
     ];
