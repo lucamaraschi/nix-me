@@ -75,12 +75,12 @@
       
       # Fish colored man pages
       {
-        name = "fish-colored-man";
+        name = "colored-man-pages";
         src = pkgs.fetchFromGitHub {
-          owner = "PatrickF1";
-          repo = "colored_man_pages.fish";
-          rev = "f335d2ab1d56667c3a2dce849354a05a39bf89c2"; # Current master commit
-          sha256 = "sha256-fo5gJ0z9ZhMdJUQFMcOrlOdc+ATaHCf1qK7bdJli3xk=";
+          owner = "decors";
+          repo = "fish-colored-man";
+          rev = "1ad8fff696d48dcd8a683277e025ec2dfc1fe21f"; # Last commit
+          sha256 = "sha256-GI5/ufIeI11kCtezKXp/xpUQwiQvXsbO/8pEEwKiJ2U=";
         };
       }
     ];
