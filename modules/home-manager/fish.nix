@@ -97,7 +97,19 @@
     '';
     
     # Add functionality directly in home-manager instead of plugins
-    plugins = [];
+    plugins = [
+      # Add PatrickF1/fzf.fish plugin
+      {
+        name = "fzf-fish";
+        src = pkgs.fetchFromGitHub {
+          owner = "PatrickF1";
+          repo = "fzf.fish";
+          # You may want to update this to the latest revision
+          rev = "v9.2"; # Check for the latest version on GitHub
+          sha256 = "0k6cy6ycnhnrvcknj3hzqnzdhk176l7cfkgmr0x8rrbk6gf2krkh"; # This is an example hash - you need to update it
+        };
+      }
+    ];
     
     shellAliases = {
       ls = "ls --color=auto";
@@ -149,22 +161,6 @@
       };
     };
   };
-
-  programs.fish.plugins = [
-    # Remove the jethrokuan/z plugin if it exists
-    
-    # Add PatrickF1/fzf.fish plugin
-    {
-      name = "fzf-fish";
-      src = pkgs.fetchFromGitHub {
-        owner = "PatrickF1";
-        repo = "fzf.fish";
-        # You may want to update this to the latest revision
-        rev = "v9.2"; # Check for the latest version on GitHub
-        sha256 = "0k6cy6ycnhnrvcknj3hzqnzdhk176l7cfkgmr0x8rrbk6gf2krkh"; # This is an example hash - you need to update it
-      };
-    }
-  ];
 
   # Create plugin directories manually
   home.file = {
