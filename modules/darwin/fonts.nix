@@ -6,8 +6,8 @@
     
     # Install these fonts
     packages = with pkgs; [
-      nerdfonts.firaCode
-      nerdfonts.jetbrainsMono
+      nerd-fonts.firaCode
+      nerd-fonts.jetbrainsMono
       font-awesome
       material-design-icons
       tenderness
