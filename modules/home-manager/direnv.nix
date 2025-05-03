@@ -20,7 +20,7 @@
       }
     '';
     
-    enableFishIntegration = true;
+    # enableFishIntegration = true;
   };
   
   # Add .envrc templates to help with common project types
