@@ -83,17 +83,6 @@
           sha256 = "sha256-fo5gJ0z9ZhMdJUQFMcOrlOdc+ATaHCf1qK7bdJli3xk=";
         };
       }
-      
-      # Auto-matching pairs - now using patrickf1's autopair
-      {
-        name = "autopair";
-        src = pkgs.fetchFromGitHub {
-          owner = "PatrickF1";
-          repo = "autopair.fish";
-          rev = "1222311994a0730e53d0708e185c53766e420461"; # Current master commit
-          sha256 = "sha256-EAwT9TI2vlQ0X2t3/R96aq+CrGJNoCk7A95nrb/QxJY=";
-        };
-      }
     ];
     
     shellAliases = {
