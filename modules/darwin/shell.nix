@@ -3,9 +3,7 @@
 {
   # Shell environment configuration
   environment = {
-    # Set Fish as login shell
-    loginShell = pkgs.fish;
-    
+        
     # List of allowed shells
     shells = with pkgs; [ 
       bash 
