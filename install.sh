@@ -130,48 +130,65 @@ function setup_darwin_based_host() {
     fi
     
     # Install Nix if not already installed
-    # Check for Nix installation and daemon status
-    if ! command -v nix &> /dev/null; then
-        echo "📦 Nix is not installed. Installing Nix..."
-        curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
+    # Check if Nix installation and daemon status
+if ! command -v nix &> /dev/null; then
+    echo "📦 Nix is not installed. Installing Nix..."
+    curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
+    
+    # Source Nix environment
+    if [ -e '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' ]; then
+        . '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
+    fi
+else
+    echo "✅ Nix is already installed."
+    
+    # Check if nix-daemon is running
+    if ! pgrep -x "nix-daemon" &> /dev/null; then
+        echo "🔄 Nix daemon is not running. Starting nix-daemon..."
         
-        # Source Nix environment
-        if [ -e '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' ]; then
-            . '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
-        fi
-    else
-        echo "✅ Nix is already installed."
-        
-        # Check if nix-daemon is running
-        if ! pgrep -x "nix-daemon" &> /dev/null; then
-            echo "🔄 Nix daemon is not running. Starting nix-daemon..."
-            
-            # Check platform-specific daemon start methods
+        # Check if we can run a simple nix command
+        if ! nix-instantiate --eval -E 'builtins.currentTime' &> /dev/null; then
+            # Try the most common methods to start the daemon
             if [ -e "/Library/LaunchDaemons/org.nixos.nix-daemon.plist" ]; then
-                # macOS LaunchDaemon
+                echo "Starting nix-daemon via launchctl..."
                 sudo launchctl load /Library/LaunchDaemons/org.nixos.nix-daemon.plist
-            elif [ -e "/etc/systemd/system/nix-daemon.service" ]; then
-                # Linux systemd
+            elif [ -e "/nix/var/nix/profiles/default/etc/systemd/system/nix-daemon.service" ]; then
+                echo "Starting nix-daemon via systemd..."
                 sudo systemctl start nix-daemon
+            elif [ -e "/nix/var/nix/profiles/default/etc/init.d/nix-daemon" ]; then
+                echo "Starting nix-daemon via init.d..."
+                sudo /nix/var/nix/profiles/default/etc/init.d/nix-daemon start
             else
-                # Fallback for other platforms or installation methods
-                echo "⚠️ Could not determine how to start nix-daemon automatically."
-                echo "Please start the nix-daemon manually and run this script again."
-                exit 1
-            fi
-            
-            # Verify daemon started
-            sleep 2
-            if pgrep -x "nix-daemon" &> /dev/null; then
-                echo "✅ Nix daemon started successfully."
-            else
-                echo "⛔ Failed to start nix-daemon. Please start it manually and run this script again."
-                exit 1
+                # Last resort: Try to find the daemon binary and run it directly
+                NIX_DAEMON_PATH=$(find /nix -name "nix-daemon" -type f -executable 2>/dev/null | head -n1)
+                if [ -n "$NIX_DAEMON_PATH" ]; then
+                    echo "Starting nix-daemon directly from $NIX_DAEMON_PATH..."
+                    sudo "$NIX_DAEMON_PATH" &
+                    sleep 2
+                else
+                    echo "⚠️ Could not find nix-daemon binary."
+                    echo "Please start the Nix daemon manually and run this script again."
+                    echo "You may need to restart your computer for changes to take effect."
+                    exit 1
+                fi
             fi
         else
-            echo "✅ Nix daemon is already running."
+            echo "Nix commands are working, proceeding without explicitly starting the daemon."
         fi
+        
+        # Verify daemon is working
+        sleep 2
+        if nix-instantiate --eval -E 'builtins.currentTime' &> /dev/null; then
+            echo "✅ Nix daemon is functioning correctly."
+        else
+            echo "⛔ Nix daemon doesn't appear to be working properly."
+            echo "You may need to restart your computer for changes to take effect."
+            echo "Attempting to continue anyway..."
+        fi
+    else
+        echo "✅ Nix daemon is already running."
     fi
+fi
     
     # Make sure PATH includes the Nix directories
     export PATH=$HOME/.nix-profile/bin:/nix/var/nix/profiles/default/bin:$PATH
