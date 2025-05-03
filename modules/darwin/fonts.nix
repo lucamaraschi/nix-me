@@ -6,12 +6,8 @@
     
     # Install these fonts
     packages = with pkgs; [
-      nerdfonts.override {
-        fonts = [
-          "FiraCode"
-          "JetBrainsMono"
-        ];
-      }
+      nerdfonts.firaCode
+      nerdfonts.jetbrainsMono
       font-awesome
       material-design-icons
       tenderness
