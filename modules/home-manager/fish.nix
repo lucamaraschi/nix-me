@@ -161,9 +161,8 @@
     # autopair
     ".config/fish/plugins/autopair/conf.d/autopair.fish".source = pkgs.fetchurl {
       url = "https://raw.githubusercontent.com/jorgebucaran/autopair.fish/main/conf.d/autopair.fish";
-      sha256 = "sha256-T9GFChGGlwEDO5o9PsyXN4AJJJlbQJLOtH1771NtZ/c=";
-    };
-    
+      sha256 = "sha256-EgOrd1uBBz5J61DPJEoGP6+tCwXY79oEILM32Xix70Q=";  # Updated hash from error message
+    }; 
     # Include any other plugins you want using the same pattern
   };
   
