@@ -68,18 +68,30 @@
         src = pkgs.fetchFromGitHub {
           owner = "jethrokuan";
           repo = "z";
-          rev = "e0e1b9dfdba362f8ab1ae8c1afc7ccf62b89f7eb";
-          sha256 = "0dbnir6jbwjpjalz14snzd3cgdysgcs3raznsijd6savad3qhijc";
+          rev = "85f863f20f24faf675827fb00f3a4e15c7838d76"; # Current master commit
+          sha256 = "sha256-+FUBM7CodtZrYKqU542fQD+ZDGrd2438trKM0tIESs0=";
         };
       }
+      
       # Fish colored man pages
       {
         name = "fish-colored-man";
         src = pkgs.fetchFromGitHub {
-          owner = "decors";
-          repo = "fish-colored-man";
-          rev = "1ad8fff696d48dcd8a683277e025ec2dfc1fe21f";
-          sha256 = "0yc3xf9smqshj7cc94h8nai0gihs8g8qj95nqfify2jy7kgr0dkm";
+          owner = "PatrickF1";
+          repo = "colored_man_pages.fish";
+          rev = "f335d2ab1d56667c3a2dce849354a05a39bf89c2"; # Current master commit
+          sha256 = "sha256-fo5gJ0z9ZhMdJUQFMcOrlOdc+ATaHCf1qK7bdJli3xk=";
+        };
+      }
+      
+      # Auto-matching pairs - now using patrickf1's autopair
+      {
+        name = "autopair";
+        src = pkgs.fetchFromGitHub {
+          owner = "PatrickF1";
+          repo = "autopair.fish";
+          rev = "1222311994a0730e53d0708e185c53766e420461"; # Current master commit
+          sha256 = "sha256-EAwT9TI2vlQ0X2t3/R96aq+CrGJNoCk7A95nrb/QxJY=";
         };
       }
     ];
