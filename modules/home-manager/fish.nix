@@ -3,6 +3,48 @@
 {
   programs.fish = {
     enable = true;
+
+    packages = with pkgs.fishPlugins; [
+      # Directory jumping
+      z
+      
+      # Colored man pages - use your own function instead of a plugin
+      {
+        name = "colored-man";
+        src = pkgs.writeTextFile {
+          name = "colored-man.fish";
+          text = ''
+            # Colored man pages
+            function man --wraps man
+                set -l bold_ansi_code "\u001b[1m"
+                set -l underline_ansi_code "\u001b[4m"
+                set -l reversed_ansi_code "\u001b[7m"
+                set -l reset_ansi_code "\u001b[0m"
+                set -l teal_ansi_code "\u001b[36m"
+                set -l green_ansi_code "\u001b[32m"
+                set -l blue_ansi_code "\u001b[34m"
+                set -l yellow_ansi_code "\u001b[33m"
+
+                set -x LESS_TERMCAP_md (echo -e $bold_ansi_code$teal_ansi_code)
+                set -x LESS_TERMCAP_me (echo -e $reset_ansi_code)
+                set -x LESS_TERMCAP_us (echo -e $underline_ansi_code$green_ansi_code)
+                set -x LESS_TERMCAP_ue (echo -e $reset_ansi_code)
+                set -x LESS_TERMCAP_so (echo -e $reversed_ansi_code$blue_ansi_code)
+                set -x LESS_TERMCAP_se (echo -e $reset_ansi_code)
+
+                command man $argv
+            end
+          '';
+          destination = "/colored-man.fish";
+        };
+      }
+      
+      # Auto-pairing of brackets, quotes, etc.
+      autopair
+      
+      # Optional: fzf integration 
+      fzf-fish
+    ];
     
     interactiveShellInit = ''
       # Set fish greeting
@@ -60,19 +102,6 @@
         git commit -m $argv
       end
     '';
-    
-    plugins = [
-      # Z for directory jumping
-      {
-        name = "z";
-        src = pkgs.fetchFromGitHub {
-          owner = "jethrokuan";
-          repo = "z";
-          rev = "85f863f20f24faf675827fb00f3a4e15c7838d76"; # Current master commit
-          sha256 = "sha256-+FUBM7CodtZrYKqU542fQD+ZDGrd2438trKM0tIESs0=";
-        };
-      }
-    ];
     
     shellAliases = {
       ls = "ls --color=auto";

@@ -66,6 +66,6 @@
     find ~/Library/Application\ Support/Dock -name "*.db" -maxdepth 1 -delete
 
     # Touch a last-rebuild file so we can tell when the system was last rebuilt
-    printf "%s" "$(date)" > $HOME/.nix-last-rebuild
+    printf "%s" "$(date)" > "$HOME"/.nix-last-rebuild
   '';
 }
