@@ -109,7 +109,7 @@
       
       # Language support
       ms-python.python
-      matklad.rust-analyzer
+      rust-lang.rust-analyzer
       golang.go
       hashicorp.terraform
       jnoortheen.nix-ide
