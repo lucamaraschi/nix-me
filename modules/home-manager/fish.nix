@@ -150,14 +150,24 @@
     };
   };
 
+  programs.fish.plugins = [
+    # Remove the jethrokuan/z plugin if it exists
+    
+    # Add PatrickF1/fzf.fish plugin
+    {
+      name = "fzf-fish";
+      src = pkgs.fetchFromGitHub {
+        owner = "PatrickF1";
+        repo = "fzf.fish";
+        # You may want to update this to the latest revision
+        rev = "v9.2"; # Check for the latest version on GitHub
+        sha256 = "0k6cy6ycnhnrvcknj3hzqnzdhk176l7cfkgmr0x8rrbk6gf2krkh"; # This is an example hash - you need to update it
+      };
+    }
+  ];
+
   # Create plugin directories manually
   home.file = {
-    # z for directory jumping
-    ".config/fish/plugins/z/functions/z.fish".source = pkgs.fetchurl {
-      url = "https://raw.githubusercontent.com/jethrokuan/z/master/functions/z.fish";
-      sha256 = "sha256-qZqqw1uIi4N36Z80NQ7bE8/EKa0W+NKzcQwGkUmRdB0=";
-    };
-    
     # autopair
     ".config/fish/plugins/autopair/conf.d/autopair.fish".source = pkgs.fetchurl {
       url = "https://raw.githubusercontent.com/jorgebucaran/autopair.fish/main/conf.d/autopair.fish";
@@ -171,6 +181,7 @@
     bat       # Better cat
     eza       # Better ls
     fd        # Better find
+    fzf
     ripgrep   # Better grep
     starship  # Customizable prompt
   ];
