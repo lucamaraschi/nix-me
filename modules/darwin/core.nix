@@ -2,7 +2,8 @@
 
 {
   system.stateVersion = 6;
-  
+  nixpkgs.config.allowUnfree = true;
+
   # Core system configuration
   nix = {
     package = pkgs.nix;
