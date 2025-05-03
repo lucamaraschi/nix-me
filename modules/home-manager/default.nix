@@ -8,6 +8,7 @@
     ./git.nix
     ./rectangle.nix
     ./ssh.nix
+    ./tmux.nix
     ./vscode.nix
   ];
   

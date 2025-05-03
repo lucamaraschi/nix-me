@@ -55,7 +55,7 @@
   };
   
   # Security settings
-  security.pam.enableSudoTouchIdAuth = true;
+  security.pam.services.sudo_local.touchIdAuth = true;
   
   # Common fonts
   fonts.packages = with pkgs; [

@@ -3,8 +3,6 @@
 {
   # Font configuration
   fonts = {
-    # Enable font directory
-    fontDir.enable = true;
     
     # Install these fonts
     packages = with pkgs; [

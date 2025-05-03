@@ -1,10 +1,13 @@
 { pkgs, ... }:
 
 {
+  system.stateVersion = 6;
+  
   # Core system configuration
   nix = {
     package = pkgs.nix;
-    
+    optimise.automatic = true;
+
     # Garbage collection
     gc = {
       automatic = true;
@@ -17,7 +20,6 @@
     
     # Nix settings
     settings = {
-      auto-optimise-store = true;
       experimental-features = [ "nix-command" "flakes" ];
       warn-dirty = false;
     };
@@ -32,7 +34,7 @@
   };
 
   # Enable nix-darwin services
-  services.nix-daemon.enable = true;
+  nix.enable = true;
   
   # Environment setup
   environment = {
