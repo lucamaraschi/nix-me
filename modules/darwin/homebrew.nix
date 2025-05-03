@@ -1,5 +1,5 @@
 # modules/darwin/homebrew.nix
-{ pkgs, ... }:
+{ config, lib, pkgs, ... }:
 
 {
   # macOS applications managed through Homebrew
@@ -96,8 +96,15 @@
     echo "setting up ~/Applications..." >&2
     rm -rf ~/Applications/Nix\ Apps
     mkdir -p ~/Applications/Nix\ Apps
-    for app in $(find ${config.system.build.applications}/Applications -maxdepth 1 -type l 2>/dev/null || echo ""); do
-      ln -sf "$app" ~/Applications/Nix\ Apps/
-    done
+    
+    # Use the applications path from config
+    APPS_DIR="${config.system.build.applications}/Applications"
+    if [ -d "$APPS_DIR" ]; then
+      for app in $(find "$APPS_DIR" -maxdepth 1 -type l 2>/dev/null || echo ""); do
+        ln -sf "$app" ~/Applications/Nix\ Apps/
+      done
+    else
+      echo "Applications directory not found at $APPS_DIR" >&2
+    fi
   '';
 }
