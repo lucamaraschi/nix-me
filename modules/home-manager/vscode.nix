@@ -2,7 +2,7 @@
 { config, lib, pkgs, ... }:
 
 {
-  programs.vscode = {
+  programs.vscode.profiles.default = {
     enable = true;
     
     userSettings = {

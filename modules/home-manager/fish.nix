@@ -138,7 +138,7 @@
   # Install additional tools that complement fish
   home.packages = with pkgs; [
     bat       # Better cat
-    exa       # Better ls
+    eza       # Better ls
     fd        # Better find
     ripgrep   # Better grep
     starship  # Customizable prompt
