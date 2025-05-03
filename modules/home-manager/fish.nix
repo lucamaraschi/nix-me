@@ -72,17 +72,6 @@
           sha256 = "sha256-+FUBM7CodtZrYKqU542fQD+ZDGrd2438trKM0tIESs0=";
         };
       }
-      
-      # Alternative: fzf.fish includes colored man pages and more
-      {
-        name = "fzf-fish";
-        src = pkgs.fetchFromGitHub {
-          owner = "PatrickF1";
-          repo = "fzf.fish";
-          rev = "6d8e962f3ed84e42583cac7d5af39b91590a5a95"; # Current master
-          sha256 = "sha256-0rnd8oJzLw8x/U7OLqy5ILOEaRRe+UWtChz0oszP90k=";
-        };
-      }
     ];
     
     shellAliases = {
