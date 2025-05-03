@@ -13,7 +13,6 @@
       tenderness
       spleen
       inter
-      sf-mono
       source-code-pro
     ];
   };
