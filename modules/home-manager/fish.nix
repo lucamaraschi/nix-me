@@ -162,7 +162,7 @@
     #fzf
     ".config/fish/plugins/autopair/conf.d/fzf.fish".source = pkgs.fetchurl {
       url = "https://raw.githubusercontent.com/PatrickF1/fzf.fish/refs/heads/main/conf.d/fzf.fish";
-      sha256 = "sha256-XmRGe39O3xXmTvfawwT2mCwLIyXOlQm7f40mH5tzz+s=";
+      sha256 = "sha256-71siHJOn3og0HR37ju2K/sFd7KaXgpBDCV+vjyfJr+0=";
     }; 
     # Include any other plugins you want using the same pattern
   };
