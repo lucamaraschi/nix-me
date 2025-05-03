@@ -13,7 +13,6 @@
   
   # Home Manager basics
   home.stateVersion = "23.11";
-  # home.homeDirectory = "/Users/${username}";
   
   # Install user packages
   home.packages = with pkgs; [
