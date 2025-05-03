@@ -7,7 +7,7 @@
     jq
     ripgrep
     fd
-    exa
+    eza
     bat
     tree
     htop
