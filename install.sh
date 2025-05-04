@@ -238,7 +238,7 @@ echo "HOST_NAME: $HOST_NAME"
     sudo mkdir -p /etc/nix-darwin /etc/static
     
     # Activate the system
-    ./result/sw/bin/darwin-rebuild switch --flake .
+    ./result/sw/bin/darwin-rebuild switch --flake ".#$HOST_NAME"
 else
     echo "✅ nix-darwin already installed"
 fi
