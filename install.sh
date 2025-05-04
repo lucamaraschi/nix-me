@@ -230,6 +230,7 @@ if ! command -v darwin-rebuild &> /dev/null; then
     
     # Use your existing flake to bootstrap nix-darwin
     cd "$REPO_DIR"
+    echo "HOST_NAME: $HOST_NAME"
     nix build .#darwinConfigurations."$HOST_NAME".system
     
     # Create necessary directories
