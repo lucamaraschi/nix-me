@@ -242,7 +242,7 @@ else
 fi
     
     # Build and activate configuration
-    echo "🚀 Building and activating your configuration..."
+    echo "🚀 Building your configuration..."
     cd "$REPO_DIR"
     
     # Source nix environment if it's not already sourced
@@ -260,6 +260,7 @@ fi
         fi
     fi
     
+    echo "🚀 Activating your configuration..."
     # Use the Makefile from the repository
     if [ -f "$REPO_DIR/Makefile" ]; then
         make HOSTNAME="$HOST_NAME" MACHINE_TYPE="$MACHINE_TYPE" MACHINE_NAME="$MACHINE_NAME" switch
