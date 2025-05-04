@@ -83,11 +83,6 @@
       TrackpadThreeFingerDrag = true;
     };
     
-    # Transparency
-    universalaccess = {
-      reduceTransparency = true;
-    };
-    
     # Custom preferences
     CustomUserPreferences = {
       "~/Library/Preferences/ByHost/com.apple.controlcenter".BatteryShowPercentage = true;
