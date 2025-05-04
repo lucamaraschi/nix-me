@@ -35,7 +35,7 @@
   };
 
   # Enable nix-darwin services
-  nix.enable = true;
+  nix.enable = false;
   
   # Environment setup
   environment = {
