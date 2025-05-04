@@ -12,10 +12,6 @@
     
     # Homebrew taps
     taps = [
-      "homebrew/cask"
-      "homebrew/cask-fonts"
-      "homebrew/cask-versions"
-      "homebrew/services"
     ];
     
     # Command-line tools
