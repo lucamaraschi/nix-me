@@ -7,11 +7,11 @@
   # Core system configuration
   nix = {
     package = pkgs.nix;
-    optimise.automatic = true;
+    optimise.automatic = false;
 
     # Garbage collection
     gc = {
-      automatic = true;
+      automatic = false;
       interval = { 
         Hour = 3;
         Minute = 0;
