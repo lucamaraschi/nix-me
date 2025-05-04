@@ -28,7 +28,6 @@
       "mas"  # Mac App Store CLI
       "pnpm"
       "ripgrep"
-      "svn"
       "terraform"
       "trash"
     ];
