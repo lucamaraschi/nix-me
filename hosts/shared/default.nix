@@ -36,21 +36,78 @@
   # Shared homebrew packages
   homebrew = {
     enable = true;
+    onActivation = {
+      autoUpdate = true;
+      cleanup = "zap";
+    };
     
-    # Common command-line tools
-    brews = [
-      "coreutils"
-      "git"
-      "jq"
-      "ripgrep"
+    # Homebrew taps
+    taps = [
     ];
     
-    # Common applications for all machines
+    # Command-line tools
+    brews = [
+      "coreutils"
+      "direnv"
+      "fd" 
+      "gcc"
+      "git"
+      "grep"
+      "helm"
+      "jq"
+      "k3d"
+      "mas"  # Mac App Store CLI
+      "pnpm"
+      "ripgrep"
+      "terraform"
+      "trash"
+    ];
+    
+    # macOS applications
     casks = [
+      # Communication & Collaboration
+      "linear-linear"
+      "loom"
+      "microsoft-teams"
+      "miro"
+      "slack"
+      "zoom"
+      
+      # Productivity
       "1password"
-      "google-chrome"
+      "hiddenbar"
+      "raycast"
       "rectangle"
+      
+      # Development
+      "docker"
+      "ghostty"
+      "github"
+      "orbstack"
+      "orka-desktop"
       "visual-studio-code"
+      
+      # Browsers
+      "google-chrome"
+      
+      # Graphics & Design
+      "adobe-creative-cloud"
+      "figma"
+      
+      # Microsoft Office
+      "microsoft-office"
+      
+      # Utilities
+      "hammerspoon"
+      "proton-mail"
+      "protonvpn"
+      "utm"
+      "virtualbuddy"
+      "vmware-fusion"
+      
+      # Media
+      "obs"
+      "spotify"
     ];
   };
   

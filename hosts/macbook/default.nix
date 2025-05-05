@@ -12,6 +12,10 @@
       TrackpadThreeFingerDrag = true;
       ActuationStrength = 1; # Lighter click force
     };
+
+    finder = {
+      CreateDesktop = true; # Show desktop icons
+    };
     
     # # Energy saving preferences
     # NSGlobalDomain = {
@@ -41,6 +45,14 @@
     "ghostty"
     "github"
   ];
+
+  homebrew.mas = {
+    masApps = {
+      Tailscale = 1475387142;
+      Xcode = 497799835;
+      "iA-Writer" = 775737590;
+    };
+  }
   
   # Power management scripts
   system.activationScripts.extraActivation.text = ''

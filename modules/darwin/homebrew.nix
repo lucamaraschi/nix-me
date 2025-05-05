@@ -70,6 +70,7 @@
       "hammerspoon"
       "proton-mail"
       "protonvpn"
+      "utm"
       "virtualbuddy"
       "vmware-fusion"
       
