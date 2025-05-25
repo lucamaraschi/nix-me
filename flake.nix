@@ -43,58 +43,59 @@
       
       username = getUsername;
       # Function to create a darwin configuration
-      mkDarwinSystem = { 
-        hostname,
-        machineType ? null,
-        machineName ? hostname,
-        system ? "aarch64-darwin",
-        extraModules ? []
-      }: 
-        darwin.lib.darwinSystem {
-          inherit system;
-          modules = [
-            # Base shared configuration
-            ./hosts/shared
-            
-            # Machine-type specific configuration (if specified)
-            (if machineType != null then ./hosts/${machineType} else {})
-            
-            # Host-specific configuration (if it exists)
-            (if builtins.pathExists ./hosts/${hostname}
-             then ./hosts/${hostname}
-             else {})
-            
-            # Set hostname and machine name
-            { 
-              networking = {
-                hostName = hostname;
-                computerName = machineName;
-                localHostName = machineName;
-              };
-            }
-            
-            # Include home-manager
-            home-manager.darwinModules.home-manager
-            {
-              home-manager.useGlobalPkgs = true;
-              home-manager.useUserPackages = true;
-
-              home-manager.extraSpecialArgs = { inherit username; };
-              home-manager.users.${username} = import ./modules/home-manager;
-            }
-            
-            # Overlays
-            {
-              nixpkgs.overlays = [
-                (import ./overlays/nodejs.nix)
-                # Add other overlays here
-              ];
-            }
-          ] ++ extraModules;
-          specialArgs = { 
-            inherit inputs hostname machineType machineName username; 
-          };
+      # Replace the mkDarwinSystem function in your flake.nix with this:
+mkDarwinSystem = { 
+  hostname,
+  machineType ? null,
+  machineName ? hostname,
+  system ? "aarch64-darwin",
+  extraModules ? []
+}: 
+  darwin.lib.darwinSystem {
+    inherit system;
+    modules = [
+      # Base shared configuration
+      ./hosts/shared
+      
+      # Machine-type specific configuration (if specified)
+      (if machineType != null then ./hosts/${machineType} else {})
+      
+      # Host-specific configuration (if it exists)
+      (if builtins.pathExists ./hosts/${hostname}
+       then ./hosts/${hostname}
+       else {})
+      
+      # Set hostname and machine name
+      { 
+        networking = {
+          hostName = hostname;
+          computerName = machineName;
+          localHostName = machineName;
         };
+      }
+      
+      # Include home-manager
+      home-manager.darwinModules.home-manager
+      {
+        home-manager.useGlobalPkgs = true;
+        home-manager.useUserPackages = true;
+
+        home-manager.extraSpecialArgs = { inherit username; };
+        home-manager.users.${username} = import ./modules/home-manager;
+      }
+      
+      # Overlays
+      {
+        nixpkgs.overlays = [
+          (import ./overlays/nodejs.nix)
+          # Add other overlays here
+        ];
+      }
+    ] ++ extraModules;
+    specialArgs = { 
+      inherit inputs hostname machineType machineName username; 
+    };
+  };
     in
     {
       # Define specific machine configurations
@@ -117,6 +118,13 @@
           hostname = "mac-mini";
           machineType = "macmini";
           machineName = "Mac Mini";
+        };
+
+        # VM configurations
+        "vm-test" = mkDarwinSystem { 
+          hostname = "vm-test";
+          machineType = "vm";
+          machineName = "VM";
         };
         
         # Dynamic configuration (used by the Makefile)

@@ -1,7 +1,8 @@
-{ config, lib, pkgs, machineType ? "", ... }:
+# modules/darwin/display.nix
+{ config, lib, pkgs, machineType ? null, ... }:
 
 {
-  # Display configuration
+  # Display configuration - only run on physical machines, not VMs
   
   # Add resolution setting script to activation
   system.activationScripts.extraActivation.text = lib.mkIf (machineType != "vm") (lib.mkAfter ''
