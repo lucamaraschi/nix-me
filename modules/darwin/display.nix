@@ -1,11 +1,10 @@
-# modules/darwin/display.nix
-{ config, lib, pkgs, ... }:
+{ config, lib, pkgs, machineType ? "", ... }:
 
 {
   # Display configuration
   
   # Add resolution setting script to activation
-  system.activationScripts.extraActivation.text = lib.mkAfter ''
+  system.activationScripts.extraActivation.text = lib.mkIf (machineType != "vm") (lib.mkAfter ''
     echo "Setting display resolution to maximum (More Space)..." >&2
     
     # Create a script to handle display configuration
@@ -88,7 +87,7 @@ EOF
     
     # Run the display configuration script
     "$HOME"/.config/nixpkgs/scripts/configure-displays.sh
-  '';
+  '');
   
   # Install required packages
   environment.systemPackages = with pkgs; [
