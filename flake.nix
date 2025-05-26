@@ -64,12 +64,21 @@
             then ./hosts/${hostname}
             else {})
             
-            # Set hostname and machine name
+            # Set hostname, machine name, and primary user
             { 
               networking = {
                 hostName = hostname;
                 computerName = machineName;
                 localHostName = machineName;
+              };
+              
+              # Fix for primary user requirement
+              system.primaryUser = username;
+              
+              # Explicit user configuration
+              users.users.${username} = {
+                name = username;
+                home = "/Users/${username}";
               };
             }
             
