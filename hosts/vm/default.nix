@@ -7,10 +7,9 @@
   system.defaults = {
     # Simplified dock settings for VMs
     dock = {
-      autohide = true;
-      tilesize = 36;
-      static-only = true;
-      show-recents = false;
+      tilesize = lib.mkForce 36;  # Override the shared setting
+      static-only = lib.mkForce true;
+      show-recents = lib.mkForce false;
     };
     
     # Simplified finder settings for VMs

@@ -13,6 +13,11 @@
       ActuationStrength = 1; # Lighter click force
     };
 
+    # Dock settings for laptops (smaller icons to save space)
+    dock = {
+      tilesize = lib.mkForce 32; # Smaller icons for laptop screens
+    };
+
     finder = {
       CreateDesktop = true; # Show desktop icons
     };
@@ -52,10 +57,10 @@
       Xcode = 497799835;
       "iA-Writer" = 775737590;
     };
-  }
+  };
   
   # Power management scripts
-  system.activationScripts.extraActivation.text = ''
+  system.activationScripts.macbookOptimization.text = ''
     # Set energy saving preferences for laptops
     echo "Setting energy preferences for MacBook..." >&2
     

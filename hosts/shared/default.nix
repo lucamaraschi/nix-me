@@ -1,9 +1,9 @@
-{ pkgs, config, ... }:
+{ pkgs, config, lib, ... }:
 
 {
   # Import common modules
   imports = [
-    ../../modules/darwin
+    ../../modules/darwin/default.nix
   ];
 
   # Base system configuration
@@ -16,11 +16,12 @@
       ShowPathbar = true;
     };
     
-    # Common dock preferences
+    # Common dock preferences (these can be overridden by machine-specific configs)
     dock = {
-      autohide = true;
-      showhidden = true;
-      minimize-to-application = true;
+      autohide = lib.mkDefault true;
+      showhidden = lib.mkDefault true;
+      minimize-to-application = lib.mkDefault true;
+      tilesize = lib.mkDefault 20; # Default size, can be overridden
     };
     
     # Common global domain preferences
@@ -63,7 +64,7 @@
       "trash"
     ];
     
-    # macOS applications
+    # macOS applications (common to all machine types)
     casks = [
       # Communication & Collaboration
       "linear-linear"
