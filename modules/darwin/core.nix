@@ -1,8 +1,14 @@
-{ pkgs, ... }:
+{ pkgs, config, lib, username, ... }:
 
 {
   system.stateVersion = 6;
   nixpkgs.config.allowUnfree = true;
+
+  # Explicitly configure the primary user
+  users.users.${username} = {
+    name = username;
+    home = "/Users/${username}";
+  };
 
   # Core system configuration
   nix = {
@@ -25,9 +31,9 @@
       warn-dirty = false;
     };
     
-    # Nix path
+    # Updated nixPath configuration (no longer uses primaryUserHome)
     nixPath = [
-      "darwin-config=$HOME/.config/nixpkgs/darwin-configuration.nix"
+      "darwin-config=/etc/nix-darwin/configuration.nix"
       "darwin=$HOME/.nix-defexpr/channels/darwin"
       "nixpkgs=$HOME/.nix-defexpr/channels/nixpkgs"
       "$HOME/.nix-defexpr/channels"
