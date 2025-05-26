@@ -4,7 +4,6 @@
   imports = [
     ./apps.nix
     ./core.nix
-    ./darwin.nix
     ./display.nix
     ./fonts.nix
     ./homebrew.nix
