@@ -338,7 +338,7 @@ EOL
         sudo mkdir -p /etc/nix-darwin /etc/static
         
         # Activate the system
-        ./result/sw/bin/darwin-rebuild switch --flake ".#$HOST_NAME"
+        sudo ./result/sw/bin/darwin-rebuild switch --flake ".#$HOST_NAME"
     else
         echo "✅ nix-darwin already installed"
     fi
@@ -365,18 +365,18 @@ EOL
     echo "🚀 Activating your configuration..."
     # Use the Makefile from the repository
     if [ -f "$REPO_DIR/Makefile" ]; then
-        make HOSTNAME="$HOST_NAME" MACHINE_TYPE="$MACHINE_TYPE" MACHINE_NAME="$MACHINE_NAME" switch
+        sudo make HOSTNAME="$HOST_NAME" MACHINE_TYPE="$MACHINE_TYPE" MACHINE_NAME="$MACHINE_NAME" switch
     else
         # Fallback in case the Makefile is missing for some reason
         echo "⚠️ Warning: Makefile not found in the repository. Using direct command."
         if [ "$VM_TYPE" != "physical" ]; then
             # Use VM-specific settings for the activation
-            HOSTNAME="$HOST_NAME" MACHINE_TYPE="$MACHINE_TYPE" MACHINE_NAME="$MACHINE_NAME" \
+            sudo HOSTNAME="$HOST_NAME" MACHINE_TYPE="$MACHINE_TYPE" MACHINE_NAME="$MACHINE_NAME" \
                 darwin-rebuild switch \
                 -I vm-overrides=$HOME/.config/nixpkgs/vm-overrides.nix \
                 --flake "$REPO_DIR"
         else
-            HOSTNAME="$HOST_NAME" MACHINE_TYPE="$MACHINE_TYPE" MACHINE_NAME="$MACHINE_NAME" \
+            sudo HOSTNAME="$HOST_NAME" MACHINE_TYPE="$MACHINE_TYPE" MACHINE_NAME="$MACHINE_NAME" \
                 darwin-rebuild switch --flake "$REPO_DIR"
         fi
     fi

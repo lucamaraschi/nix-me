@@ -7,25 +7,16 @@
   system.defaults = {
     # Simplified dock settings for VMs
     dock = {
-      tilesize = lib.mkForce 36;  # Override the shared setting
-      static-only = lib.mkForce true;
-      show-recents = lib.mkForce false;
+      tilesize = lib.mkForce 36;
     };
     
     # Simplified finder settings for VMs
     finder = {
-      CreateDesktop = false; # Hide desktop icons in VMs
-      AppleShowAllExtensions = true;
-      FXEnableExtensionChangeWarning = false;
+      CreateDesktop = false;
     };
     
-    # Minimal global domain preferences for VMs
-    NSGlobalDomain = {
-      AppleInterfaceStyle = "Dark";
-      NSDocumentSaveNewDocumentsToCloud = false;
-      NSAutomaticCapitalizationEnabled = false;
-      NSAutomaticSpellingCorrectionEnabled = false;
-    };
+    # Remove problematic CustomUserPreferences for VMs
+    CustomUserPreferences = lib.mkForce {};
   };
   
   # VM-specific homebrew packages (minimal set)
