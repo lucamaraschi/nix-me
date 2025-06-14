@@ -29,30 +29,7 @@
       "~/Library/Preferences/ByHost/com.apple.controlcenter".BatteryShowPercentage = true;
     };
   };
-  
-  # MacBook-specific applications
-  homebrew.casks = [
-    # Laptop-specific tools
-    "hiddenbar"
-    "raycast"
-    
-    # Productivity tools that make sense on laptops
-    "slack"
-    "zoom"
-    "protonvpn"
-    
-    # Development tools for on-the-go
-    "docker"
-    "ghostty"
-    "github"
-  ];
 
-  homebrew.masApps = {
-    Tailscale = 1475387142;
-    Xcode = 497799835;
-    "iA-Writer" = 775737590;
-  };
-  
   # Power management scripts
   system.activationScripts.macbookOptimization.text = ''
     # Set energy saving preferences for laptops

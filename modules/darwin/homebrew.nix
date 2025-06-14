@@ -1,39 +1,12 @@
 # modules/darwin/homebrew.nix
 { config, lib, pkgs, ... }:
 
-{
-  # macOS applications managed through Homebrew
-  homebrew = {
-    enable = lib.mkDefault true;
-    onActivation = {
-      autoUpdate = true;
-      cleanup = "zap";
-    };
-    
-    # Homebrew taps
-    taps = [
-    ];
-    
-    # Command-line tools
-    brews = lib.mkDefault [
-      "coreutils"
-      "direnv"
-      "fd" 
-      "gcc"
-      "git"
-      "grep"
-      "helm"
-      "jq"
-      "k3d"
-      "mas"  # Mac App Store CLI
-      "pnpm"
-      "ripgrep"
-      "terraform"
-      "trash"
-    ];
-    
-    # macOS applications
-    casks = lib.mkDefault [
+let
+  cfg = config.homebrew;
+  
+  # Define base lists that can be referenced by other modules
+  baseLists = {
+    casks = [
       # Communication & Collaboration
       "linear-linear"
       "loom"
@@ -78,29 +51,129 @@
       "obs"
       "spotify"
     ];
-    
-    # Mac App Store applications
-    masApps = lib.mkDefault {
+
+    brews = [
+      "coreutils"
+      "direnv"
+      "fd" 
+      "gcc"
+      "git"
+      "grep"
+      "helm"
+      "jq"
+      "k3d"
+      "mas"
+      "pnpm"
+      "ripgrep"
+      "terraform"
+      "trash"
+    ];
+
+    masApps = {
       Tailscale = 1475387142;
       Xcode = 497799835;
       "iA-Writer" = 775737590;
     };
   };
-  
-  # Make sure system knows about installed apps
-  system.activationScripts.applications.text = ''
-    echo "setting up ~/Applications..." >&2
-    rm -rf ~/Applications/Nix\ Apps
-    mkdir -p ~/Applications/Nix\ Apps
+
+  # Calculate final lists based on base + modifications
+  finalCasks = if cfg.useBaseLists
+    then (lib.subtractLists cfg.casksToRemove baseLists.casks) ++ cfg.casksToAdd
+    else cfg.casks;
     
-    # Use the applications path from config
-    APPS_DIR="${config.system.build.applications}/Applications"
-    if [ -d "$APPS_DIR" ]; then
-      for app in $(find "$APPS_DIR" -maxdepth 1 -type l 2>/dev/null || echo ""); do
-        ln -sf "$app" ~/Applications/Nix\ Apps/
-      done
-    else
-      echo "Applications directory not found at $APPS_DIR" >&2
-    fi
-  '';
+  finalBrews = if cfg.useBaseLists
+    then (lib.subtractLists cfg.brewsToRemove baseLists.brews) ++ cfg.brewsToAdd  
+    else cfg.brews;
+    
+  finalMasApps = if cfg.useBaseLists
+    then (baseLists.masApps // cfg.masAppsToAdd) // (lib.genAttrs cfg.masAppsToRemove (_: null))
+    else cfg.masApps;
+
+in
+{
+  # Export the base lists so other modules can reference them
+  options.homebrew = {
+    # Expose base lists for reference
+    baseCasks = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = baseLists.casks;
+      readOnly = true;
+      description = "Base list of casks that can be referenced by machine configs";
+    };
+    
+    baseBrews = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = baseLists.brews;
+      readOnly = true;
+      description = "Base list of brews that can be referenced by machine configs";
+    };
+    
+    baseMasApps = lib.mkOption {
+      type = lib.types.attrsOf lib.types.int;
+      default = baseLists.masApps;
+      readOnly = true;
+      description = "Base list of MAS apps that can be referenced by machine configs";
+    };
+    
+    # Option to use base lists with modifications
+    useBaseLists = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Whether to use base lists with add/remove modifications";
+    };
+
+    casksToRemove = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [];
+      description = "List of casks to remove from the base list";
+    };
+    
+    casksToAdd = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [];
+      description = "List of additional casks to install";
+    };
+    
+    brewsToRemove = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [];
+      description = "List of brews to remove from the base list";
+    };
+    
+    brewsToAdd = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [];
+      description = "List of additional brews to install";
+    };
+    
+    # MAS Apps options
+    masAppsToRemove = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [];
+      description = "List of MAS app names to remove from the base list";
+    };
+    
+    masAppsToAdd = lib.mkOption {
+      type = lib.types.attrsOf lib.types.int;
+      default = {};
+      description = "Additional MAS apps to install (name = appStoreId)";
+    };
+  };
+
+  config = {
+    homebrew = {
+      enable = lib.mkDefault true;
+      onActivation = {
+        autoUpdate = true;
+        cleanup = "zap";
+      };
+      
+      taps = lib.mkDefault [];
+      
+      # Use either the calculated lists or fall back to defaults
+      casks = lib.mkDefault finalCasks;
+      brews = lib.mkDefault finalBrews;
+      masApps = lib.mkDefault (lib.filterAttrs (name: id: id != null) finalMasApps);
+    };
+  };
 }
