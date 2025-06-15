@@ -2,6 +2,10 @@
 
 # Installation script for Nix/nix-darwin configuration
 # Usage: ./install.sh [hostname] [machine-type] [machine-name]
+# Environment variables:
+#   FORCE_NIX_REINSTALL=1    Force complete Nix reinstall
+#   NON_INTERACTIVE=1        Skip confirmation prompts
+#   SKIP_BREW_ON_VM=1        Skip Homebrew installation in VMs
 
 set -e
 
@@ -9,7 +13,280 @@ set -e
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
+
+# Logging functions
+log() {
+    echo -e "${GREEN}[$(date '+%H:%M:%S')]${NC} $1"
+}
+
+warn() {
+    echo -e "${YELLOW}[$(date '+%H:%M:%S')] WARNING:${NC} $1"
+}
+
+error() {
+    echo -e "${RED}[$(date '+%H:%M:%S')] ERROR:${NC} $1"
+}
+
+info() {
+    echo -e "${BLUE}[$(date '+%H:%M:%S')] INFO:${NC} $1"
+}
+
+# Function to test if Nix installation is complete and functional
+test_nix_fully_functional() {
+    log "Testing Nix installation completeness..."
+    
+    # Test 1: Basic binary exists
+    if ! command -v nix &>/dev/null; then
+        return 1
+    fi
+    
+    # Test 2: Nix can report its version
+    if ! nix --version &>/dev/null 2>&1; then
+        warn "Nix binary exists but can't report version"
+        return 1
+    fi
+    
+    # Test 3: Nix daemon is accessible
+    if ! nix-instantiate --eval -E 'builtins.currentTime' &>/dev/null 2>&1; then
+        warn "Nix daemon not responding to commands"
+        return 1
+    fi
+    
+    # Test 4: Flakes are working (needed for our config)
+    if ! nix flake --help &>/dev/null 2>&1; then
+        warn "Nix flakes not available"
+        return 1
+    fi
+    
+    # Test 5: Can actually build something simple
+    if ! timeout 30 nix-build '<nixpkgs>' -A hello --no-out-link &>/dev/null 2>&1; then
+        warn "Nix cannot build packages (store may be corrupted)"
+        return 1
+    fi
+    
+    log "Nix installation is fully functional"
+    return 0
+}
+
+# Function to completely uninstall Nix
+uninstall_nix() {
+    warn "Uninstalling existing Nix installation..."
+    
+    # Method 1: Use official uninstaller if it exists
+    if [ -f /nix/uninstall ]; then
+        log "Using official Nix uninstaller"
+        sudo /nix/uninstall || warn "Official uninstaller had issues, continuing with manual cleanup"
+    fi
+    
+    # Method 2: Use Determinate Systems uninstaller if available
+    if command -v nix &>/dev/null; then
+        log "Attempting Determinate Systems uninstall"
+        /nix/nix-installer uninstall 2>/dev/null || warn "Determinate uninstaller not available or failed"
+    fi
+    
+    # Method 3: Manual cleanup (for stubborn cases)
+    log "Performing manual Nix cleanup..."
+    
+    # Stop and remove nix-daemon
+    sudo launchctl unload /Library/LaunchDaemons/org.nixos.nix-daemon.plist 2>/dev/null || true
+    sudo rm -f /Library/LaunchDaemons/org.nixos.nix-daemon.plist
+    
+    # Remove Nix store and configuration
+    sudo rm -rf /nix || warn "Could not remove /nix directory"
+    sudo rm -rf /etc/nix || warn "Could not remove /etc/nix directory"
+    
+    # Remove shell modifications
+    sudo rm -f /etc/bashrc.backup-before-nix
+    sudo rm -f /etc/zshrc.backup-before-nix
+    sudo rm -f /etc/bash.bashrc.backup-before-nix
+    
+    # Remove user-level Nix
+    rm -rf ~/.nix-* 2>/dev/null || true
+    rm -rf ~/.config/nix 2>/dev/null || true
+    rm -rf ~/.cache/nix 2>/dev/null || true
+    
+    # Remove from PATH in current session
+    export PATH=$(echo "$PATH" | sed -e 's|/nix/var/nix/profiles/default/bin:||g' -e 's|'"$HOME"'/.nix-profile/bin:||g')
+    
+    # Verify cleanup
+    if command -v nix &>/dev/null; then
+        error "Nix uninstall incomplete - manual intervention required"
+        error "Please restart your computer and try again"
+        return 1
+    fi
+    
+    log "Nix successfully uninstalled"
+    return 0
+}
+
+# Function to safely update git repository
+safe_git_update() {
+    local repo_dir="$1"
+    local repo_branch="$2"
+    
+    log "Safely updating git repository..."
+    
+    cd "$repo_dir"
+    
+    # Fetch latest changes
+    git fetch origin || {
+        error "Failed to fetch from remote repository"
+        return 1
+    }
+    
+    # Check if we have local changes
+    if ! git diff --quiet HEAD; then
+        warn "Local changes detected in repository"
+        log "Stashing local changes..."
+        git stash push -m "install.sh auto-stash $(date)" || true
+    fi
+    
+    # Check if we have unpushed commits
+    if [ "$(git rev-list HEAD...origin/$repo_branch --count 2>/dev/null || echo 0)" -gt 0 ]; then
+        warn "Local commits detected that aren't on remote"
+        log "Creating backup branch..."
+        git branch "backup-$(date +%Y%m%d-%H%M%S)" HEAD || true
+    fi
+    
+    # Force reset to remote state
+    log "Resetting to remote state..."
+    git checkout "$repo_branch" 2>/dev/null || git checkout -b "$repo_branch" origin/"$repo_branch"
+    git reset --hard origin/"$repo_branch"
+    
+    log "Repository successfully updated to latest remote state"
+}
+
+# Function to ensure Homebrew is properly installed and in PATH
+ensure_homebrew() {
+    # Skip homebrew on VMs if requested
+    if [ "$VM_TYPE" != "physical" ] && [ "$SKIP_BREW_ON_VM" = "1" ]; then
+        log "Skipping Homebrew installation in VM environment"
+        return 0
+    fi
+    
+    # Check if brew command is available
+    if command -v brew &>/dev/null; then
+        log "Homebrew is available in PATH"
+        return 0
+    fi
+    
+    # Try to find and source Homebrew
+    if [[ -f /opt/homebrew/bin/brew ]]; then
+        log "Found Homebrew (Apple Silicon), adding to PATH"
+        export PATH="/opt/homebrew/bin:$PATH"
+        eval "$(/opt/homebrew/bin/brew shellenv)"
+    elif [[ -f /usr/local/bin/brew ]]; then
+        log "Found Homebrew (Intel), adding to PATH"
+        export PATH="/usr/local/bin:$PATH"
+        eval "$(/usr/local/bin/brew shellenv)"
+    else
+        log "Installing Homebrew..."
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        
+        # Set up PATH after installation
+        if [[ -f /opt/homebrew/bin/brew ]]; then
+            export PATH="/opt/homebrew/bin:$PATH"
+            eval "$(/opt/homebrew/bin/brew shellenv)"
+        elif [[ -f /usr/local/bin/brew ]]; then
+            export PATH="/usr/local/bin:$PATH"
+            eval "$(/usr/local/bin/brew shellenv)"
+        else
+            error "Homebrew installation failed"
+            return 1
+        fi
+    fi
+    
+    # Verify brew is now available
+    if ! command -v brew &>/dev/null; then
+        error "Homebrew installation appears successful but 'brew' command not found"
+        return 1
+    fi
+    
+    log "Updating Homebrew..."
+    brew update
+    
+    return 0
+}
+
+# Enhanced Nix installation function
+install_or_fix_nix() {
+    # Check if we should force reinstall
+    if [ "$FORCE_NIX_REINSTALL" = "1" ]; then
+        log "Force reinstall requested, uninstalling existing Nix..."
+        if command -v nix &>/dev/null; then
+            uninstall_nix || return 1
+        fi
+    elif command -v nix &>/dev/null; then
+        # Nix binary exists, test if it's fully functional
+        if test_nix_fully_functional; then
+            log "Nix is already installed and fully functional"
+            return 0
+        else
+            warn "Nix is installed but not fully functional"
+            
+            # Try simple fixes first
+            log "Attempting to repair Nix installation..."
+            
+            # Try restarting daemon
+            if [ -e "/Library/LaunchDaemons/org.nixos.nix-daemon.plist" ]; then
+                sudo launchctl unload /Library/LaunchDaemons/org.nixos.nix-daemon.plist 2>/dev/null || true
+                sudo launchctl load /Library/LaunchDaemons/org.nixos.nix-daemon.plist
+                sleep 3
+                
+                if test_nix_fully_functional; then
+                    log "Successfully repaired Nix installation"
+                    return 0
+                fi
+            fi
+            
+            # Simple fixes failed, need to reinstall
+            warn "Cannot repair Nix installation - will uninstall and reinstall"
+            
+            # Ask user for confirmation unless in non-interactive mode
+            if [ "$NON_INTERACTIVE" != "1" ]; then
+                echo -e "${YELLOW}Nix installation appears broken. Reinstall? (y/N)${NC}"
+                read -r response
+                case "$response" in
+                    [yY][eE][sS]|[yY]) 
+                        log "User confirmed reinstall"
+                        ;;
+                    *)
+                        error "User declined reinstall. Cannot continue."
+                        error "To force reinstall, run: FORCE_NIX_REINSTALL=1 $0"
+                        return 1
+                        ;;
+                esac
+            fi
+            
+            # Uninstall broken Nix
+            uninstall_nix || return 1
+        fi
+    fi
+    
+    # Install fresh Nix
+    log "Installing Nix using Determinate Systems installer..."
+    curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
+    
+    # Source environment
+    if [ -e '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' ]; then
+        source '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
+    fi
+    
+    # Update PATH for current session
+    export PATH=$HOME/.nix-profile/bin:/nix/var/nix/profiles/default/bin:$PATH
+    
+    # Test the new installation
+    if test_nix_fully_functional; then
+        log "Nix installation completed successfully"
+        return 0
+    else
+        error "Nix installation failed verification"
+        error "Please check the installation logs and try again"
+        return 1
+    fi
+}
 
 # Function to detect virtual machine environment
 detect_vm_environment() {
@@ -19,13 +296,13 @@ detect_vm_environment() {
         return
     fi
     
-    # Check for Apple Virtual Machine specifically (Apple Virtualization Framework)
+    # Check for Apple Virtual Machine specifically
     if system_profiler SPHardwareDataType 2>/dev/null | grep -i "Apple Virtual Machine" > /dev/null; then
         echo "apple-vm"
         return
     fi
     
-    # Check for UTM which uses QEMU or Apple Virtualization Framework
+    # Check for UTM
     if ps aux | grep -i "UTM" | grep -v grep > /dev/null; then
         echo "utm-vm"
         return
@@ -37,366 +314,214 @@ detect_vm_environment() {
         return
     fi
     
-    # Not a VM
     echo "physical"
 }
 
-# Detect environment
-VM_TYPE=$(detect_vm_environment)
-echo -e "${GREEN}Detected environment: ${VM_TYPE}${NC}"
+# Main installation function
+main() {
+    # Allow environment variables to control behavior
+    FORCE_NIX_REINSTALL=${FORCE_NIX_REINSTALL:-0}
+    NON_INTERACTIVE=${NON_INTERACTIVE:-0}
+    SKIP_BREW_ON_VM=${SKIP_BREW_ON_VM:-0}
 
-# Default values with proper handling of command-line arguments
-if [ -z "$1" ]; then
-    if [ "$VM_TYPE" != "physical" ]; then
-        # Use a fixed hostname for VMs to avoid hostname-related issues
-        HOST_NAME="nix-darwin-vm"
-        echo -e "${YELLOW}Using fixed hostname '$HOST_NAME' for VM environment${NC}"
+    # Detect environment
+    VM_TYPE=$(detect_vm_environment)
+    log "Detected environment: ${VM_TYPE}"
+
+    # Handle command-line arguments with better defaults
+    if [ -z "$1" ]; then
+        if [ "$VM_TYPE" != "physical" ]; then
+            HOST_NAME="nix-darwin-vm"
+            log "Using fixed hostname '$HOST_NAME' for VM environment"
+        else
+            HOST_NAME=$(hostname -s)
+            log "Using detected hostname: $HOST_NAME"
+        fi
     else
-        HOST_NAME=$(hostname -s)
-        echo -e "${GREEN}Using detected hostname: $HOST_NAME${NC}"
+        HOST_NAME=$1
     fi
-else
-    HOST_NAME=$1
-fi
 
-MACHINE_TYPE=${2:-""}
-MACHINE_NAME=${3:-"$HOST_NAME"}
-NIXOS_USERNAME=${4:-$(whoami)}
-REPO_URL=${5:-"https://github.com/lucamaraschi/nix-me.git"}
-REPO_BRANCH=${6:-"main"}
-REPO_DIR=${HOME}/.config/nixpkgs
+    MACHINE_TYPE=${2:-""}
+    MACHINE_NAME=${3:-"$HOST_NAME"}
+    NIXOS_USERNAME=${4:-$(whoami)}
+    REPO_URL=${5:-"https://github.com/lucamaraschi/nix-me.git"}
+    REPO_BRANCH=${6:-"main"}
+    REPO_DIR=${HOME}/.config/nixpkgs
 
-# Make sure HOST environment variable is set correctly for nix-darwin
-export HOST="$HOST_NAME"
-
-# Auto-detect machine type if not provided
-if [[ -z "$MACHINE_TYPE" ]]; then
-    if [ "$VM_TYPE" != "physical" ]; then
-        MACHINE_TYPE="vm"
-        echo -e "${YELLOW}Setting machine type to 'vm' for virtual environment${NC}"
-    elif [[ "$HOST_NAME" == *"macbook"* || "$HOST_NAME" == *"mba"* ]]; then
-        MACHINE_TYPE="macbook"
-    elif [[ "$HOST_NAME" == *"mini"* ]]; then
-        MACHINE_TYPE="macmini"
+    # Auto-detect machine type if not provided
+    if [[ -z "$MACHINE_TYPE" ]]; then
+        if [ "$VM_TYPE" != "physical" ]; then
+            MACHINE_TYPE="vm"
+            log "Setting machine type to 'vm' for virtual environment"
+        elif [[ "$HOST_NAME" == *"macbook"* || "$HOST_NAME" == *"mba"* ]]; then
+            MACHINE_TYPE="macbook"
+        elif [[ "$HOST_NAME" == *"mini"* ]]; then
+            MACHINE_TYPE="macmini"
+        fi
+        log "Auto-detected machine type: $MACHINE_TYPE"
     fi
-    echo "Auto-detected machine type: $MACHINE_TYPE"
-fi
 
-# Print header
-echo "======================================================================"
-echo "   Nix System Configuration Installer"
-echo "======================================================================"
-echo "   Hostname: $HOST_NAME"
-echo "   Machine Type: $MACHINE_TYPE"
-echo "   Machine Name: $MACHINE_NAME"
-echo "   Username: $NIXOS_USERNAME"
-echo "   Environment: $VM_TYPE"
-echo "======================================================================"
-echo ""
+    # Set HOST environment variable
+    export HOST="$HOST_NAME"
 
-# Request sudo privileges at the beginning
-sudo -v || { echo "Authentication failed"; exit 1; }
+    # Print configuration summary
+    echo "======================================================================"
+    echo "   Nix System Configuration Installer"
+    echo "======================================================================"
+    echo "   Hostname: $HOST_NAME"
+    echo "   Machine Type: $MACHINE_TYPE"
+    echo "   Machine Name: $MACHINE_NAME"
+    echo "   Username: $NIXOS_USERNAME"
+    echo "   Environment: $VM_TYPE"
+    echo "   Repository: $REPO_URL"
+    echo "   Branch: $REPO_BRANCH"
+    echo "   Force Nix Reinstall: $FORCE_NIX_REINSTALL"
+    echo "   Non-Interactive: $NON_INTERACTIVE"
+    echo "======================================================================"
+    echo ""
 
-# Start a background job to refresh sudo credentials every 60 seconds
-( while true; do sudo -v; sleep 60; done ) &
-SUDO_REFRESH_PID=$!
-
-function cleanup() {
-    # Kill the sudo refresh process when the script exits
-    if [[ -n "$SUDO_REFRESH_PID" ]]; then
-        kill "$SUDO_REFRESH_PID" >/dev/null 2>&1 || true
-        echo "Done. Sudo refresh process killed."
-    fi
-}
-
-# Register the cleanup function to run on exit
-trap cleanup EXIT
-
-function setup_darwin_based_host() {
+    # Verify we're on macOS
     if [[ "$OSTYPE" != "darwin"* ]]; then
-        echo "⛔ Please run this script on a macOS machine"
+        error "This script must be run on macOS"
         exit 1
     fi
+
+    # Request sudo privileges at the beginning
+    log "Requesting administrator privileges..."
+    sudo -v || { error "Authentication failed"; exit 1; }
+
+    # Start background sudo refresh
+    ( while true; do sudo -v; sleep 60; done ) &
+    SUDO_REFRESH_PID=$!
     
-    echo "🔍 Checking system requirements..."
-    
-    # Install Xcode Command Line Tools if not already installed
+    # Cleanup function
+    cleanup() {
+        if [[ -n "$SUDO_REFRESH_PID" ]]; then
+            kill "$SUDO_REFRESH_PID" >/dev/null 2>&1 || true
+        fi
+    }
+    trap cleanup EXIT
+
+    # Install Xcode Command Line Tools if needed
     if [[ -z "$(command -v git)" ]]; then
-        echo "🛠 Installing Xcode Command Line Tools"
+        log "Installing Xcode Command Line Tools"
         xcode-select --install &> /dev/null
         
-        echo "⏳ Waiting for Xcode Command Line Tools installation to complete..."
+        log "Waiting for Xcode Command Line Tools installation..."
         until xcode-select --print-path &> /dev/null; do
             sleep 5
         done
     else
-        echo "✅ Xcode Command Line Tools already installed"
+        log "Xcode Command Line Tools already installed"
     fi
-    
-    # Install or update Homebrew (skip on VMs if specified)
-    if [ "$VM_TYPE" != "physical" ] && [ "$SKIP_BREW_ON_VM" = "true" ]; then
-        echo -e "${YELLOW}Skipping Homebrew installation in VM environment${NC}"
-    else
-        if [[ $(command -v brew) == "" ]]; then
-            echo "🍺 Installing Homebrew"
-            /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-            
-            echo "🔄 Configuring Homebrew environment"
-            if [[ -f /opt/homebrew/bin/brew ]]; then
-                # Apple Silicon Mac
-                echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> $HOME/.zprofile
-                eval "$(/opt/homebrew/bin/brew shellenv)"
-                
-                # Also add to current session
-                export PATH="/opt/homebrew/bin:$PATH"
-            else
-                # Intel Mac
-                echo 'eval "$(/usr/local/bin/brew shellenv)"' >> $HOME/.zprofile
-                eval "$(/usr/local/bin/brew shellenv)"
-                
-                # Also add to current session
-                export PATH="/usr/local/bin:$PATH"
-            fi
-        else
-            echo "✅ Homebrew already installed"
-            
-            # Ensure Homebrew is in PATH for this session regardless
-            if [[ -f /opt/homebrew/bin/brew ]]; then
-                export PATH="/opt/homebrew/bin:$PATH"
-                eval "$(/opt/homebrew/bin/brew shellenv)"
-            elif [[ -f /usr/local/bin/brew ]]; then
-                export PATH="/usr/local/bin:$PATH"
-                eval "$(/usr/local/bin/brew shellenv)"
-            fi
-            
-            echo "🔄 Updating Homebrew"
-            brew update
-        fi
-        
-        # Verify Homebrew is in PATH
-        if ! command -v brew &>/dev/null; then
-            echo "⚠️ Warning: Homebrew installation appears successful but 'brew' command not found in PATH"
-            echo "Adding Homebrew to PATH for this session..."
-            
-            if [[ -f /opt/homebrew/bin/brew ]]; then
-                export PATH="/opt/homebrew/bin:$PATH"
-            elif [[ -f /usr/local/bin/brew ]]; then
-                export PATH="/usr/local/bin:$PATH"
-            fi
-            
-            # Verify again
-            if ! command -v brew &>/dev/null; then
-                echo "⛔ Error: Unable to find 'brew' command. Installation may have failed."
-                exit 1
-            fi
-        fi
-    fi
-    
-    # Install Nix if not already installed
-    # Check if Nix installation and daemon status
-    if ! command -v nix &> /dev/null; then
-        echo "📦 Nix is not installed. Installing Nix..."
-        curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
-        
-        # Source Nix environment
-        if [ -e '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' ]; then
-            . '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
-        fi
-    else
-        echo "✅ Nix is already installed."
-        
-        # Check if nix-daemon is running
-        if ! pgrep -x "nix-daemon" &> /dev/null; then
-            echo "🔄 Nix daemon is not running. Starting nix-daemon..."
-            
-            # Check if we can run a simple nix command
-            if ! nix-instantiate --eval -E 'builtins.currentTime' &> /dev/null; then
-                # Try the most common methods to start the daemon
-                if [ -e "/Library/LaunchDaemons/org.nixos.nix-daemon.plist" ]; then
-                    echo "Starting nix-daemon via launchctl..."
-                    sudo launchctl load /Library/LaunchDaemons/org.nixos.nix-daemon.plist
-                elif [ -e "/nix/var/nix/profiles/default/etc/systemd/system/nix-daemon.service" ]; then
-                    echo "Starting nix-daemon via systemd..."
-                    sudo systemctl start nix-daemon
-                elif [ -e "/nix/var/nix/profiles/default/etc/init.d/nix-daemon" ]; then
-                    echo "Starting nix-daemon via init.d..."
-                    sudo /nix/var/nix/profiles/default/etc/init.d/nix-daemon start
-                else
-                    # Last resort: Try to find the daemon binary and run it directly
-                    NIX_DAEMON_PATH=$(find /nix -name "nix-daemon" -type f -executable 2>/dev/null | head -n1)
-                    if [ -n "$NIX_DAEMON_PATH" ]; then
-                        echo "Starting nix-daemon directly from $NIX_DAEMON_PATH..."
-                        sudo "$NIX_DAEMON_PATH" &
-                        sleep 2
-                    else
-                        echo "⚠️ Could not find nix-daemon binary."
-                        echo "Please start the Nix daemon manually and run this script again."
-                        echo "You may need to restart your computer for changes to take effect."
-                        exit 1
-                    fi
-                fi
-            else
-                echo "Nix commands are working, proceeding without explicitly starting the daemon."
-            fi
-            
-            # Verify daemon is working
-            sleep 2
-            if nix-instantiate --eval -E 'builtins.currentTime' &> /dev/null; then
-                echo "✅ Nix daemon is functioning correctly."
-            else
-                echo "⛔ Nix daemon doesn't appear to be working properly."
-                echo "You may need to restart your computer for changes to take effect."
-                echo "Attempting to continue anyway..."
-            fi
-        else
-            echo "✅ Nix daemon is already running."
-        fi
-    fi
-    
-    # Make sure PATH includes the Nix directories
+
+    # Ensure Homebrew is properly set up
+    ensure_homebrew || {
+        error "Failed to set up Homebrew"
+        exit 1
+    }
+
+    # Install or fix Nix
+    install_or_fix_nix || {
+        error "Failed to install or fix Nix"
+        exit 1
+    }
+
+    # Make sure PATH includes Nix directories
     export PATH=$HOME/.nix-profile/bin:/nix/var/nix/profiles/default/bin:$PATH
-    
-    # Back up existing Nix configuration
-    if [ -f "/etc/nix/nix.conf" ] && [ ! -f "/etc/nix/nix.conf.before-nix-darwin" ]; then
-        echo "📥 Backing up existing Nix configuration"
-        sudo cp /etc/nix/nix.conf /etc/nix/nix.conf.before-nix-darwin
-    fi
-    
-    # Back up existing zshenv if it exists
-    if [ -f "/etc/zshenv" ] && [ ! -f "/etc/zshenv.before-nix-darwin" ]; then
-        echo "📥 Backing up existing zshenv"
-        sudo cp /etc/zshenv /etc/zshenv.before-nix-darwin
-    fi
-    
-    # Clone or update the repository
+
+    # Clone or update repository safely
     if [ -d "$REPO_DIR" ]; then
-        echo "🔄 Updating existing repository"
-        cd "$REPO_DIR"
-        git fetch
-        git checkout "$REPO_BRANCH"
-        git pull
+        log "Repository exists, safely updating..."
+        safe_git_update "$REPO_DIR" "$REPO_BRANCH" || {
+            error "Failed to update repository"
+            exit 1
+        }
     else
-        echo "📥 Cloning configuration repository $REPO_URL"
-        mkdir -p "$REPO_DIR"
-        git clone "$REPO_URL" "$REPO_DIR"
+        log "Cloning configuration repository..."
+        mkdir -p "$(dirname "$REPO_DIR")"
+        git clone "$REPO_URL" "$REPO_DIR" || {
+            error "Failed to clone repository"
+            exit 1
+        }
         cd "$REPO_DIR"
         git checkout "$REPO_BRANCH"
     fi
-    
-    # Create VM-specific configuration if in a VM environment
+
+    # Create VM-specific configuration if needed
     if [ "$VM_TYPE" != "physical" ]; then
-        echo -e "${YELLOW}Creating VM-friendly configuration override...${NC}"
-        
-        # Create a temporary configuration file for VMs
+        log "Creating VM-friendly configuration override..."
         cat > "$REPO_DIR/vm-overrides.nix" <<EOL
 { lib, ... }:
 {
-  # Disable Nix management (let Determinate handle it)
-  nix.enable = false;
+  # Disable problematic features in VMs
+  nix.optimise.automatic = lib.mkForce false;
+  nix.gc.automatic = lib.mkForce false;
   
-  # Disable dependent features
-  nix.optimise.automatic = false;
-  nix.gc.automatic = false;
-  
-  # Disable problematic Universal Access settings
-  system.defaults.universalaccess.reduceMotion = lib.mkForce null;
-  system.defaults.universalaccess.reduceTransparency = lib.mkForce null;
-  system.defaults.universalaccess.mouseDriverCursorSize = lib.mkForce null;
-  
-  # Add any additional VM-specific settings here
+  # Disable Universal Access settings that might fail in VMs
+  system.defaults.universalaccess = lib.mkForce {};
 }
 EOL
+    fi
 
-        echo -e "${YELLOW}Note: For Universal Access settings to work, you may need to manually grant Terminal 'Full Disk Access' in System Preferences > Security & Privacy > Privacy.${NC}"
-    fi
-    
-    # Install nix-darwin using the flake directly
-    if ! command -v darwin-rebuild &> /dev/null; then
-        echo "🛠 Installing nix-darwin via flake"
-        
-        # Ensure flakes are enabled
-        mkdir -p ~/.config/nix
-        echo "experimental-features = nix-command flakes" > ~/.config/nix/nix.conf
-        
-        # Use your existing flake to bootstrap nix-darwin
-        cd "$REPO_DIR"
-        
-        # Build with VM-specific settings if in a VM environment
-        if [ "$VM_TYPE" != "physical" ]; then
-            echo -e "${GREEN}Building nix-darwin configuration for VM environment...${NC}"
-            nix build --extra-experimental-features "nix-command flakes" \
-                -I nixpkgs-overlays=$HOME/.config/nixpkgs/overlays \
-                -I vm-overrides=$HOME/.config/nixpkgs/vm-overrides.nix \
-                ".#darwinConfigurations.$HOST_NAME.system"
-        else
-            nix build .#darwinConfigurations."$HOST_NAME".system
-        fi
-        
-        echo "HOST_NAME: $HOST_NAME"
-        
-        # Create necessary directories
-        sudo mkdir -p /etc/nix-darwin /etc/static
-        
-        # Activate the system
-        sudo ./result/sw/bin/darwin-rebuild switch --flake ".#$HOST_NAME"
-    else
-        echo "✅ nix-darwin already installed"
-    fi
-    
     # Build and activate configuration
-    echo "🚀 Building your configuration..."
     cd "$REPO_DIR"
     
-    # Source nix environment if it's not already sourced
-    if ! command -v nix &>/dev/null; then
-        if [ -e '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' ]; then
-            . '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
+    # Ensure flakes are enabled
+    mkdir -p ~/.config/nix
+    echo "experimental-features = nix-command flakes" > ~/.config/nix/nix.conf
+
+    # Install nix-darwin if not already installed
+    if ! command -v darwin-rebuild &> /dev/null; then
+        log "Installing nix-darwin via flake..."
+        
+        if [ "$VM_TYPE" != "physical" ]; then
+            log "Building configuration for VM environment..."
+            nix build --extra-experimental-features "nix-command flakes" \
+                ".#darwinConfigurations.$HOST_NAME.system"
+        else
+            nix build ".#darwinConfigurations.$HOST_NAME.system"
         fi
+        
+        # Create necessary directories and activate
+        sudo mkdir -p /etc/nix-darwin /etc/static
+        sudo ./result/sw/bin/darwin-rebuild switch --flake ".#$HOST_NAME"
+    else
+        log "nix-darwin already installed"
     fi
-    
-    # Source darwin environment if it's not already sourced
-    if ! command -v darwin-rebuild &>/dev/null; then
-        PATH=$HOME/.nix-profile/bin:$PATH
-        if [ -e /etc/static/bashrc ]; then
-            . /etc/static/bashrc
-        fi
-    fi
-    
-    echo "🚀 Activating your configuration..."
-    # Use the Makefile from the repository
+
+    # Apply configuration using Makefile
+    log "Applying configuration..."
     if [ -f "$REPO_DIR/Makefile" ]; then
         sudo make HOSTNAME="$HOST_NAME" MACHINE_TYPE="$MACHINE_TYPE" MACHINE_NAME="$MACHINE_NAME" switch
     else
-        # Fallback in case the Makefile is missing for some reason
-        echo "⚠️ Warning: Makefile not found in the repository. Using direct command."
-        if [ "$VM_TYPE" != "physical" ]; then
-            # Use VM-specific settings for the activation
-            sudo HOSTNAME="$HOST_NAME" MACHINE_TYPE="$MACHINE_TYPE" MACHINE_NAME="$MACHINE_NAME" \
-                darwin-rebuild switch \
-                -I vm-overrides=$HOME/.config/nixpkgs/vm-overrides.nix \
-                --flake "$REPO_DIR"
-        else
-            sudo HOSTNAME="$HOST_NAME" MACHINE_TYPE="$MACHINE_TYPE" MACHINE_NAME="$MACHINE_NAME" \
-                darwin-rebuild switch --flake "$REPO_DIR"
-        fi
+        warn "Makefile not found, using direct command"
+        sudo HOSTNAME="$HOST_NAME" MACHINE_TYPE="$MACHINE_TYPE" MACHINE_NAME="$MACHINE_NAME" \
+            darwin-rebuild switch --flake "$REPO_DIR"
     fi
+
+    log "Installation completed successfully!"
+    log "You may need to restart your terminal or computer to apply all changes."
     
-    echo "✅ Installation completed successfully!"
-    echo "🔧 You may need to restart your terminal or computer to apply all changes."
+    # Print final instructions
+    echo ""
+    echo "======================================================================"
+    echo "   Installation Complete!"
+    echo "======================================================================"
+    echo "   Your Nix system is now configured for $MACHINE_TYPE use."
+    echo ""
+    echo "   Next steps:"
+    echo "   1. Restart your terminal or run 'source /etc/bashrc'"
+    echo "   2. Customize your configuration in $REPO_DIR"
+    echo "   3. Apply changes with 'make switch'"
+    echo "   4. Check status with 'make check'"
+    echo ""
+    echo "   Troubleshooting:"
+    echo "   - Force Nix reinstall: FORCE_NIX_REINSTALL=1 $0"
+    echo "   - Non-interactive mode: NON_INTERACTIVE=1 $0"
+    echo "   - Skip Homebrew on VM: SKIP_BREW_ON_VM=1 $0"
+    echo "======================================================================"
 }
 
-# Run the installation
-setup_darwin_based_host
-
-# Print final instructions
-echo ""
-echo "======================================================================"
-echo "   Installation Complete!"
-echo "======================================================================"
-echo "   Your Nix system is now set up according to your configuration."
-echo ""
-echo "   Next steps:"
-echo "   1. Restart your terminal or run 'source /etc/bashrc'"
-echo "   2. Customize your configuration in $REPO_DIR"
-echo "   3. Apply changes with 'make switch'"
-echo "======================================================================"
+# Run main function with all arguments
+main "$@"
