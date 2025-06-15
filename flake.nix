@@ -136,12 +136,13 @@
           machineName = "VM";
         };
         
-        # Dynamic configuration (used by the Makefile) - with hostname normalization
-        "${builtins.replaceStrings ["A" "B" "C" "D" "E" "F" "G" "H" "I" "J" "K" "L" "M" "N" "O" "P" "Q" "R" "S" "T" "U" "V" "W" "X" "Y" "Z"] ["a" "b" "c" "d" "e" "f" "g" "h" "i" "j" "k" "l" "m" "n" "o" "p" "q" "r" "s" "t" "u" "v" "w" "x" "y" "z"] (builtins.getEnv "HOSTNAME")}" = 
+        # Dynamic configuration (used by the Makefile) - handle specific hostname cases
+        "${if builtins.getEnv "HOSTNAME" == "Gotham" then "gotham" else builtins.getEnv "HOSTNAME"}" = 
           if builtins.getEnv "HOSTNAME" != "" then
             let
               rawHostname = builtins.getEnv "HOSTNAME";
-              hostname = builtins.replaceStrings ["A" "B" "C" "D" "E" "F" "G" "H" "I" "J" "K" "L" "M" "N" "O" "P" "Q" "R" "S" "T" "U" "V" "W" "X" "Y" "Z"] ["a" "b" "c" "d" "e" "f" "g" "h" "i" "j" "k" "l" "m" "n" "o" "p" "q" "r" "s" "t" "u" "v" "w" "x" "y" "z"] rawHostname;
+              # Normalize known problematic hostnames
+              hostname = if rawHostname == "Gotham" then "gotham" else rawHostname;
               machineType = builtins.getEnv "MACHINE_TYPE";
               machineName = builtins.getEnv "MACHINE_NAME";
             in

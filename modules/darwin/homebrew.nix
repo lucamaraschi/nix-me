@@ -159,7 +159,7 @@ in
       global = {
         # Use /opt/homebrew on Apple Silicon, /usr/local on Intel
         brewfile = true;
-        noLock = true; # Reduce file locking that might need sudo
+        lockfiles = false; # Reduce file locking that might need sudo
       };
       
       # Move calculations here to avoid recursion
