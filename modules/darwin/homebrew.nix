@@ -2,9 +2,7 @@
 { config, lib, pkgs, ... }:
 
 let
-  cfg = config.homebrew;
-  
-  # Define base lists that can be referenced by other modules
+  # Define base lists (these don't reference config, so no recursion)
   baseLists = {
     casks = [
       # Communication & Collaboration
@@ -75,19 +73,6 @@ let
       "iA-Writer" = 775737590;
     };
   };
-
-  # Calculate final lists based on base + modifications
-  finalCasks = if cfg.useBaseLists
-    then (lib.subtractLists cfg.casksToRemove baseLists.casks) ++ cfg.casksToAdd
-    else cfg.casks;
-    
-  finalBrews = if cfg.useBaseLists
-    then (lib.subtractLists cfg.brewsToRemove baseLists.brews) ++ cfg.brewsToAdd  
-    else cfg.brews;
-    
-  finalMasApps = if cfg.useBaseLists
-    then (baseLists.masApps // cfg.masAppsToAdd) // (lib.genAttrs cfg.masAppsToRemove (_: null))
-    else cfg.masApps;
 
 in
 {
@@ -170,10 +155,27 @@ in
       
       taps = lib.mkDefault [];
       
-      # Use either the calculated lists or fall back to defaults
-      casks = lib.mkDefault finalCasks;
-      brews = lib.mkDefault finalBrews;
-      masApps = lib.mkDefault (lib.filterAttrs (name: id: id != null) finalMasApps);
+      # Move calculations here to avoid recursion
+      casks = lib.mkDefault (
+        if config.homebrew.useBaseLists
+        then (lib.subtractLists config.homebrew.casksToRemove baseLists.casks) ++ config.homebrew.casksToAdd
+        else baseLists.casks  # Use base list as default
+      );
+      
+      brews = lib.mkDefault (
+        if config.homebrew.useBaseLists
+        then (lib.subtractLists config.homebrew.brewsToRemove baseLists.brews) ++ config.homebrew.brewsToAdd
+        else baseLists.brews  # Use base list as default
+      );
+      
+      masApps = lib.mkDefault (
+        let
+          finalMasApps = if config.homebrew.useBaseLists
+            then (baseLists.masApps // config.homebrew.masAppsToAdd) // (lib.genAttrs config.homebrew.masAppsToRemove (_: null))
+            else baseLists.masApps;
+        in
+          lib.filterAttrs (name: id: id != null) finalMasApps
+      );
     };
   };
 }
