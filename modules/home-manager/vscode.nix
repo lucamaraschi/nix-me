@@ -134,7 +134,7 @@
           name = "vscode-fish";
           publisher = "bmalehorn";
           version = "1.0.16";
-          sha256 = "sha256-9Lxk9N9QGjZgDQgV5tB+2HXCDWLwTNOUUHbX4UkUGbM=";
+          sha256 = "sha256-WT1vzO9910Wyad2qqHVGHufUdSwH8YaZ2DSiTLQb/7k="; 
         }
       ];
     };
