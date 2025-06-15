@@ -15,27 +15,25 @@
   nix = {
     package = pkgs.nix;
     
-    # Enable nix (was previously disabled)
-    enable = lib.mkDefault true;
+    # Disable nix-darwin's Nix management (using Determinate Systems installer)
+    enable = false;
     
-    # Optimization settings with defaults
-    optimise.automatic = lib.mkDefault false;
-
-    # Garbage collection with defaults
-    gc = {
-      automatic = lib.mkDefault false;
-      interval = lib.mkDefault { 
-        Hour = 3;
-        Minute = 0;
-      };
-      options = lib.mkDefault "--delete-older-than 30d";
-    };
+    # These settings won't work with Determinate, but kept for reference
+    # optimise.automatic = lib.mkDefault false;
+    # gc = lib.mkDefault {
+    #   automatic = false;
+    #   interval = { 
+    #     Hour = 3;
+    #     Minute = 0;
+    #   };
+    #   options = "--delete-older-than 30d";
+    # };
     
-    # Nix settings
-    settings = {
-      experimental-features = [ "nix-command" "flakes" ];
-      warn-dirty = false;
-    };
+    # Nix settings - these might not work with Determinate
+    # settings = {
+    #   experimental-features = [ "nix-command" "flakes" ];
+    #   warn-dirty = false;
+    # };
     
     # Updated nixPath configuration
     nixPath = [
