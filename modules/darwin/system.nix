@@ -86,7 +86,8 @@
     
     # Custom preferences
     CustomUserPreferences = lib.mkDefault {
-      "~/Library/Preferences/ByHost/com.apple.controlcenter".BatteryShowPercentage = true;
+      # Use proper user preference path instead of ByHost
+      "com.apple.controlcenter".BatteryShowPercentage = true;
       "com.apple.AdLib".allowApplePersonalizedAdvertising = false;
       "com.apple.WindowManager".GloballyEnabled = true;
     };

@@ -26,7 +26,7 @@
     
     # Custom power management settings
     CustomUserPreferences = {
-      "~/Library/Preferences/ByHost/com.apple.controlcenter".BatteryShowPercentage = true;
+      "com.apple.controlcenter".BatteryShowPercentage = true;
     };
   };
 
