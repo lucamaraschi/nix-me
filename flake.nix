@@ -42,6 +42,22 @@
         else defaultUser;
       
       username = getUsername;
+      
+      # Function to normalize hostname to lowercase
+      normalizeHostname = hostname:
+        let
+          # Simple lowercase conversion for common characters
+          lowerMap = {
+            "A" = "a"; "B" = "b"; "C" = "c"; "D" = "d"; "E" = "e"; "F" = "f"; "G" = "g"; "H" = "h"; "I" = "i"; "J" = "j";
+            "K" = "k"; "L" = "l"; "M" = "m"; "N" = "n"; "O" = "o"; "P" = "p"; "Q" = "q"; "R" = "r"; "S" = "s"; "T" = "t";
+            "U" = "u"; "V" = "v"; "W" = "w"; "X" = "x"; "Y" = "y"; "Z" = "z";
+          };
+          chars = builtins.stringToChars hostname;
+          convertChar = c: if builtins.hasAttr c lowerMap then lowerMap.${c} else c;
+          lowerChars = builtins.map convertChar chars;
+        in
+          builtins.concatStringsSep "" lowerChars;
+      
       # Function to create a darwin configuration
       mkDarwinSystem = { 
         hostname,
@@ -135,11 +151,12 @@
           machineName = "VM";
         };
         
-        # Dynamic configuration (used by the Makefile)
-        "${builtins.getEnv "HOSTNAME"}" = 
+        # Dynamic configuration (used by the Makefile) - with hostname normalization
+        "${normalizeHostname (builtins.getEnv "HOSTNAME")}" = 
           if builtins.getEnv "HOSTNAME" != "" then
             let
-              hostname = builtins.getEnv "HOSTNAME";
+              rawHostname = builtins.getEnv "HOSTNAME";
+              hostname = normalizeHostname rawHostname;
               machineType = builtins.getEnv "MACHINE_TYPE";
               machineName = builtins.getEnv "MACHINE_NAME";
             in
