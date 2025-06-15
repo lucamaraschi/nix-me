@@ -51,15 +51,29 @@ else
 endif
 
 # Build and activate the configuration
+# Build and activate the configuration
 switch:
 	@echo "==> Building and activating configuration for $(HOSTNAME) ($(MACHINE_TYPE), $(MACHINE_NAME))..."
 ifeq ($(DRY_RUN), 1)
 	@echo "[DRY RUN] HOSTNAME=$(HOSTNAME) MACHINE_TYPE=$(MACHINE_TYPE) MACHINE_NAME=\"$(MACHINE_NAME)\" darwin-rebuild switch --flake $(FLAKE_DIR)"
 else
-	@if [ "$(MACHINE_TYPE)" = "vm" ]; then \
-		HOSTNAME=$(HOSTNAME) MACHINE_TYPE=$(MACHINE_TYPE) MACHINE_NAME="$(MACHINE_NAME)" sudo darwin-rebuild switch --flake $(FLAKE_DIR) -I vm-fix=$(FLAKE_DIR)/vm-fix.nix; \
+	@# Find darwin-rebuild in common locations
+	@DARWIN_REBUILD=""; \
+	if [ -x "/run/current-system/sw/bin/darwin-rebuild" ]; then \
+		DARWIN_REBUILD="/run/current-system/sw/bin/darwin-rebuild"; \
+	elif [ -x "$$HOME/.nix-profile/bin/darwin-rebuild" ]; then \
+		DARWIN_REBUILD="$$HOME/.nix-profile/bin/darwin-rebuild"; \
+	elif command -v darwin-rebuild >/dev/null 2>&1; then \
+		DARWIN_REBUILD="darwin-rebuild"; \
 	else \
-		HOSTNAME=$(HOSTNAME) MACHINE_TYPE=$(MACHINE_TYPE) MACHINE_NAME="$(MACHINE_NAME)" sudo darwin-rebuild switch --flake $(FLAKE_DIR); \
+		echo "Error: darwin-rebuild not found in PATH or common locations"; \
+		echo "Make sure nix-darwin is installed and in your PATH"; \
+		exit 1; \
+	fi; \
+	if [ "$(MACHINE_TYPE)" = "vm" ]; then \
+		HOSTNAME=$(HOSTNAME) MACHINE_TYPE=$(MACHINE_TYPE) MACHINE_NAME="$(MACHINE_NAME)" sudo env PATH="$$PATH" "$$DARWIN_REBUILD" switch --flake $(FLAKE_DIR) -I vm-fix=$(FLAKE_DIR)/vm-fix.nix; \
+	else \
+		HOSTNAME=$(HOSTNAME) MACHINE_TYPE=$(MACHINE_TYPE) MACHINE_NAME="$(MACHINE_NAME)" sudo env PATH="$$PATH" "$$DARWIN_REBUILD" switch --flake $(FLAKE_DIR); \
 	fi
 endif
 
