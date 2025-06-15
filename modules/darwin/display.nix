@@ -90,12 +90,5 @@ EOF
     "$HOME"/.config/nixpkgs/scripts/configure-displays.sh
   '');
   
-  # Install required packages
-  environment.systemPackages = lib.mkDefault (with pkgs; [
-    # Ensure these tools are available
-    coreutils
-    gnugrep
-    gnused
-    curl
-  ]);
+  # NOTE: Required packages moved to core.nix to prevent systemPackages conflicts
 }

@@ -48,13 +48,41 @@
   
   # Environment setup
   environment = {
-    # System-level packages
+    # System-level packages - consolidated here to avoid conflicts
     systemPackages = lib.mkDefault (with pkgs; [
+      # Core system tools
       coreutils
       curl
       wget
       git
       vim
+      
+      # Development tools (from apps.nix)
+      jq
+      ripgrep
+      fd
+      eza
+      bat
+      tree
+      htop
+      ncdu
+      nodejs
+      python3
+      rustup
+      go
+      git-lfs
+      gh
+      nmap
+      dnsutils
+      mtr
+      nixpkgs-fmt
+      comma
+      pandoc
+      imagemagick
+      
+      # Display tools (from display.nix)
+      gnugrep
+      gnused
     ]);
     
     # Set system-wide shell variables
