@@ -56,11 +56,11 @@ switch:
 ifeq ($(DRY_RUN), 1)
 	@echo "[DRY RUN] HOSTNAME=$(HOSTNAME) MACHINE_TYPE=$(MACHINE_TYPE) MACHINE_NAME=\"$(MACHINE_NAME)\" darwin-rebuild switch --flake $(FLAKE_DIR)"
 else
-	ifeq ($(MACHINE_TYPE), vm)
-		@HOSTNAME=$(HOSTNAME) MACHINE_TYPE=$(MACHINE_TYPE) MACHINE_NAME="$(MACHINE_NAME)" sudo darwin-rebuild switch --flake $(FLAKE_DIR) -I vm-fix=$(FLAKE_DIR)/vm-fix.nix
-	else
-		@HOSTNAME=$(HOSTNAME) MACHINE_TYPE=$(MACHINE_TYPE) MACHINE_NAME="$(MACHINE_NAME)" sudo darwin-rebuild switch --flake $(FLAKE_DIR)
-	endif
+	@if [ "$(MACHINE_TYPE)" = "vm" ]; then \
+		HOSTNAME=$(HOSTNAME) MACHINE_TYPE=$(MACHINE_TYPE) MACHINE_NAME="$(MACHINE_NAME)" sudo darwin-rebuild switch --flake $(FLAKE_DIR) -I vm-fix=$(FLAKE_DIR)/vm-fix.nix; \
+	else \
+		HOSTNAME=$(HOSTNAME) MACHINE_TYPE=$(MACHINE_TYPE) MACHINE_NAME="$(MACHINE_NAME)" sudo darwin-rebuild switch --flake $(FLAKE_DIR); \
+	fi
 endif
 
 # Run a syntax check on the flake
@@ -114,9 +114,9 @@ endif
 list-machines:
 	@echo "==> Known machine configurations:"
 	@echo "MacBook configurations:"
-	@grep -E '"macbook-.*"' $(FLAKE_DIR)/flake.nix | sed 's/.*"\(.*\)".*/  \1/'
+	@grep -E '"macbook-.*"' $(FLAKE_DIR)/flake.nix | sed 's/.*"\(.*\)".*/  \1/' || echo "  (none found)"
 	@echo "Mac Mini configurations:"
-	@grep -E '"mac-mini.*"' $(FLAKE_DIR)/flake.nix | sed 's/.*"\(.*\)".*/  \1/'
+	@grep -E '"mac-mini.*"' $(FLAKE_DIR)/flake.nix | sed 's/.*"\(.*\)".*/  \1/' || echo "  (none found)"
 	@echo ""
 	@echo "To use a specific machine type without a predefined configuration:"
 	@echo "  make MACHINE_TYPE=macbook switch"
