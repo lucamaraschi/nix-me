@@ -1,3 +1,4 @@
+# modules/darwin/core.nix
 { pkgs, config, lib, username, ... }:
 
 {
@@ -13,16 +14,21 @@
   # Core system configuration
   nix = {
     package = pkgs.nix;
-    optimise.automatic = false;
+    
+    # Enable nix (was previously disabled)
+    enable = lib.mkDefault true;
+    
+    # Optimization settings with defaults
+    optimise.automatic = lib.mkDefault false;
 
-    # Garbage collection
+    # Garbage collection with defaults
     gc = {
-      automatic = false;
-      interval = { 
+      automatic = lib.mkDefault false;
+      interval = lib.mkDefault { 
         Hour = 3;
         Minute = 0;
       };
-      options = "--delete-older-than 30d";
+      options = lib.mkDefault "--delete-older-than 30d";
     };
     
     # Nix settings
@@ -31,7 +37,7 @@
       warn-dirty = false;
     };
     
-    # Updated nixPath configuration (no longer uses primaryUserHome)
+    # Updated nixPath configuration
     nixPath = [
       "darwin-config=/etc/nix-darwin/configuration.nix"
       "darwin=$HOME/.nix-defexpr/channels/darwin"
@@ -39,30 +45,27 @@
       "$HOME/.nix-defexpr/channels"
     ];
   };
-
-  # Enable nix-darwin services
-  nix.enable = false;
   
   # Environment setup
   environment = {
     # System-level packages
-    systemPackages = with pkgs; [
+    systemPackages = lib.mkDefault (with pkgs; [
       coreutils
       curl
       wget
       git
       vim
-    ];
+    ]);
     
     # Set system-wide shell variables
-    variables = {
+    variables = lib.mkDefault {
       EDITOR = "vim";
       VISUAL = "vim";
     };
     
-    # Disable manual
-    systemPath = [ "/opt/homebrew/bin" ];
-    pathsToLink = [ "/Applications" ];
+    # System PATH - use mkDefault so it can be overridden
+    systemPath = lib.mkDefault [ "/opt/homebrew/bin" ];
+    pathsToLink = lib.mkDefault [ "/Applications" ];
   };
   
   # System activation

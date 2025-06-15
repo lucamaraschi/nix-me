@@ -164,8 +164,8 @@ in
     homebrew = {
       enable = lib.mkDefault true;
       onActivation = {
-        autoUpdate = true;
-        cleanup = "zap";
+        autoUpdate = lib.mkDefault true;
+        cleanup = lib.mkDefault "zap";
       };
       
       taps = lib.mkDefault [];

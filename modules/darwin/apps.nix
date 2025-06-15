@@ -1,8 +1,8 @@
-{ pkgs, ... }:
+{ pkgs, lib, ... }:
 
 {
   # macOS specific development tools and applications installed via Nix
-  environment.systemPackages = with pkgs; [
+  environment.systemPackages = lib.mkDefault (with pkgs; [
     # CLI utilities
     jq
     ripgrep
@@ -35,5 +35,5 @@
     # Text processing
     pandoc
     imagemagick
-  ];
+  ]);
 }

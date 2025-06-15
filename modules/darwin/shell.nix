@@ -1,18 +1,18 @@
-{ pkgs, ... }:
+{ pkgs, lib, ... }:
 
 {
   # Shell environment configuration
   environment = {
         
     # List of allowed shells
-    shells = with pkgs; [ 
+    shells = lib.mkDefault (with pkgs; [ 
       bash 
       zsh 
       fish 
-    ];
+    ]);
     
     # Shell aliases available for all users
-    shellAliases = {
+    shellAliases = lib.mkDefault {
       l = "ls -la";
       update = "darwin-rebuild switch --flake ~/.config/nixpkgs";
     };
@@ -27,9 +27,9 @@
   # Programs configuration
   programs = {
     # Enable Fish shell
-    fish.enable = true;
+    fish.enable = lib.mkDefault true;
     
     # GNU tools with their original names
-    gnupg.agent.enable = true;
+    gnupg.agent.enable = lib.mkDefault true;
   };
 }

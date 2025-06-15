@@ -91,11 +91,11 @@ EOF
   '');
   
   # Install required packages
-  environment.systemPackages = with pkgs; [
+  environment.systemPackages = lib.mkDefault (with pkgs; [
     # Ensure these tools are available
     coreutils
     gnugrep
     gnused
     curl
-  ];
+  ]);
 }
