@@ -99,4 +99,16 @@
     allowsignedenabled = lib.mkDefault 1;
     allowdownloadsignedenabled = lib.mkDefault 1;
   };
+  
+  # Extend sudo timeout to reduce password prompts during long operations
+  security.sudo = {
+    # Keep sudo authentication for 60 minutes instead of default 5 minutes
+    extraConfig = ''
+      # Extend sudo timeout for better user experience during Homebrew installs
+      Defaults timestamp_timeout=60
+      
+      # Allow sudo to work with Touch ID properly
+      Defaults !tty_tickets
+    '';
+  };
 }

@@ -96,9 +96,14 @@
   
   # System activation
   system.activationScripts.postActivation.text = ''
-    # Reset LaunchPad
+    # Reset LaunchPad (as the actual user, not root)
     echo "Resetting LaunchPad..." >&2
-    find ~/Library/Application\ Support/Dock -name "*.db" -maxdepth 1 -delete
+    if [ -n "$USER" ] && [ "$USER" != "root" ]; then
+      # Run as the actual user
+      sudo -u "$USER" find "$HOME/Library/Application Support/Dock" -name "*.db" -maxdepth 1 -delete 2>/dev/null || echo "LaunchPad database not found (normal on fresh install)" >&2
+    else
+      echo "Skipping LaunchPad reset (running as root)" >&2
+    fi
 
     # Touch a last-rebuild file so we can tell when the system was last rebuilt
     printf "%s" "$(date)" > "$HOME"/.nix-last-rebuild
