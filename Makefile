@@ -51,7 +51,6 @@ else
 endif
 
 # Build and activate the configuration
-# Build and activate the configuration
 switch:
 	@echo "==> Building and activating configuration for $(HOSTNAME) ($(MACHINE_TYPE), $(MACHINE_NAME))..."
 ifeq ($(DRY_RUN), 1)
