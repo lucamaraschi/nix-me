@@ -26,6 +26,25 @@ Or with custom parameters:
 curl -L https://raw.githubusercontent.com/lucamaraschi/nix-me/main/install.sh | bash -s hostname macbook "Your MacBook Pro"
 ```
 
+### Ready-to-use Installation Commands
+
+```bash
+# Quick install (auto-detects everything)
+curl -L https://raw.githubusercontent.com/lucamaraschi/nix-me/main/install.sh | bash
+
+# MacBook Pro with custom name
+curl -L https://raw.githubusercontent.com/lucamaraschi/nix-me/main/install.sh | bash -s macbook-pro macbook "My MacBook Pro"
+
+# Mac Mini workstation
+curl -L https://raw.githubusercontent.com/lucamaraschi/nix-me/main/install.sh | bash -s mac-mini macmini "Studio Mac Mini"
+
+# Force reinstall if something went wrong
+FORCE_NIX_REINSTALL=1 curl -L https://raw.githubusercontent.com/lucamaraschi/nix-me/main/install.sh | bash
+
+# Non-interactive for automation
+NON_INTERACTIVE=1 curl -L https://raw.githubusercontent.com/lucamaraschi/nix-me/main/install.sh | bash
+```
+
 ### Installation Parameters
 
 The script accepts the following parameters:
