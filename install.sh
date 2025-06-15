@@ -80,19 +80,31 @@ test_nix_fully_functional() {
 uninstall_nix() {
     warn "Uninstalling existing Nix installation..."
     
-    # Method 1: Use official uninstaller if it exists
+    # Method 1: Use Determinate Systems uninstaller (primary method)
+    if [ -f /nix/nix-installer ]; then
+        log "Using Determinate Systems uninstaller"
+        sudo /nix/nix-installer uninstall || {
+            warn "Determinate Systems uninstaller failed, continuing with manual cleanup"
+        }
+    elif [ -f /nix/receipt.json ]; then
+        warn "Found Determinate Systems installation but uninstaller missing"
+        log "Attempting to download and use uninstaller"
+        
+        # Try to download the uninstaller that matches the installation
+        if curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix --output /tmp/nix-installer.sh; then
+            chmod +x /tmp/nix-installer.sh
+            sudo /tmp/nix-installer.sh uninstall || warn "Downloaded uninstaller failed"
+            rm -f /tmp/nix-installer.sh
+        fi
+    fi
+    
+    # Method 2: Use legacy uninstaller if it exists
     if [ -f /nix/uninstall ]; then
-        log "Using official Nix uninstaller"
-        sudo /nix/uninstall || warn "Official uninstaller had issues, continuing with manual cleanup"
+        log "Using legacy Nix uninstaller"
+        sudo /nix/uninstall || warn "Legacy uninstaller had issues, continuing with manual cleanup"
     fi
     
-    # Method 2: Use Determinate Systems uninstaller if available
-    if command -v nix &>/dev/null; then
-        log "Attempting Determinate Systems uninstall"
-        /nix/nix-installer uninstall 2>/dev/null || warn "Determinate uninstaller not available or failed"
-    fi
-    
-    # Method 3: Manual cleanup (for stubborn cases)
+    # Method 3: Manual cleanup (comprehensive)
     log "Performing manual Nix cleanup..."
     
     # Stop and remove nix-daemon
@@ -100,6 +112,7 @@ uninstall_nix() {
     sudo rm -f /Library/LaunchDaemons/org.nixos.nix-daemon.plist
     
     # Remove Nix store and configuration
+    log "Removing Nix store and configuration..."
     sudo rm -rf /nix || warn "Could not remove /nix directory"
     sudo rm -rf /etc/nix || warn "Could not remove /etc/nix directory"
     
@@ -107,6 +120,16 @@ uninstall_nix() {
     sudo rm -f /etc/bashrc.backup-before-nix
     sudo rm -f /etc/zshrc.backup-before-nix
     sudo rm -f /etc/bash.bashrc.backup-before-nix
+    
+    # Remove synthetic.conf entries (Determinate Systems specific)
+    if [ -f /etc/synthetic.conf ]; then
+        sudo sed -i.backup '/^nix$/d' /etc/synthetic.conf 2>/dev/null || true
+    fi
+    
+    # Remove fstab entries (Determinate Systems specific)
+    if [ -f /etc/fstab ]; then
+        sudo sed -i.backup '/nix/d' /etc/fstab 2>/dev/null || true
+    fi
     
     # Remove user-level Nix
     rm -rf ~/.nix-* 2>/dev/null || true
@@ -116,10 +139,22 @@ uninstall_nix() {
     # Remove from PATH in current session
     export PATH=$(echo "$PATH" | sed -e 's|/nix/var/nix/profiles/default/bin:||g' -e 's|'"$HOME"'/.nix-profile/bin:||g')
     
+    # Remove nix users and group (Determinate Systems creates these)
+    for i in $(seq 1 32); do
+        sudo dscl . -delete /Users/_nixbld$i 2>/dev/null || true
+    done
+    sudo dscl . -delete /Groups/nixbld 2>/dev/null || true
+    
     # Verify cleanup
     if command -v nix &>/dev/null; then
-        error "Nix uninstall incomplete - manual intervention required"
-        error "Please restart your computer and try again"
+        error "Nix uninstall incomplete - nix command still available"
+        error "You may need to restart your computer and try again"
+        return 1
+    fi
+    
+    if [ -f /nix/receipt.json ]; then
+        error "Nix uninstall incomplete - receipt.json still exists"
+        error "This will cause 'existing plan' errors on reinstall"
         return 1
     fi
     
@@ -273,6 +308,18 @@ install_or_fix_nix() {
     
     # Install fresh Nix
     log "Installing Nix using Determinate Systems installer..."
+    
+    # Check for existing receipt that would cause "existing plan" error
+    if [ -f /nix/receipt.json ]; then
+        warn "Found existing Nix installation receipt"
+        log "Removing receipt to prevent 'existing plan' error..."
+        sudo rm -f /nix/receipt.json || {
+            error "Could not remove existing receipt.json"
+            error "Please run: sudo rm -f /nix/receipt.json"
+            return 1
+        }
+    fi
+    
     curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
     
     # Source environment
