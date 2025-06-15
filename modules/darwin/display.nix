@@ -25,18 +25,52 @@ log() {
 
 log "Starting display configuration"
 
-# Ensure displayplacer is installed
+# Check if displayplacer is available, try to install if not
 if ! command -v displayplacer >/dev/null 2>&1; then
   log "Installing displayplacer..."
-  curl -s https://raw.githubusercontent.com/jakehilborn/displayplacer/master/install.sh | bash
+  
+  # Try to install displayplacer with error handling
+  if curl -s https://raw.githubusercontent.com/jakehilborn/displayplacer/master/install.sh | bash 2>/dev/null; then
+    log "displayplacer installed successfully"
+  else
+    log "Warning: Could not install displayplacer from GitHub, trying Homebrew..."
+    if command -v brew >/dev/null 2>&1; then
+      if brew install jakehilborn/jakehilborn/displayplacer 2>/dev/null; then
+        log "displayplacer installed via Homebrew"
+      else
+        log "Warning: Could not install displayplacer via Homebrew either"
+        log "Skipping display configuration - you can manually install displayplacer later"
+        exit 0
+      fi
+    else
+      log "Warning: Neither direct install nor Homebrew available"
+      log "Skipping display configuration - you can manually install displayplacer later"
+      exit 0
+    fi
+  fi
+fi
+
+# Verify displayplacer is now available
+if ! command -v displayplacer >/dev/null 2>&1; then
+  log "Warning: displayplacer still not available after installation attempts"
+  log "Skipping display configuration"
+  exit 0
 fi
 
 # Get current display configuration
 log "Getting current display configuration"
-CURRENT_CONFIG=$(displayplacer list)
+if ! CURRENT_CONFIG=$(displayplacer list 2>/dev/null); then
+  log "Warning: Could not get display configuration"
+  exit 0
+fi
 
 # Parse all displays and their IDs
 DISPLAYS=$(echo "$CURRENT_CONFIG" | grep -E "Display [0-9]+" | sed -E 's/.*Display ([0-9]+).*/\1/')
+
+if [ -z "$DISPLAYS" ]; then
+  log "No displays found, skipping configuration"
+  exit 0
+fi
 
 log "Found displays: $DISPLAYS"
 
@@ -76,8 +110,11 @@ done
 if [ -n "$DISPLAY_CMDS" ]; then
   FINAL_CMD="displayplacer$DISPLAY_CMDS"
   log "Executing final command: $FINAL_CMD"
-  eval "$FINAL_CMD"
-  log "Display configuration applied successfully"
+  if eval "$FINAL_CMD" 2>/dev/null; then
+    log "Display configuration applied successfully"
+  else
+    log "Warning: Display configuration command failed, but continuing anyway"
+  fi
 else
   log "No display configurations to apply"
 fi
@@ -86,9 +123,11 @@ EOF
     # Make the script executable
     chmod +x "$HOME"/.config/nixpkgs/scripts/configure-displays.sh
     
-    # Run the display configuration script
-    "$HOME"/.config/nixpkgs/scripts/configure-displays.sh
+    # Run the display configuration script (with error handling)
+    if "$HOME"/.config/nixpkgs/scripts/configure-displays.sh 2>/dev/null; then
+      echo "Display configuration completed" >&2
+    else
+      echo "Warning: Display configuration failed, but system activation continues" >&2
+    fi
   '');
-  
-  # NOTE: Required packages moved to core.nix to prevent systemPackages conflicts
 }
