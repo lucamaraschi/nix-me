@@ -39,10 +39,10 @@ curl -L https://raw.githubusercontent.com/lucamaraschi/nix-me/main/install.sh | 
 curl -L https://raw.githubusercontent.com/lucamaraschi/nix-me/main/install.sh | bash -s mac-mini macmini "Studio Mac Mini"
 
 # Force reinstall if something went wrong
-FORCE_NIX_REINSTALL=1 curl -L https://raw.githubusercontent.com/lucamaraschi/nix-me/main/install.sh | bash
+curl -L https://raw.githubusercontent.com/lucamaraschi/nix-me/main/install.sh | FORCE_NIX_REINSTALL=1 bash
 
 # Non-interactive for automation
-NON_INTERACTIVE=1 curl -L https://raw.githubusercontent.com/lucamaraschi/nix-me/main/install.sh | bash
+curl -L https://raw.githubusercontent.com/lucamaraschi/nix-me/main/install.sh | NON_INTERACTIVE=1 bash
 ```
 
 ### Installation Parameters

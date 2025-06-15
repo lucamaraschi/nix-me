@@ -290,30 +290,45 @@ install_or_fix_nix() {
 
 # Function to detect virtual machine environment
 detect_vm_environment() {
-    # Check for common VM indicators
-    if system_profiler SPHardwareDataType 2>/dev/null | grep -i "virtual\|parallels\|vmware\|virtualbox" > /dev/null; then
+    # Method 1: Check system profiler for actual VM hardware first
+    local hardware_info=$(system_profiler SPHardwareDataType 2>/dev/null)
+    
+    # Check for explicit VM indicators in hardware
+    if echo "$hardware_info" | grep -i "virtual\|parallels\|vmware\|virtualbox" > /dev/null; then
         echo "traditional-vm"
         return
     fi
     
-    # Check for Apple Virtual Machine specifically
-    if system_profiler SPHardwareDataType 2>/dev/null | grep -i "Apple Virtual Machine" > /dev/null; then
+    # Check for Apple Virtual Machine specifically (actual VM hardware)
+    if echo "$hardware_info" | grep -i "Apple Virtual Machine" > /dev/null; then
         echo "apple-vm"
         return
     fi
     
-    # Check for UTM
-    if ps aux | grep -i "UTM" | grep -v grep > /dev/null; then
-        echo "utm-vm"
-        return
-    fi
-    
-    # Check for virtualization kernel flag
+    # Method 2: Check for virtualization kernel flag (actual running in VM)
     if sysctl kern.hv_vmm_present 2>/dev/null | grep -q "1"; then
-        echo "virtualized"
+        # Additional check: make sure we're actually IN a VM, not just capable of running VMs
+        if sysctl kern.hv_support 2>/dev/null | grep -q "1"; then
+            echo "virtualized"
+            return
+        fi
+    fi
+    
+    # Method 3: Check hardware model for VM indicators
+    local model=$(sysctl -n hw.model 2>/dev/null)
+    if echo "$model" | grep -i "virtual" > /dev/null; then
+        echo "vm-hardware"
         return
     fi
     
+    # Method 4: Check for VM-specific devices (last resort)
+    if ioreg -l | grep -i "vmware\|parallels\|virtualbox\|qemu" > /dev/null 2>&1; then
+        echo "vm-devices"
+        return
+    fi
+    
+    # If we get here, it's a physical machine
+    # Note: UTM app being installed/running does NOT mean we're in a VM
     echo "physical"
 }
 
@@ -450,16 +465,22 @@ main() {
 
     # Create VM-specific configuration if needed
     if [ "$VM_TYPE" != "physical" ]; then
-        log "Creating VM-friendly configuration override..."
+        log "Creating VM-friendly configuration override for $VM_TYPE environment..."
         cat > "$REPO_DIR/vm-overrides.nix" <<EOL
 { lib, ... }:
 {
-  # Disable problematic features in VMs
+  # VM-specific optimizations
   nix.optimise.automatic = lib.mkForce false;
   nix.gc.automatic = lib.mkForce false;
   
   # Disable Universal Access settings that might fail in VMs
   system.defaults.universalaccess = lib.mkForce {};
+  
+  # VM-optimized settings
+  system.defaults.dock.tilesize = lib.mkForce 24; # Smaller for VM resolution
+  
+  # Disable problematic activation scripts for VMs
+  system.activationScripts.extraActivation.text = lib.mkForce "";
 }
 EOL
     fi
