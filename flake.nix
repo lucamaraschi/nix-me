@@ -43,21 +43,6 @@
       
       username = getUsername;
       
-      # Function to normalize hostname to lowercase
-      normalizeHostname = hostname:
-        let
-          # Simple lowercase conversion for common characters
-          lowerMap = {
-            "A" = "a"; "B" = "b"; "C" = "c"; "D" = "d"; "E" = "e"; "F" = "f"; "G" = "g"; "H" = "h"; "I" = "i"; "J" = "j";
-            "K" = "k"; "L" = "l"; "M" = "m"; "N" = "n"; "O" = "o"; "P" = "p"; "Q" = "q"; "R" = "r"; "S" = "s"; "T" = "t";
-            "U" = "u"; "V" = "v"; "W" = "w"; "X" = "x"; "Y" = "y"; "Z" = "z";
-          };
-          chars = builtins.stringToChars hostname;
-          convertChar = c: if builtins.hasAttr c lowerMap then lowerMap.${c} else c;
-          lowerChars = builtins.map convertChar chars;
-        in
-          builtins.concatStringsSep "" lowerChars;
-      
       # Function to create a darwin configuration
       mkDarwinSystem = { 
         hostname,
@@ -152,11 +137,11 @@
         };
         
         # Dynamic configuration (used by the Makefile) - with hostname normalization
-        "${normalizeHostname (builtins.getEnv "HOSTNAME")}" = 
+        "${builtins.replaceStrings ["A" "B" "C" "D" "E" "F" "G" "H" "I" "J" "K" "L" "M" "N" "O" "P" "Q" "R" "S" "T" "U" "V" "W" "X" "Y" "Z"] ["a" "b" "c" "d" "e" "f" "g" "h" "i" "j" "k" "l" "m" "n" "o" "p" "q" "r" "s" "t" "u" "v" "w" "x" "y" "z"] (builtins.getEnv "HOSTNAME")}" = 
           if builtins.getEnv "HOSTNAME" != "" then
             let
               rawHostname = builtins.getEnv "HOSTNAME";
-              hostname = normalizeHostname rawHostname;
+              hostname = builtins.replaceStrings ["A" "B" "C" "D" "E" "F" "G" "H" "I" "J" "K" "L" "M" "N" "O" "P" "Q" "R" "S" "T" "U" "V" "W" "X" "Y" "Z"] ["a" "b" "c" "d" "e" "f" "g" "h" "i" "j" "k" "l" "m" "n" "o" "p" "q" "r" "s" "t" "u" "v" "w" "x" "y" "z"] rawHostname;
               machineType = builtins.getEnv "MACHINE_TYPE";
               machineName = builtins.getEnv "MACHINE_NAME";
             in
