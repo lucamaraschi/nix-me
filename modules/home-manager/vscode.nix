@@ -74,72 +74,72 @@
         # Explorer settings
         "explorer.compactFolders" = false;
       };
+    
+      keybindings = [
+        {
+          key = "cmd+1";
+          command = "workbench.action.openEditorAtIndex1";
+        }
+        {
+          key = "cmd+2";
+          command = "workbench.action.openEditorAtIndex2";
+        }
+        {
+          key = "cmd+3";
+          command = "workbench.action.openEditorAtIndex3";
+        }
+        {
+          key = "cmd+k cmd+i";
+          command = "editor.action.formatDocument";
+        }
+        {
+          key = "alt+cmd+l";
+          command = "editor.action.formatDocument";
+        }
+        {
+          key = "cmd+k cmd+t";
+          command = "workbench.action.selectTheme";
+        }
+        {
+          key = "ctrl+`";
+          command = "workbench.action.terminal.toggleTerminal";
+        }
+      ];
+      
+      extensions = with pkgs.vscode-extensions; [
+        # Theme and UI
+        github.github-vscode-theme
+        pkief.material-icon-theme
+        
+        # Language support
+        ms-python.python
+        rust-lang.rust-analyzer
+        golang.go
+        hashicorp.terraform
+        jnoortheen.nix-ide
+        
+        # Git
+        eamodio.gitlens
+        
+        # Editing enhancements
+        esbenp.prettier-vscode
+        formulahendry.auto-rename-tag
+        
+        # AI assistance
+        github.copilot
+        
+        # Misc
+        yzhang.markdown-all-in-one
+        ms-azuretools.vscode-docker
+      ] ++ pkgs.vscode-utils.extensionsFromVscodeMarketplace [
+        # Fixed hash for vscode-fish extension
+        {
+          name = "vscode-fish";
+          publisher = "bmalehorn";
+          version = "1.0.16";
+          sha256 = "sha256-WT1vzO9910Wyad2qqHVGHufUdSwH8YaZ2DSiTLQb/7k=";  # ✅ Corrected hash
+        }
+      ];
     };
-    
-    keybindings = [
-      {
-        key = "cmd+1";
-        command = "workbench.action.openEditorAtIndex1";
-      }
-      {
-        key = "cmd+2";
-        command = "workbench.action.openEditorAtIndex2";
-      }
-      {
-        key = "cmd+3";
-        command = "workbench.action.openEditorAtIndex3";
-      }
-      {
-        key = "cmd+k cmd+i";
-        command = "editor.action.formatDocument";
-      }
-      {
-        key = "alt+cmd+l";
-        command = "editor.action.formatDocument";
-      }
-      {
-        key = "cmd+k cmd+t";
-        command = "workbench.action.selectTheme";
-      }
-      {
-        key = "ctrl+`";
-        command = "workbench.action.terminal.toggleTerminal";
-      }
-    ];
-    
-    extensions = with pkgs.vscode-extensions; [
-      # Theme and UI
-      github.github-vscode-theme
-      pkief.material-icon-theme
-      
-      # Language support
-      ms-python.python
-      rust-lang.rust-analyzer
-      golang.go
-      hashicorp.terraform
-      jnoortheen.nix-ide
-      
-      # Git
-      eamodio.gitlens
-      
-      # Editing enhancements
-      esbenp.prettier-vscode
-      formulahendry.auto-rename-tag
-      
-      # AI assistance
-      github.copilot
-      
-      # Misc
-      yzhang.markdown-all-in-one
-      ms-azuretools.vscode-docker
-    ] ++ pkgs.vscode-utils.extensionsFromVscodeMarketplace [
-      # Fixed hash for vscode-fish extension
-      {
-        name = "vscode-fish";
-        publisher = "bmalehorn";
-        version = "1.0.16";
-        sha256 = "sha256-WT1vzO9910Wyad2qqHVGHufUdSwH8YaZ2DSiTLQb/7k=";  # ✅ Corrected hash
-      }
-    ];
   };
 }
