@@ -23,6 +23,7 @@ let
       "docker"
       "ghostty"
       "github"
+      "git-lsf"
       "orbstack"
       "orka-desktop"
       "visual-studio-code"
