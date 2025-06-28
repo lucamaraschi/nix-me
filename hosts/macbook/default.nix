@@ -30,6 +30,26 @@
     };
   };
 
+  # Apps
+ 
+  # Import the HiddenBar module
+  imports = [
+    ../../modules/darwin/apps/hiddenbar.nix
+  ];
+
+  # MacBook-specific HiddenBar overrides
+  system.defaults.CustomUserPreferences."com.dwarvesv.hiddenbar" = {
+    # More aggressive auto-hide on laptop (save menu bar space)
+    autoHideTimeInterval = 2; # Faster hide on laptop
+    
+    # MacBook-specific apps to keep visible
+    doNotHideTheseApps = [
+      "com.apple.controlcenter"           # Control Center (battery, wifi)
+      "com.1password.1password-macos"     # 1Password quick access
+      "com.tailscale.ipn.macsys"          # Tailscale VPN
+    ];
+  };
+
   # Power management scripts
   system.activationScripts.macbookOptimization.text = ''
     # Set energy saving preferences for laptops
