@@ -50,8 +50,7 @@
     ];
   };
 
-  # Audio (fix the conflict - use PipeWire instead of PulseAudio)
-  sound.enable = true;
+  # Audio (PipeWire only - no deprecated sound.enable)
   security.rtkit.enable = true;
   services.pipewire = {
     enable = true;
@@ -59,8 +58,6 @@
     alsa.support32Bit = true;
     pulse.enable = true;
   };
-  # Disable PulseAudio to avoid conflict
-  hardware.pulseaudio.enable = false;
 
   # VM user
   users.users.dev = {
