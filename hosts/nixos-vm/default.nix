@@ -36,7 +36,6 @@
     ];
   };
 
-  sound.enable = true;
   hardware.pulseaudio.enable = true;
 
   users.users.dev = {
