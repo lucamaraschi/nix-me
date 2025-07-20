@@ -11,6 +11,7 @@
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    nixos-generators.url = "github:nix-community/nixos-generators";
   };
 
   outputs = inputs@{ nixpkgs, darwin, home-manager, ... }:
@@ -152,6 +153,40 @@
               machineName = if machineName != "" then machineName else hostname;
             }
           else mkDarwinSystem { hostname = "macbook-pro"; machineType = "macbook"; };
+      };
+
+      nixosConfigurations = {
+        nixos-vm = nixpkgs.lib.nixosSystem {
+          system = if nixpkgs.stdenv.isAarch64 then "aarch64-linux" else "x86_64-linux";
+          specialArgs = { inherit inputs; };
+          modules = [
+            ./hosts/nixos-vm/default.nix
+            home-manager.nixosModules.home-manager
+            {
+              home-manager = {
+                useGlobalPkgs = true;
+                useUserPackages = true;
+                users.dev = import ./hosts/nixos-vm/home.nix;
+                extraSpecialArgs = { inherit inputs; };
+              };
+            }
+          ];
+        };
+      };
+
+      packages = {
+        aarch64-darwin = {
+          vm-manager = 
+            let pkgs = nixpkgs.legacyPackages.aarch64-darwin;
+            in pkgs.writeShellApplication {
+              name = "vm-manager";
+              text = ''
+                echo "Creating NixOS VM..."
+                nix build .#nixosConfigurations.nixos-vm.config.system.build.toplevel
+                echo "VM system built!"
+              '';
+            };
+        };
       };
     };
 }
