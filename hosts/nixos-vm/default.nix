@@ -1,10 +1,10 @@
 { config, lib, pkgs, inputs, ... }:
 
 {
-  # Import your existing shared configuration
-  imports = [
-    ../shared/default.nix  # Reuse your shared configs
-  ];
+  # Don't import shared - it's Darwin-specific
+  # imports = [
+  #   ../shared/default.nix  # ← REMOVE THIS
+  # ];
 
   system.stateVersion = "23.11";
   
@@ -17,7 +17,7 @@
     kernelPackages = pkgs.linuxPackages_latest;
   };
 
-  # Basic system setup
+  # Rest of the configuration stays the same...
   networking = {
     hostName = "nixos-vm";
     networkmanager.enable = true;
@@ -27,7 +27,6 @@
   time.timeZone = "America/Vancouver";
   i18n.defaultLocale = "en_US.UTF-8";
 
-  # Desktop environment
   services.xserver = {
     enable = true;
     displayManager.lightdm.enable = true;
@@ -37,11 +36,9 @@
     ];
   };
 
-  # Audio
   sound.enable = true;
   hardware.pulseaudio.enable = true;
 
-  # VM user
   users.users.dev = {
     isNormalUser = true;
     extraGroups = [ "wheel" "networkmanager" ];
@@ -49,19 +46,16 @@
     initialPassword = "dev";
   };
 
-  # Essential packages
   environment.systemPackages = with pkgs; [
     git curl wget htop tree
     spice-vdagent open-vm-tools
   ];
 
-  # Services
   services = {
     openssh.enable = true;
     spice-vdagentd.enable = true;
   };
 
-  # VM optimizations
   virtualisation = {
     vmware.guest.enable = true;
     spiceUSBRedirection.enable = true;
@@ -69,6 +63,5 @@
 
   security.sudo.wheelNeedsPassword = false;
   programs.zsh.enable = true;
-
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
 }
