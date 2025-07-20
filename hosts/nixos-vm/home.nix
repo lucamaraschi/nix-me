@@ -1,28 +1,36 @@
-{ config, pkgs, inputs, ... }:
+{ config, pkgs, inputs, username, ... }:
 
 {
-  # Import your existing home-manager modules with Linux adaptations
+  # Import your existing home-manager modules that work on Linux
   imports = [
-    ../../modules/home-manager/git.nix       # Your Git config
-    ../../modules/home-manager/tmux.nix      # Your tmux config
-    ../../modules/home-manager/direnv.nix    # Your direnv config
-    # Add other modules as needed
+    ../../modules/home-manager/git.nix
+    ../../modules/home-manager/tmux.nix
+    ../../modules/home-manager/direnv.nix
+    # Add other modules that are cross-platform
   ];
 
   home.username = "dev";
   home.homeDirectory = "/home/dev";
   home.stateVersion = "23.11";
 
-  # Ghostty with Linux keybindings (adapt your existing config)
-  programs.ghostty = {
-    enable = true;
-    # Copy settings from modules/home-manager/ghostty.nix but with Linux keys
-    keybindings = {
-      "ctrl+shift+c" = "copy_to_clipboard";
-      "ctrl+shift+v" = "paste_from_clipboard";
-      "ctrl+shift+t" = "new_tab";
-    };
-  };
+  # Basic packages
+  home.packages = with pkgs; [
+    firefox
+    ghostty  # Install ghostty as a package
+  ];
+
+  # Ghostty config file (not as a program)
+  home.file.".config/ghostty/config".text = ''
+    font-family = "JetBrains Mono"
+    font-size = 14
+    theme = "Catppuccin Mocha"
+    
+    # Linux keybindings
+    keybind = ctrl+shift+c=copy_to_clipboard
+    keybind = ctrl+shift+v=paste_from_clipboard
+    keybind = ctrl+shift+t=new_tab
+    keybind = ctrl+shift+w=close_surface
+  '';
 
   # i3 window manager
   xsession.windowManager.i3 = {
