@@ -157,7 +157,7 @@
 
       nixosConfigurations = {
         nixos-vm = nixpkgs.lib.nixosSystem {
-          system = if builtins.match ".*aarch64.*" builtins.currentSystem != null then "aarch64-linux" else "x86_64-linux";
+          system = "aarch64-linux";
           specialArgs = { inherit inputs; };
           modules = [
             ./hosts/nixos-vm/default.nix
