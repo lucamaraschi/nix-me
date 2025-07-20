@@ -160,26 +160,6 @@
           system = "aarch64-linux";
           specialArgs = { inherit inputs username; };
           modules = [
-            # # Add this module to configure substituters
-            # {
-            #   nix.settings = {
-            #     substituters = [
-            #       "https://cache.nixos.org/"
-            #       "https://nix-community.cachix.org"
-            #     ];
-            #     trusted-public-keys = [
-            #       "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY="
-            #       "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
-            #     ];
-            #   };
-            # }
-            # Add cross-compilation support
-            {
-              nixpkgs.crossSystem = {
-                config = "aarch64-unknown-linux-gnu";
-              };
-              nixpkgs.buildPlatform = "aarch64-darwin";
-            }
             ./hosts/nixos-vm/default.nix
             home-manager.nixosModules.home-manager
             {
