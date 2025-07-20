@@ -1,11 +1,3 @@
-Two issues to fix in the NixOS configuration:
-
-Missing root filesystem definition
-Audio conflict between PulseAudio and PipeWire
-
-🔧 Fix hosts/nixos-vm/default.nix
-Replace the content with this corrected version:
-bashcat > hosts/nixos-vm/default.nix << 'EOF'
 { config, lib, pkgs, inputs, ... }:
 
 {
