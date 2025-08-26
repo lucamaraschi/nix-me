@@ -176,16 +176,10 @@
 
       packages = {
         aarch64-darwin = {
-          vm-manager = 
-            let pkgs = nixpkgs.legacyPackages.aarch64-darwin;
-            in pkgs.writeShellApplication {
-              name = "vm-manager";
-              text = ''
-                echo "Creating NixOS VM..."
-                nix build .#nixosConfigurations.nixos-vm.config.system.build.toplevel
-                echo "VM system built!"
-              '';
-            };
+          vm-manager = pkgs.writeShellApplication {
+            name = "vm-manager";
+            text = builtins.readFile ./scripts/vm-manager.sh;
+          };
         };
       };
     };

@@ -44,6 +44,16 @@ help:
 	@echo "  make MACHINE_TYPE=macbook switch"
 	@echo "  make HOSTNAME=mac-mini MACHINE_TYPE=macmini MACHINE_NAME=\"Studio Mac Mini\" switch"
 	@echo "  make DRY_RUN=1 switch"
+	@echo ""
+	@echo "=== VM Management ==="
+	@grep -E '^vm-[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@echo ""
+	@echo "=== VM Examples ==="
+	@echo "  make vm                           # Create VM with random name"
+	@echo "  make vm-create name=my-project    # Create VM with specific name"
+	@echo "  make vm-start name=swift-dev-482  # Start a VM"
+	@echo "  make vm-list                      # Show all VMs"
+	@echo "  make vm-delete name=old-project   # Delete a VM"
 
 # Build the configuration
 build:
@@ -141,3 +151,38 @@ list-machines:
 	@echo "To use a specific machine type without a predefined configuration:"
 	@echo "  make MACHINE_TYPE=macbook switch"
 	@echo "  make MACHINE_TYPE=macmini switch"
+
+# VM Management
+.PHONY: vm-create vm-start vm-list vm-delete vm-help
+
+vm-create: ## Create a new VM (auto-generates name if not provided)
+	@if [ -n "$(name)" ]; then \
+		./scripts/vm-manager.sh create $(name); \
+	else \
+		./scripts/vm-manager.sh create; \
+	fi
+
+vm-start: ## Start a VM by name
+	@if [ -z "$(name)" ]; then \
+		echo "Error: VM name required. Usage: make vm-start name=<vm-name>"; \
+		echo "Use 'make vm-list' to see available VMs"; \
+		exit 1; \
+	fi
+	@./scripts/vm-manager.sh start $(name)
+
+vm-list: ## List all VMs
+	@./scripts/vm-manager.sh list
+
+vm-delete: ## Delete a VM by name
+	@if [ -z "$(name)" ]; then \
+		echo "Error: VM name required. Usage: make vm-delete name=<vm-name>"; \
+		echo "Use 'make vm-list' to see available VMs"; \
+		exit 1; \
+	fi
+	@./scripts/vm-manager.sh delete $(name)
+
+vm-help: ## Show VM management help
+	@./scripts/vm-manager.sh help
+
+# Convenience aliases
+vm: vm-create ## Alias for vm-create (quick VM creation)

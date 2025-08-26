@@ -78,6 +78,9 @@
       pandoc
       imagemagick
       
+      # System
+      qemu
+      
       # Display tools (from display.nix)
       gnugrep
       gnused
