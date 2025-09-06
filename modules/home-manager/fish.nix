@@ -94,6 +94,14 @@
       function gcm
         git commit -m $argv
       end
+
+      function mknode
+        mkdir -p $argv[1] && cd $argv[1]
+        echo "use nix" > .envrc
+        echo "{ pkgs ? import <nixpkgs> {} }: pkgs.mkShell { buildInputs = with pkgs; [ nodejs_22 nodePackages.pnpm ]; }" > shell.nix
+        direnv allow
+        echo "Node.js project ready in $(pwd)"
+      end
     '';
     
     # Add functionality directly in home-manager instead of plugins
@@ -146,6 +154,92 @@
           
           # Prompt character
           printf "$normal❯ "
+        '';
+      };
+
+      mknode = {
+        body = ''
+          set project_name $argv[1]
+          
+          if test -z "$project_name"
+            echo "Usage: mknode <project-name>"
+            return 1
+          end
+          
+          mkdir -p $project_name
+          cd $project_name
+          
+          # Create shell.nix
+          cat > shell.nix << 'EOF'
+          { pkgs ? import <nixpkgs> {} }:
+
+          pkgs.mkShell {
+            buildInputs = with pkgs; [
+              nodejs_22
+              nodePackages.pnpm
+              nodePackages.typescript
+              nodePackages.ts-node
+              nodePackages.nodemon
+            ];
+            
+            shellHook = '''
+              echo "🚀 Node.js development environment loaded!"
+              echo "Node: $(node --version)"
+              echo "pnpm: $(pnpm --version)"
+              
+              # Auto-create package.json if it doesn't exist
+              if [ ! -f package.json ]; then
+                echo "Creating package.json..."
+                pnpm init
+              fi
+            ''';
+          }
+          EOF
+                
+          # Create .envrc
+          echo "use nix" > .envrc
+          
+          # Allow direnv
+          direnv allow
+          
+          echo "✅ Node.js project '$project_name' created and ready!"
+        '';
+      };
+
+      nixify = {
+        body = ''
+          # For existing projects - adds Nix support
+          if test -f package.json
+            echo "📦 Adding Nix support to existing Node.js project..."
+            
+            # Detect Node version from package.json or .nvmrc
+            set node_version "nodejs_22"
+            if test -f .nvmrc
+              set detected_version (cat .nvmrc | string replace "v" "" | string replace "." "_")
+              set node_version "nodejs_$detected_version"
+              echo "Detected Node version from .nvmrc: $node_version"
+            end
+            
+            cat > shell.nix << EOF
+            { pkgs ? import <nixpkgs> {} }:
+
+            pkgs.mkShell {
+              buildInputs = with pkgs; [
+                $node_version
+                nodePackages.pnpm
+                nodePackages.typescript
+              ];
+            }
+            EOF
+        
+            echo "use nix" > .envrc
+            direnv allow
+        
+            echo "✅ Nix support added! Environment ready."
+          else
+            echo "❌ No package.json found. Run this in a Node.js project directory."
+            return 1
+          end
         '';
       };
     };

@@ -84,6 +84,14 @@
       # Display tools (from display.nix)
       gnugrep
       gnused
+
+      # Global Node.js setup - available everywhere
+      nodejs_22
+      nodePackages.pnpm
+      nodePackages.npm
+      
+      # Common development tools
+      nodePackages.typescript
     ]);
     
     # Set system-wide shell variables

@@ -18,6 +18,47 @@
         export NODE_PATH="$PWD/node_modules"
         PATH_add node_modules/.bin
       }
+
+      layout_nodejs() {
+        local version=${1:-22}
+        export NODE_VERSION=$version
+        PATH_add node_modules/.bin
+        export NPM_CONFIG_PREFIX=$PWD/.npm-global
+        PATH_add .npm-global/bin
+      }
+  
+      # Automatic package manager detection
+      layout_node_auto() {
+        if [[ -f pnpm-lock.yaml ]]; then
+          echo "Using pnpm"
+          layout_nodejs && pnpm install
+        elif [[ -f yarn.lock ]]; then
+          echo "Using yarn"  
+          layout_nodejs && yarn install
+        else
+          echo "Using npm"
+          layout_nodejs && npm install
+        fi
+      }
+
+      # Simple Node.js layout without needing shell.nix
+      layout_node_global() {
+        echo "Using global Node.js $(node --version)"
+        PATH_add node_modules/.bin
+        export NPM_CONFIG_PREFIX=$PWD/.npm-global
+        PATH_add .npm-global/bin
+        
+        # Auto-install dependencies if package.json exists
+        if [[ -f package.json ]] && [[ ! -d node_modules ]]; then
+          if [[ -f pnpm-lock.yaml ]]; then
+            echo "Installing dependencies with pnpm..."
+            pnpm install
+          else
+            echo "Installing dependencies with npm..."
+            npm install
+          fi
+        fi
+      }
     '';
     
     # enableFishIntegration = true;
