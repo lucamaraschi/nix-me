@@ -10,11 +10,14 @@
   home.stateVersion = "23.11";
   home.homeDirectory = lib.mkForce "/Users/${username}";
   
-  # Generic environment variables
-  home.sessionVariables = {
-    EDITOR = "vim";
-    VISUAL = "code";
-    LANG = "en_US.UTF-8";
-    LC_ALL = "en_US.UTF-8";
-  };
+  # Install user packages (these could move to apps/ too if desired)
+  home.packages = with pkgs; [
+    ripgrep
+    fd
+    jq
+    htop
+    fzf
+    tree
+    bat
+  ];
 }

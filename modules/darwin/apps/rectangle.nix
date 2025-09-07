@@ -1,9 +1,9 @@
-# modules/home-manager/rectangle.nix
+# Rectangle window manager configuration (moved from home-manager/rectangle.nix)
 { config, lib, pkgs, ... }:
 
-{
-  # Rectangle window manager configuration
-  home.file.".config/rectangle/RectangleConfig.json".text = builtins.toJSON {
+let
+  # Base Rectangle configuration that can be overridden
+  baseRectangleConfig = {
     # General settings
     SUEnableAutomaticChecks = true;
     launchOnLogin = true;
@@ -32,7 +32,7 @@
     windowSnapping = true;
     todoMode = false;
     
-    # Keyboard shortcuts (using Hyper key (Cmd+Ctrl+Alt+Shift) for most operations)
+    # Keyboard shortcuts (using Hyper key combinations)
     shortcuts = {
       # Basic positioning
       leftHalf = "^⌥⌘←";            # Ctrl+Option+Cmd+Left
@@ -76,5 +76,30 @@
       "com.apple.systempreferences"
       "com.apple.finder"
     ];
+  };
+
+in
+{
+  # Options for machine-specific customization
+  options.rectangle = {
+    config = lib.mkOption {
+      type = lib.types.attrs;
+      default = baseRectangleConfig;
+      description = "Rectangle configuration";
+    };
+    
+    # Allow machines to override specific settings
+    configOverrides = lib.mkOption {
+      type = lib.types.attrs;
+      default = {};
+      description = "Rectangle configuration overrides for machine-specific settings";
+    };
+  };
+
+  config = {
+    # Rectangle window manager configuration using your original approach
+    home.file.".config/rectangle/RectangleConfig.json".text = builtins.toJSON (
+      lib.recursiveUpdate config.rectangle.config config.rectangle.configOverrides
+    );
   };
 }
