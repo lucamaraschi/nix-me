@@ -116,6 +116,12 @@
           machineType = "macbook";
           machineName = "Gotham";
         };
+
+        "nabucodonosor" = mkDarwinSystem { 
+          hostname = "nabucodonosor";
+          machineType = "macbook";
+          machineName = "Nabucodonosor";
+        };
         
         "macbook-air" = mkDarwinSystem {
           hostname = "macbook-air"; 
@@ -137,22 +143,12 @@
           machineName = "VM";
         };
         
-        # Dynamic configuration (used by the Makefile) - handle specific hostname cases
-        "${if builtins.getEnv "HOSTNAME" == "Gotham" then "gotham" else builtins.getEnv "HOSTNAME"}" = 
-          if builtins.getEnv "HOSTNAME" != "" then
-            let
-              rawHostname = builtins.getEnv "HOSTNAME";
-              # Normalize known problematic hostnames
-              hostname = if rawHostname == "Gotham" then "gotham" else rawHostname;
-              machineType = builtins.getEnv "MACHINE_TYPE";
-              machineName = builtins.getEnv "MACHINE_NAME";
-            in
-            mkDarwinSystem { 
-              inherit hostname;
-              machineType = if machineType != "" then machineType else null;
-              machineName = if machineName != "" then machineName else hostname;
-            }
-          else mkDarwinSystem { hostname = "macbook-pro"; machineType = "macbook"; };
+        # Add a generic VM configuration for testing
+        "nixos-vm" = mkDarwinSystem { 
+          hostname = "nixos-vm";
+          machineType = "vm";
+          machineName = "NixOS VM";
+        };
       };
 
       nixosConfigurations = {
@@ -174,13 +170,13 @@
         };
       };
 
-      packages = {
-        aarch64-darwin = {
-          vm-manager = pkgs.writeShellApplication {
-            name = "vm-manager";
-            text = builtins.readFile ./scripts/vm-manager.sh;
-          };
-        };
-      };
+      # packages = {
+      #   aarch64-darwin = {
+      #     vm-manager = pkgs.writeShellApplication {
+      #       name = "vm-manager";
+      #       text = builtins.readFile ./scripts/vm-manager.sh;
+      #     };
+      #   };
+      # };
     };
 }

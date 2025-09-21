@@ -3,9 +3,9 @@
 {
   # Import your existing home-manager modules that work on Linux
   imports = [
-    ../../modules/home-manager/git.nix
-    ../../modules/home-manager/tmux.nix
-    ../../modules/home-manager/direnv.nix
+    ../../modules/home-manager/apps/git.nix
+    ../../modules/home-manager/apps/tmux.nix
+    ../../modules/home-manager/shell/direnv.nix
     # Add other modules that are cross-platform
   ];
 

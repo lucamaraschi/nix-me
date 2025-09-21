@@ -20,7 +20,7 @@
       }
 
       layout_nodejs() {
-        local version=${1:-22}
+        local version=$${1:-22}
         export NODE_VERSION=$version
         PATH_add node_modules/.bin
         export NPM_CONFIG_PREFIX=$PWD/.npm-global
