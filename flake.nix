@@ -26,7 +26,7 @@
           # Use SUDO_USER if available (original user before sudo), otherwise use USER but not if it's root
           result = if fromSudoUser != "" then fromSudoUser
                   else if fromEnv != "" && fromEnv != "root" then fromEnv
-                  else "$(whoami)";  # fallback to known user
+                  else "batman";  # fallback to known user
 
           debug = builtins.trace "USER: '${fromEnv}', SUDO_USER: '${fromSudoUser}', result: '${result}'" null;
         in
