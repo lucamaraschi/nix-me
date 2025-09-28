@@ -19,7 +19,6 @@ let
       "python3"
       "rustup"
       "go"
-      "git-lfs"
       "gh"
       "nmap"
       "dnsutils"
@@ -50,7 +49,7 @@ let
       "protonvpn"
       
       # Development
-      "docker"
+      "docker-desktop"
       "ghostty"
       "github"
       "orbstack"

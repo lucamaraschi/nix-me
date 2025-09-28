@@ -10,10 +10,10 @@
       isAutoHide = true;
       
       # Hide after X seconds of inactivity
-      autoHideTimeInterval = 3;
+      autoHideTimeInterval = lib.mkDefault 3;
       
       # Show separator between hidden and visible items
-      showPreferences = true;
+      showPreferences = lib.mkDefault true;
       
       # Don't hide specific important items (example list)
       # You'll need to find the bundle IDs of apps you want to keep visible
@@ -24,13 +24,13 @@
       ];
       
       # Launch at login
-      isLaunchAtLogin = true;
+      isLaunchAtLogin = lib.mkDefault true;
       
       # Show in dock
-      showDockIcon = false;
+      showDockIcon = lib.mkDefault false;
       
       # Segment count (how many items to show/hide)
-      numberOfSegment = 1;
+      numberOfSegment = lib.mkDefault 1;
     };
   };
   

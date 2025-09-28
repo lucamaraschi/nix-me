@@ -20,10 +20,9 @@ let
       "rectangle"
       
       # Development
-      "docker"
+      "docker-desktop"
       "ghostty"
       "github"
-      "git-lsf"
       "orbstack"
       "orka-desktop"
       "visual-studio-code"

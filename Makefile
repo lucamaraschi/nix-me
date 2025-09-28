@@ -69,7 +69,7 @@ switch:
 	@echo "==> Building and activating configuration for $(FINAL_HOSTNAME) ($(MACHINE_TYPE), $(MACHINE_NAME))..."
 	@echo "==> Using hostname: $(FINAL_HOSTNAME)"
 ifeq ($(DRY_RUN), 1)
-	@echo "[DRY RUN] HOSTNAME=$(FINAL_HOSTNAME) MACHINE_TYPE=$(MACHINE_TYPE) MACHINE_NAME=\"$(MACHINE_NAME)\" darwin-rebuild switch --flake $(FLAKE_DIR)"
+	@echo "[DRY RUN] HOSTNAME=$(FINAL_HOSTNAME) MACHINE_TYPE=$(MACHINE_TYPE) MACHINE_NAME=\"$(MACHINE_NAME)\" darwin-rebuild switch --flake $(FLAKE_DIR)#$(FINAL_HOSTNAME) --impure"
 else
 	@# Find darwin-rebuild in common locations
 	@DARWIN_REBUILD=""; \
@@ -85,9 +85,9 @@ else
 		exit 1; \
 	fi; \
 	if [ "$(MACHINE_TYPE)" = "vm" ]; then \
-		HOSTNAME="$(FINAL_HOSTNAME)" MACHINE_TYPE="$(MACHINE_TYPE)" MACHINE_NAME="$(MACHINE_NAME)" sudo env PATH="$$PATH" "$$DARWIN_REBUILD" switch --flake $(FLAKE_DIR) -I vm-fix=$(FLAKE_DIR)/vm-fix.nix; \
+		USER="$(whoami)" HOSTNAME="$(FINAL_HOSTNAME)" MACHINE_TYPE="$(MACHINE_TYPE)" MACHINE_NAME="$(MACHINE_NAME)" sudo env PATH="$$PATH" "$$DARWIN_REBUILD" switch --flake $(FLAKE_DIR)#$(FINAL_HOSTNAME) --impure -I vm-fix=$(FLAKE_DIR)/vm-fix.nix; \
 	else \
-		HOSTNAME="$(FINAL_HOSTNAME)" MACHINE_TYPE="$(MACHINE_TYPE)" MACHINE_NAME="$(MACHINE_NAME)" sudo env PATH="$$PATH" "$$DARWIN_REBUILD" switch --flake $(FLAKE_DIR); \
+		USER="$(whoami)" HOSTNAME="$(FINAL_HOSTNAME)" MACHINE_TYPE="$(MACHINE_TYPE)" MACHINE_NAME="$(MACHINE_NAME)" sudo env PATH="$$PATH" "$$DARWIN_REBUILD" switch --flake $(FLAKE_DIR)#$(FINAL_HOSTNAME) --impure; \
 	fi
 endif
 
