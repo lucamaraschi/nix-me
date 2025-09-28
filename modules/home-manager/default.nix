@@ -2,30 +2,13 @@
 
 {
   imports = [
-    ./direnv.nix
-    ./fish.nix
-    ./ghostty.nix
-    ./git.nix
-    ./rectangle.nix
-    ./ssh.nix
-    ./tmux.nix
-    ./vscode.nix
+    ./apps           # User app configurations
+    ./shell          # Shell and environment configurations
   ];
   
   # Home Manager basics
   home.stateVersion = "23.11";
   home.homeDirectory = lib.mkForce "/Users/${username}";
-  
-  # Install user packages
-  home.packages = with pkgs; [
-    ripgrep
-    fd
-    jq
-    htop
-    fzf
-    tree
-    bat
-  ];
   
   # Generic environment variables
   home.sessionVariables = {
