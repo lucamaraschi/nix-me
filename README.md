@@ -445,7 +445,7 @@ cd ~/.config/nixpkgs
 ## Compatibility
 
 - macOS 10.15 Catalina and later
-- Intel and Apple Silicon Macs supported
+- Apple Silicon Macs supported
 - Virtual machines (UTM, VMware, Parallels) supported
 - Regular testing on latest macOS versions
 
