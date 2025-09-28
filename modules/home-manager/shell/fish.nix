@@ -90,6 +90,21 @@
         command trash $argv
       end
 
+      # SSH agent setup with 1Password fallback - fixed path handling
+      set -l onepassword_socket "$HOME/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"
+
+      if test -S "$onepassword_socket"
+        set -gx SSH_AUTH_SOCK "$onepassword_socket"
+        echo "✅ Using 1Password SSH agent"
+      else
+        echo "❌ 1Password SSH agent not found, using system SSH agent"
+        # Start ssh-agent if not running
+        if not set -q SSH_AUTH_SOCK; or not test -S $SSH_AUTH_SOCK
+          eval (ssh-agent -c) >/dev/null
+          echo "🔑 Started SSH agent"
+        end
+      end
+
       # Git shortcuts
       function gst
         git status
