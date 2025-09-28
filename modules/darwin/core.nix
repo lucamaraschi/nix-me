@@ -44,56 +44,6 @@
     ];
   };
   
-  # Environment setup
-  environment = {
-    # System-level packages - consolidated here to avoid conflicts
-    systemPackages = lib.mkDefault (with pkgs; [
-      # Core system tools
-      coreutils
-      curl
-      wget
-      git
-      vim
-      
-      # Development tools (from apps.nix)
-      jq
-      ripgrep
-      fd
-      eza
-      bat
-      tree
-      htop
-      ncdu
-      nodejs
-      python3
-      rustup
-      go
-      git-lfs
-      gh
-      nmap
-      dnsutils
-      mtr
-      nixpkgs-fmt
-      comma
-      pandoc
-      imagemagick
-      
-      # Display tools (from display.nix)
-      gnugrep
-      gnused
-    ]);
-    
-    # Set system-wide shell variables
-    variables = lib.mkDefault {
-      EDITOR = "vim";
-      VISUAL = "vim";
-    };
-    
-    # System PATH - use mkDefault so it can be overridden
-    systemPath = lib.mkDefault [ "/opt/homebrew/bin" ];
-    pathsToLink = lib.mkDefault [ "/Applications" ];
-  };
-  
   # System activation
   system.activationScripts.postActivation.text = ''
     # Reset LaunchPad (as the actual user, not root)

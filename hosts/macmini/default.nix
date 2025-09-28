@@ -27,24 +27,29 @@
   };
   
   # Mac Mini-specific applications
-  homebrew.casks = [
-    # Media and entertainment apps that make sense on a stationary computer
-    "spotify"
-    "obs"
-    
-    # Professional/production tools
-    "adobe-creative-cloud"
-    "figma"
-    
-    # Extended development environment
-    "docker"
-    "orbstack"
-    "vmware-fusion"
-    
-    # Office and productivity for a desktop workstation
-    "microsoft-office"
-    "microsoft-teams"
-  ];
+  apps = {
+    useBaseLists = true;
+    casksToRemove = [];
+    casksToAdd = [
+      # Media and entertainment apps that make sense on a stationary computer
+      "spotify"
+      "obs"
+      
+      # Professional/production tools
+      "adobe-creative-cloud"
+      "figma"
+      
+      # Extended development environment
+      "docker"
+      "orbstack"
+      "vmware-fusion"
+      
+      # Office and productivity for a desktop workstation
+      "microsoft-office"
+      "microsoft-teams"
+    ];
+  };
+  homebrew.casks = 
   
   # Mac Mini specific activation scripts
   system.activationScripts.macminiOptimization.text = ''

@@ -1,9 +1,35 @@
-# modules/darwin/homebrew.nix
+# Centralized app installation management (moved from homebrew.nix)
 { config, lib, pkgs, ... }:
 
 let
   # Define base lists (these don't reference config, so no recursion)
   baseLists = {
+    # System packages via Nix
+    systemPackages = [
+      # Development tools
+      "jq"
+      "ripgrep"
+      "fd"
+      "eza"
+      "bat"
+      "tree"
+      "htop"
+      "ncdu"
+      "nodejs"
+      "python3"
+      "rustup"
+      "go"
+      "gh"
+      "nmap"
+      "dnsutils"
+      "mtr"
+      "nixpkgs-fmt"
+      "comma"
+      "pandoc"
+      "imagemagick"
+    ];
+
+    # GUI applications via Homebrew casks
     casks = [
       # Communication & Collaboration
       "linear-linear"
@@ -13,11 +39,14 @@ let
       "slack"
       "zoom"
       
-      # Productivity
+      # Productivity & Utilities
       "1password"
       "hiddenbar"
       "raycast"
       "rectangle"
+      "hammerspoon"
+      "proton-mail"
+      "protonvpn"
       
       # Development
       "docker-desktop"
@@ -37,10 +66,7 @@ let
       # Microsoft Office
       "microsoft-office"
       
-      # Utilities
-      "hammerspoon"
-      "proton-mail"
-      "protonvpn"
+      # Virtualization
       "utm"
       "virtualbuddy"
       "vmware-fusion"
@@ -50,6 +76,7 @@ let
       "spotify"
     ];
 
+    # CLI tools via Homebrew
     brews = [
       "coreutils"
       "direnv"
@@ -67,6 +94,7 @@ let
       "trash"
     ];
 
+    # Mac App Store applications
     masApps = {
       Tailscale = 1475387142;
       Xcode = 497799835;
@@ -77,33 +105,53 @@ let
 in
 {
   # Export the base lists so other modules can reference them
-  options.homebrew = {
-    # Expose base lists for reference
+  options.apps = {
+    # System packages options
+    baseSystemPackages = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = baseLists.systemPackages;
+      readOnly = true;
+      description = "Base list of system packages";
+    };
+    
+    systemPackagesToRemove = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [];
+      description = "System packages to remove from base list";
+    };
+    
+    systemPackagesToAdd = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [];
+      description = "Additional system packages to install";
+    };
+    
+    # Homebrew options (moved from homebrew.nix)
     baseCasks = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = baseLists.casks;
       readOnly = true;
-      description = "Base list of casks that can be referenced by machine configs";
+      description = "Base list of casks";
     };
     
     baseBrews = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = baseLists.brews;
       readOnly = true;
-      description = "Base list of brews that can be referenced by machine configs";
+      description = "Base list of brews";
     };
     
     baseMasApps = lib.mkOption {
       type = lib.types.attrsOf lib.types.int;
       default = baseLists.masApps;
       readOnly = true;
-      description = "Base list of MAS apps that can be referenced by machine configs";
+      description = "Base list of MAS apps";
     };
     
-    # Option to use base lists with modifications
+    # Inheritance options
     useBaseLists = lib.mkOption {
       type = lib.types.bool;
-      default = false;
+      default = true;
       description = "Whether to use base lists with add/remove modifications";
     };
 
@@ -131,7 +179,6 @@ in
       description = "List of additional brews to install";
     };
     
-    # MAS Apps options
     masAppsToRemove = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [];
@@ -146,6 +193,33 @@ in
   };
 
   config = {
+    # System packages configuration (replicating your core.nix systemPackages logic)
+    environment.systemPackages = lib.mkDefault (
+      let
+        packageNames = if config.apps.useBaseLists
+          then (lib.subtractLists config.apps.systemPackagesToRemove config.apps.baseSystemPackages) ++ config.apps.systemPackagesToAdd
+          else config.apps.baseSystemPackages;
+        
+        # Convert package name strings to actual packages (handling nodePackages.* correctly)
+        resolvePackage = name:
+          if lib.hasPrefix "nodePackages." name
+          then lib.getAttrFromPath (lib.splitString "." name) pkgs
+          else lib.getAttr name pkgs;
+      in
+        map resolvePackage packageNames
+    );
+
+    # Environment variables (replicating your core.nix environment setup)
+    environment.variables = lib.mkDefault {
+      EDITOR = "vim";
+      VISUAL = "vim";
+    };
+    
+    # System PATH (replicating your core.nix)
+    environment.systemPath = lib.mkDefault [ "/opt/homebrew/bin" ];
+    environment.pathsToLink = lib.mkDefault [ "/Applications" ];
+
+    # Homebrew configuration (exactly matching your homebrew.nix structure and logic)
     homebrew = {
       enable = lib.mkDefault true;
       onActivation = {
@@ -155,31 +229,31 @@ in
       
       taps = lib.mkDefault [];
 
-      # Global Homebrew settings to reduce sudo requirements
+      # Global Homebrew settings to reduce sudo requirements (matching your settings)
       global = {
         # Use /opt/homebrew on Apple Silicon, /usr/local on Intel
         brewfile = true;
         lockfiles = false; # Reduce file locking that might need sudo
       };
       
-      # Move calculations here to avoid recursion
+      # Move calculations here to avoid recursion (exactly matching your logic)
       casks = lib.mkDefault (
-        if config.homebrew.useBaseLists
-        then (lib.subtractLists config.homebrew.casksToRemove baseLists.casks) ++ config.homebrew.casksToAdd
-        else baseLists.casks  # Use base list as default
+        if config.apps.useBaseLists
+        then (lib.subtractLists config.apps.casksToRemove config.apps.baseCasks) ++ config.apps.casksToAdd
+        else config.apps.baseCasks  # Use base list as default
       );
       
       brews = lib.mkDefault (
-        if config.homebrew.useBaseLists
-        then (lib.subtractLists config.homebrew.brewsToRemove baseLists.brews) ++ config.homebrew.brewsToAdd
-        else baseLists.brews  # Use base list as default
+        if config.apps.useBaseLists
+        then (lib.subtractLists config.apps.brewsToRemove config.apps.baseBrews) ++ config.apps.brewsToAdd
+        else config.apps.baseBrews  # Use base list as default
       );
       
       masApps = lib.mkDefault (
         let
-          finalMasApps = if config.homebrew.useBaseLists
-            then (baseLists.masApps // config.homebrew.masAppsToAdd) // (lib.genAttrs config.homebrew.masAppsToRemove (_: null))
-            else baseLists.masApps;
+          finalMasApps = if config.apps.useBaseLists
+            then (config.apps.baseMasApps // config.apps.masAppsToAdd) // (lib.genAttrs config.apps.masAppsToRemove (_: null))
+            else config.apps.baseMasApps;
         in
           lib.filterAttrs (name: id: id != null) finalMasApps
       );
