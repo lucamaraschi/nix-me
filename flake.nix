@@ -16,22 +16,22 @@
 
   outputs = inputs@{ self, nixpkgs, darwin, home-manager, ... }:
     let
+      username = builtins.getEnv "USERNAME";
+      # #Function to determine username from various sources
+      # getUsername =
+      #   let
+      #     fromEnv = builtins.getEnv "USER";
+      #     fromSudoUser = builtins.getEnv "SUDO_USER";
 
-      #Function to determine username from various sources
-      getUsername =
-        let
-          fromEnv = builtins.getEnv "USER";
-          fromSudoUser = builtins.getEnv "SUDO_USER";
+      #     # Use SUDO_USER if available (original user before sudo), otherwise use USER but not if it's root
+      #     result = if fromSudoUser != "" then fromSudoUser
+      #             else if fromEnv != "" && fromEnv != "root" then fromEnv
+      #             else "batman";  # fallback to known user
 
-          # Use SUDO_USER if available (original user before sudo), otherwise use USER but not if it's root
-          result = if fromSudoUser != "" then fromSudoUser
-                  else if fromEnv != "" && fromEnv != "root" then fromEnv
-                  else "batman";  # fallback to known user
-
-          debug = builtins.trace "USER: '${fromEnv}', SUDO_USER: '${fromSudoUser}', result: '${result}'" null;
-        in
-          result;
-      username = getUsername;
+      #     debug = builtins.trace "USER: '${fromEnv}', SUDO_USER: '${fromSudoUser}', result: '${result}'" null;
+      #   in
+      #     result;
+      # username = getUsername;
       # forceEval = builtins.trace "Forced username evaluation: ${username}" null;
 
       # Function to create a darwin configuration
