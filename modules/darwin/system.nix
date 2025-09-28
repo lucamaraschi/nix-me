@@ -94,10 +94,11 @@
   };
   
   # Firewall settings
-  system.defaults.alf = {
-    globalstate = lib.mkDefault 1; # on for specific services
-    allowsignedenabled = lib.mkDefault 1;
-    allowdownloadsignedenabled = lib.mkDefault 1;
+  networking.applicationFirewall = {
+    allowSignedApp = lib.mkDefault true;
+    allowSigned = lib.mkDefault true;
+    enable = lib.mkDefault true;
+    blockAllIncoming = lib.mkDefault false;  # globalstate = 1 means firewall on but not blocking all
   };
   
   # Extend sudo timeout to reduce password prompts during long operations
