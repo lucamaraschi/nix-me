@@ -7,6 +7,7 @@ MACHINE_TYPE ?= $(shell if [[ "$(HOSTNAME)" == *"macbook"* || "$(HOSTNAME)" == *
 MACHINE_NAME ?= "$(HOSTNAME)"
 FLAKE_DIR ?= $(HOME)/.config/nixpkgs
 DRY_RUN ?= 0
+USERNAME := $(shell whoami)
 
 # Force hostname to lowercase in all commands
 FINAL_HOSTNAME := $(shell echo "$(HOSTNAME)" | tr '[:upper:]' '[:lower:]')
@@ -85,9 +86,9 @@ else
 		exit 1; \
 	fi; \
 	if [ "$(MACHINE_TYPE)" = "vm" ]; then \
-		USERNAME="$(shell whoami)" HOSTNAME="$(FINAL_HOSTNAME)" MACHINE_TYPE="$(MACHINE_TYPE)" MACHINE_NAME="$(MACHINE_NAME)" sudo env PATH="$$PATH" "$$DARWIN_REBUILD" switch --flake $(FLAKE_DIR)#$(FINAL_HOSTNAME) --impure -I vm-fix=$(FLAKE_DIR)/vm-fix.nix; \
+		USERNAME="$(USERNAME)" HOSTNAME="$(FINAL_HOSTNAME)" MACHINE_TYPE="$(MACHINE_TYPE)" MACHINE_NAME="$(MACHINE_NAME)" sudo env PATH="$$PATH" "$$DARWIN_REBUILD" switch --flake $(FLAKE_DIR)#$(FINAL_HOSTNAME) --impure -I vm-fix=$(FLAKE_DIR)/vm-fix.nix; \
 	else \
-		USERNAME="$(shell whoami)" HOSTNAME="$(FINAL_HOSTNAME)" MACHINE_TYPE="$(MACHINE_TYPE)" MACHINE_NAME="$(MACHINE_NAME)" sudo env PATH="$$PATH" "$$DARWIN_REBUILD" switch --flake $(FLAKE_DIR)#$(FINAL_HOSTNAME) --impure; \
+		USERNAME="$(USERNAME)" HOSTNAME="$(FINAL_HOSTNAME)" MACHINE_TYPE="$(MACHINE_TYPE)" MACHINE_NAME="$(MACHINE_NAME)" sudo env PATH="$$PATH" "$$DARWIN_REBUILD" switch --flake $(FLAKE_DIR)#$(FINAL_HOSTNAME) --impure; \
 	fi
 endif
 
