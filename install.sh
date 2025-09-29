@@ -419,6 +419,13 @@ main() {
     MACHINE_TYPE=${2:-""}
     MACHINE_NAME=${3:-"$HOST_NAME"}
     NIXOS_USERNAME=${4:-$(whoami)}
+    NIXOS_USERNAME=${4:-$(whoami)}
+
+    # Create username file for Nix evaluation
+    echo "\"$NIXOS_USERNAME\"" > "$REPO_DIR/username.nix" || {
+        warn "Could not create username.nix, will rely on environment variables"
+    }
+
     REPO_URL=${5:-"https://github.com/lucamaraschi/nix-me.git"}
     REPO_BRANCH=${6:-${REPO_BRANCH:-"main"}}
     REPO_DIR=${HOME}/.config/nixpkgs
