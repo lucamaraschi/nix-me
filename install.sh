@@ -420,12 +420,6 @@ main() {
     MACHINE_NAME=${3:-"$HOST_NAME"}
     NIXOS_USERNAME=${4:-$(whoami)}
     NIXOS_USERNAME=${4:-$(whoami)}
-
-    # Create username file for Nix evaluation
-    echo "\"$NIXOS_USERNAME\"" > "$REPO_DIR/username.nix" || {
-        warn "Could not create username.nix, will rely on environment variables"
-    }
-
     REPO_URL=${5:-"https://github.com/lucamaraschi/nix-me.git"}
     REPO_BRANCH=${6:-${REPO_BRANCH:-"main"}}
     REPO_DIR=${HOME}/.config/nixpkgs
@@ -530,24 +524,36 @@ main() {
         git checkout "$REPO_BRANCH"
     fi
 
+    log "Creating username.nix with user: $NIXOS_USERNAME"
+    cd "$REPO_DIR"
+    echo "\"$NIXOS_USERNAME\"" > username.nix || {
+        warn "Could not create username.nix in $REPO_DIR"
+        warn "Falling back to environment variable detection"
+    }
+
+    # Also add to .gitignore if not already there
+    if [ -f .gitignore ] && ! grep -q "username.nix" .gitignore; then
+        echo "username.nix" >> .gitignore
+    fi
+
     # Create VM-specific configuration if needed
     if [ "$VM_TYPE" != "physical" ]; then
         log "Creating VM-friendly configuration override for $VM_TYPE environment..."
         cat > "$REPO_DIR/vm-overrides.nix" <<EOL
 { lib, ... }:
 {
-  # VM-specific optimizations
-  nix.optimise.automatic = lib.mkForce false;
-  nix.gc.automatic = lib.mkForce false;
+# VM-specific optimizations
+nix.optimise.automatic = lib.mkForce false;
+nix.gc.automatic = lib.mkForce false;
 
-  # Disable Universal Access settings that might fail in VMs
-  system.defaults.universalaccess = lib.mkForce {};
+# Disable Universal Access settings that might fail in VMs
+system.defaults.universalaccess = lib.mkForce {};
 
-  # VM-optimized settings
-  system.defaults.dock.tilesize = lib.mkForce 24; # Smaller for VM resolution
+# VM-optimized settings
+system.defaults.dock.tilesize = lib.mkForce 24; # Smaller for VM resolution
 
-  # Disable problematic activation scripts for VMs
-  system.activationScripts.extraActivation.text = lib.mkForce "";
+# Disable problematic activation scripts for VMs
+system.activationScripts.extraActivation.text = lib.mkForce "";
 }
 EOL
     fi
