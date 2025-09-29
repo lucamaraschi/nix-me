@@ -17,7 +17,7 @@
   outputs = inputs@{ self, nixpkgs, darwin, home-manager, ... }:
     let
       username = builtins.getEnv "USERNAME";
-      debug = builtins.trace "username: ${username}"
+      debug = builtins.trace "username: ${username}";
       # #Function to determine username from various sources
       # getUsername =
       #   let
