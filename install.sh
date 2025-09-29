@@ -36,30 +36,30 @@ info() {
 # Function to test if Nix installation is complete and functional
 test_nix_fully_functional() {
     log "Testing Nix installation completeness..."
-    
+
     # Test 1: Basic binary exists
     if ! command -v nix &>/dev/null; then
         return 1
     fi
-    
+
     # Test 2: Nix can report its version
     if ! nix --version &>/dev/null 2>&1; then
         warn "Nix binary exists but can't report version"
         return 1
     fi
-    
+
     # Test 3: Nix daemon is accessible (basic check)
     if ! nix-instantiate --eval -E 'builtins.currentTime' &>/dev/null 2>&1; then
         warn "Nix daemon not responding to commands"
         return 1
     fi
-    
+
     # Test 4: Flakes are working (needed for our config)
     if ! nix flake --help &>/dev/null 2>&1; then
         warn "Nix flakes not available"
         return 1
     fi
-    
+
     # Test 5: Can actually build something simple (but only if store seems healthy)
     # Skip this test on fresh installations - it's too aggressive
     if [ -d "/nix/store" ] && [ "$(ls -A /nix/store 2>/dev/null | wc -l)" -gt 10 ]; then
@@ -71,7 +71,7 @@ test_nix_fully_functional() {
     else
         log "Skipping build test on fresh/minimal Nix store"
     fi
-    
+
     log "Nix installation appears functional"
     return 0
 }
@@ -79,7 +79,7 @@ test_nix_fully_functional() {
 # Function to completely uninstall Nix
 uninstall_nix() {
     warn "Uninstalling existing Nix installation..."
-    
+
     # Method 1: Use Determinate Systems uninstaller (primary method)
     if [ -f /nix/nix-installer ]; then
         log "Using Determinate Systems uninstaller"
@@ -89,7 +89,7 @@ uninstall_nix() {
     elif [ -f /nix/receipt.json ]; then
         warn "Found Determinate Systems installation but uninstaller missing"
         log "Attempting to download and use uninstaller"
-        
+
         # Try to download the uninstaller that matches the installation
         if curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix --output /tmp/nix-installer.sh; then
             chmod +x /tmp/nix-installer.sh
@@ -97,67 +97,67 @@ uninstall_nix() {
             rm -f /tmp/nix-installer.sh
         fi
     fi
-    
+
     # Method 2: Use legacy uninstaller if it exists
     if [ -f /nix/uninstall ]; then
         log "Using legacy Nix uninstaller"
         sudo /nix/uninstall || warn "Legacy uninstaller had issues, continuing with manual cleanup"
     fi
-    
+
     # Method 3: Manual cleanup (comprehensive)
     log "Performing manual Nix cleanup..."
-    
+
     # Stop and remove nix-daemon
     sudo launchctl unload /Library/LaunchDaemons/org.nixos.nix-daemon.plist 2>/dev/null || true
     sudo rm -f /Library/LaunchDaemons/org.nixos.nix-daemon.plist
-    
+
     # Remove Nix store and configuration
     log "Removing Nix store and configuration..."
     sudo rm -rf /nix || warn "Could not remove /nix directory"
     sudo rm -rf /etc/nix || warn "Could not remove /etc/nix directory"
-    
+
     # Remove shell modifications
     sudo rm -f /etc/bashrc.backup-before-nix
     sudo rm -f /etc/zshrc.backup-before-nix
     sudo rm -f /etc/bash.bashrc.backup-before-nix
-    
+
     # Remove synthetic.conf entries (Determinate Systems specific)
     if [ -f /etc/synthetic.conf ]; then
         sudo sed -i.backup '/^nix$/d' /etc/synthetic.conf 2>/dev/null || true
     fi
-    
+
     # Remove fstab entries (Determinate Systems specific)
     if [ -f /etc/fstab ]; then
         sudo sed -i.backup '/nix/d' /etc/fstab 2>/dev/null || true
     fi
-    
+
     # Remove user-level Nix
     rm -rf ~/.nix-* 2>/dev/null || true
     rm -rf ~/.config/nix 2>/dev/null || true
     rm -rf ~/.cache/nix 2>/dev/null || true
-    
+
     # Remove from PATH in current session
     export PATH=$(echo "$PATH" | sed -e 's|/nix/var/nix/profiles/default/bin:||g' -e 's|'"$HOME"'/.nix-profile/bin:||g')
-    
+
     # Remove nix users and group (Determinate Systems creates these)
     for i in $(seq 1 32); do
         sudo dscl . -delete /Users/_nixbld$i 2>/dev/null || true
     done
     sudo dscl . -delete /Groups/nixbld 2>/dev/null || true
-    
+
     # Verify cleanup
     if command -v nix &>/dev/null; then
         error "Nix uninstall incomplete - nix command still available"
         error "You may need to restart your computer and try again"
         return 1
     fi
-    
+
     if [ -f /nix/receipt.json ]; then
         error "Nix uninstall incomplete - receipt.json still exists"
         error "This will cause 'existing plan' errors on reinstall"
         return 1
     fi
-    
+
     log "Nix successfully uninstalled"
     return 0
 }
@@ -166,36 +166,36 @@ uninstall_nix() {
 safe_git_update() {
     local repo_dir="$1"
     local repo_branch="$2"
-    
+
     log "Safely updating git repository..."
-    
+
     cd "$repo_dir"
-    
+
     # Fetch latest changes
     git fetch origin || {
         error "Failed to fetch from remote repository"
         return 1
     }
-    
+
     # Check if we have local changes
     if ! git diff --quiet HEAD; then
         warn "Local changes detected in repository"
         log "Stashing local changes..."
         git stash push -m "install.sh auto-stash $(date)" || true
     fi
-    
+
     # Check if we have unpushed commits
     if [ "$(git rev-list HEAD...origin/$repo_branch --count 2>/dev/null || echo 0)" -gt 0 ]; then
         warn "Local commits detected that aren't on remote"
         log "Creating backup branch..."
         git branch "backup-$(date +%Y%m%d-%H%M%S)" HEAD || true
     fi
-    
+
     # Force reset to remote state
     log "Resetting to remote state..."
     git checkout "$repo_branch" 2>/dev/null || git checkout -b "$repo_branch" origin/"$repo_branch"
     git reset --hard origin/"$repo_branch"
-    
+
     log "Repository successfully updated to latest remote state"
 }
 
@@ -206,13 +206,13 @@ ensure_homebrew() {
         log "Skipping Homebrew installation in VM environment"
         return 0
     fi
-    
+
     # Check if brew command is available
     if command -v brew &>/dev/null; then
         log "Homebrew is available in PATH"
         return 0
     fi
-    
+
     # Try to find and source Homebrew
     if [[ -f /opt/homebrew/bin/brew ]]; then
         log "Found Homebrew (Apple Silicon), adding to PATH"
@@ -225,7 +225,7 @@ ensure_homebrew() {
     else
         log "Installing Homebrew..."
         /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-        
+
         # Set up PATH after installation
         if [[ -f /opt/homebrew/bin/brew ]]; then
             export PATH="/opt/homebrew/bin:$PATH"
@@ -238,16 +238,16 @@ ensure_homebrew() {
             return 1
         fi
     fi
-    
+
     # Verify brew is now available
     if ! command -v brew &>/dev/null; then
         error "Homebrew installation appears successful but 'brew' command not found"
         return 1
     fi
-    
+
     log "Updating Homebrew..."
     brew update
-    
+
     return 0
 }
 
@@ -266,31 +266,31 @@ install_or_fix_nix() {
             return 0
         else
             warn "Nix is installed but not fully functional"
-            
+
             # Try simple fixes first
             log "Attempting to repair Nix installation..."
-            
+
             # Try restarting daemon
             if [ -e "/Library/LaunchDaemons/org.nixos.nix-daemon.plist" ]; then
                 sudo launchctl unload /Library/LaunchDaemons/org.nixos.nix-daemon.plist 2>/dev/null || true
                 sudo launchctl load /Library/LaunchDaemons/org.nixos.nix-daemon.plist
                 sleep 3
-                
+
                 if test_nix_fully_functional; then
                     log "Successfully repaired Nix installation"
                     return 0
                 fi
             fi
-            
+
             # Simple fixes failed, need to reinstall
             warn "Cannot repair Nix installation - will uninstall and reinstall"
-            
+
             # Ask user for confirmation unless in non-interactive mode
             if [ "$NON_INTERACTIVE" != "1" ]; then
                 echo -e "${YELLOW}Nix installation appears broken. Reinstall? (y/N)${NC}"
                 read -r response
                 case "$response" in
-                    [yY][eE][sS]|[yY]) 
+                    [yY][eE][sS]|[yY])
                         log "User confirmed reinstall"
                         ;;
                     *)
@@ -300,15 +300,15 @@ install_or_fix_nix() {
                         ;;
                 esac
             fi
-            
+
             # Uninstall broken Nix
             uninstall_nix || return 1
         fi
     fi
-    
+
     # Install fresh Nix
     log "Installing Nix using Determinate Systems installer..."
-    
+
     # Check for existing receipt that would cause "existing plan" error
     if [ -f /nix/receipt.json ]; then
         warn "Found existing Nix installation receipt"
@@ -319,23 +319,23 @@ install_or_fix_nix() {
             return 1
         }
     fi
-    
+
     curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
-    
+
     # Source environment
     if [ -e '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' ]; then
         source '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
     fi
-    
+
     # Update PATH for current session
     export PATH=$HOME/.nix-profile/bin:/nix/var/nix/profiles/default/bin:$PATH
-    
+
     # Test the new installation with a more lenient test for fresh installs
     log "Verifying fresh Nix installation..."
-    
+
     # Give the daemon a moment to fully start
     sleep 3
-    
+
     # Basic functionality test (more lenient for fresh installs)
     if command -v nix &>/dev/null && nix --version &>/dev/null && nix-instantiate --eval -E '1 + 1' &>/dev/null; then
         log "Nix installation completed successfully"
@@ -352,19 +352,19 @@ install_or_fix_nix() {
 detect_vm_environment() {
     # Method 1: Check system profiler for actual VM hardware first
     local hardware_info=$(system_profiler SPHardwareDataType 2>/dev/null)
-    
+
     # Check for explicit VM indicators in hardware
     if echo "$hardware_info" | grep -i "virtual\|parallels\|vmware\|virtualbox" > /dev/null; then
         echo "traditional-vm"
         return
     fi
-    
+
     # Check for Apple Virtual Machine specifically (actual VM hardware)
     if echo "$hardware_info" | grep -i "Apple Virtual Machine" > /dev/null; then
         echo "apple-vm"
         return
     fi
-    
+
     # Method 2: Check for virtualization kernel flag (actual running in VM)
     if sysctl kern.hv_vmm_present 2>/dev/null | grep -q "1"; then
         # Additional check: make sure we're actually IN a VM, not just capable of running VMs
@@ -373,20 +373,20 @@ detect_vm_environment() {
             return
         fi
     fi
-    
+
     # Method 3: Check hardware model for VM indicators
     local model=$(sysctl -n hw.model 2>/dev/null)
     if echo "$model" | grep -i "virtual" > /dev/null; then
         echo "vm-hardware"
         return
     fi
-    
+
     # Method 4: Check for VM-specific devices (last resort)
     if ioreg -l | grep -i "vmware\|parallels\|virtualbox\|qemu" > /dev/null 2>&1; then
         echo "vm-devices"
         return
     fi
-    
+
     # If we get here, it's a physical machine
     # Note: UTM app being installed/running does NOT mean we're in a VM
     echo "physical"
@@ -420,7 +420,7 @@ main() {
     MACHINE_NAME=${3:-"$HOST_NAME"}
     NIXOS_USERNAME=${4:-$(whoami)}
     REPO_URL=${5:-"https://github.com/lucamaraschi/nix-me.git"}
-    REPO_BRANCH=${6:-"main"}
+    REPO_BRANCH=${6:-${REPO_BRANCH:-"main"}}
     REPO_DIR=${HOME}/.config/nixpkgs
 
     # Auto-detect machine type if not provided
@@ -468,7 +468,7 @@ main() {
     # Start background sudo refresh
     ( while true; do sudo -v; sleep 60; done ) &
     SUDO_REFRESH_PID=$!
-    
+
     # Cleanup function
     cleanup() {
         if [[ -n "$SUDO_REFRESH_PID" ]]; then
@@ -481,7 +481,7 @@ main() {
     if [[ -z "$(command -v git)" ]]; then
         log "Installing Xcode Command Line Tools"
         xcode-select --install &> /dev/null
-        
+
         log "Waiting for Xcode Command Line Tools installation..."
         until xcode-select --print-path &> /dev/null; do
             sleep 5
@@ -532,13 +532,13 @@ main() {
   # VM-specific optimizations
   nix.optimise.automatic = lib.mkForce false;
   nix.gc.automatic = lib.mkForce false;
-  
+
   # Disable Universal Access settings that might fail in VMs
   system.defaults.universalaccess = lib.mkForce {};
-  
+
   # VM-optimized settings
   system.defaults.dock.tilesize = lib.mkForce 24; # Smaller for VM resolution
-  
+
   # Disable problematic activation scripts for VMs
   system.activationScripts.extraActivation.text = lib.mkForce "";
 }
@@ -547,7 +547,7 @@ EOL
 
     # Build and activate configuration
     cd "$REPO_DIR"
-    
+
     # Ensure flakes are enabled
     mkdir -p ~/.config/nix
     echo "experimental-features = nix-command flakes" > ~/.config/nix/nix.conf
@@ -555,7 +555,7 @@ EOL
     # Install nix-darwin if not already installed
     if ! command -v darwin-rebuild &> /dev/null; then
         log "Installing nix-darwin via flake..."
-        
+
         if [ "$VM_TYPE" != "physical" ]; then
             log "Building configuration for VM environment..."
             nix build --extra-experimental-features "nix-command flakes" \
@@ -563,7 +563,7 @@ EOL
         else
             nix build ".#darwinConfigurations.$HOST_NAME.system"
         fi
-        
+
         # Create necessary directories and activate
         sudo mkdir -p /etc/nix-darwin /etc/static
         sudo ./result/sw/bin/darwin-rebuild switch --flake ".#$HOST_NAME"
@@ -583,7 +583,7 @@ EOL
 
     log "Installation completed successfully!"
     log "You may need to restart your terminal or computer to apply all changes."
-    
+
     # Print final instructions
     echo ""
     echo "======================================================================"
