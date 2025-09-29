@@ -16,8 +16,20 @@
 
   outputs = inputs@{ self, nixpkgs, darwin, home-manager, ... }:
     let
-      username = builtins.getEnv "USERNAME";
-      debug = builtins.trace "username: ${username}";
+      # username = builtins.getEnv "USERNAME";
+      # debug = builtins.trace "username: ${username}" username;
+
+      usernameFromEnv = builtins.getEnv "USERNAME";
+      userFromEnv = builtins.getEnv "USER";
+
+      # Debug what we're getting
+      _ = builtins.trace "USERNAME env: '${usernameFromEnv}'" null;
+      _ = builtins.trace "USER env: '${userFromEnv}'" null;
+
+      # Use USERNAME if set, otherwise fall back
+      username = if usernameFromEnv != "" then usernameFromEnv
+                else if userFromEnv != "" && userFromEnv != "root" then userFromEnv
+                else throw "No username detected. Run: make USERNAME=yourusername switch";
       # #Function to determine username from various sources
       # getUsername =
       #   let
