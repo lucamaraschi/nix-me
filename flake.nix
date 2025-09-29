@@ -16,18 +16,24 @@
 
   outputs = inputs@{ self, nixpkgs, darwin, home-manager, ... }:
     let
-      usernameFile = builtins.getEnv "HOME" + "/.config/nixpkgs/username.nix";
-      username = if builtins.pathExists usernameFile
-                then import usernameFile
-                else
-                  let
-                    usernameFromEnv = builtins.getEnv "USERNAME";
-                    userFromEnv = builtins.getEnv "USER";
-                    debug = builtins.trace "USERNAME env: '${usernameFromEnv}', USER env: '${userFromEnv}'" null;
-                  in
-                    if usernameFromEnv != "" then usernameFromEnv
-                    else if userFromEnv != "" && userFromEnv != "root" then userFromEnv
-                    else throw "No username found. Run: echo '\"$(whoami)\"' > username.nix";
+        usernameFile = builtins.getEnv "HOME" + "/.config/nixpkgs/username.nix";
+
+        # Debug: Check what HOME is
+        homeDebug = builtins.trace "HOME is: ${builtins.getEnv "HOME"}" null;
+
+        # Debug: Full path we're checking
+        pathDebug = builtins.trace "Looking for: ${usernameFile}" null;
+
+        # Debug: Does file exist?
+        existsDebug = builtins.trace "File exists: ${if builtins.pathExists usernameFile then "yes" else "no"}" null;
+
+        username = if builtins.pathExists usernameFile
+                  then
+                    let
+                      loaded = import usernameFile;
+                      loadDebug = builtins.trace "Loaded username: ${loaded}" null;
+                    in loaded
+                  else throw "File not found at: ${usernameFile}";
 
       # Function to create a darwin configuration
       mkDarwinSystem = {
