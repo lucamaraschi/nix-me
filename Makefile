@@ -86,6 +86,7 @@ else
 		exit 1; \
 	fi; \
 	if [ "$(MACHINE_TYPE)" = "vm" ]; then \
+		echo "USERNAME: $(USERNAME)" \
 		USERNAME="$(USERNAME)" HOSTNAME="$(FINAL_HOSTNAME)" MACHINE_TYPE="$(MACHINE_TYPE)" MACHINE_NAME="$(MACHINE_NAME)" sudo env PATH="$$PATH" "$$DARWIN_REBUILD" switch --flake $(FLAKE_DIR)#$(FINAL_HOSTNAME) --impure -I vm-fix=$(FLAKE_DIR)/vm-fix.nix; \
 	else \
 		USERNAME="$(USERNAME)" HOSTNAME="$(FINAL_HOSTNAME)" MACHINE_TYPE="$(MACHINE_TYPE)" MACHINE_NAME="$(MACHINE_NAME)" sudo env PATH="$$PATH" "$$DARWIN_REBUILD" switch --flake $(FLAKE_DIR)#$(FINAL_HOSTNAME) --impure; \
