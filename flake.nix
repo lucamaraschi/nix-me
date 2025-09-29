@@ -23,8 +23,7 @@
       userFromEnv = builtins.getEnv "USER";
 
       # Debug what we're getting
-      _ = builtins.trace "USERNAME env: '${usernameFromEnv}'" null;
-      _ = builtins.trace "USER env: '${userFromEnv}'" null;
+      debug = builtins.trace "USERNAME env: '${usernameFromEnv}', USER env: '${userFromEnv}'" null;
 
       # Use USERNAME if set, otherwise fall back
       username = if usernameFromEnv != "" then usernameFromEnv
