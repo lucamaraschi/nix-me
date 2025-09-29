@@ -16,8 +16,9 @@
 
   outputs = inputs@{ self, nixpkgs, darwin, home-manager, ... }:
     let
-      username = if builtins.pathExists ./username.nix
-                then import ./username.nix
+      usernameFile = builtins.getEnv "HOME" + "/.config/nixpkgs/username.nix";
+      username = if builtins.pathExists usernameFile
+                then import usernameFile
                 else
                   let
                     usernameFromEnv = builtins.getEnv "USERNAME";
