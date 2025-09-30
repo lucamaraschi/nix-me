@@ -16,24 +16,10 @@
 
   outputs = inputs@{ self, nixpkgs, darwin, home-manager, ... }:
     let
-        usernameFile = builtins.getEnv "HOME" + "/.config/nixpkgs/username.nix";
-
-        # Debug: Check what HOME is
-        homeDebug = builtins.trace "HOME is: ${builtins.getEnv "HOME"}" null;
-
-        # Debug: Full path we're checking
-        pathDebug = builtins.trace "Looking for: ${usernameFile}" null;
-
-        # Debug: Does file exist?
-        existsDebug = builtins.trace "File exists: ${if builtins.pathExists usernameFile then "yes" else "no"}" null;
-
-        username = if builtins.pathExists usernameFile
-                  then
-                    let
-                      loaded = import usernameFile;
-                      loadDebug = builtins.trace "Loaded username: ${loaded}" null;
-                    in loaded
-                  else throw "File not found at: ${usernameFile}";
+        defaultUsername = "lucamaraschi";
+        username = let
+          detected = builtins.getEnv "USERNAME";
+        in if detected != "" then detected else defaultUsername;
 
       # Function to create a darwin configuration
       mkDarwinSystem = {
