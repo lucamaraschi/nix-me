@@ -524,18 +524,6 @@ main() {
         git checkout "$REPO_BRANCH"
     fi
 
-    log "Creating username.nix with user: $NIXOS_USERNAME"
-    cd "$REPO_DIR"
-    echo "\"$NIXOS_USERNAME\"" > username.nix || {
-        warn "Could not create username.nix in $REPO_DIR"
-        warn "Falling back to environment variable detection"
-    }
-
-    # Also add to .gitignore if not already there
-    if [ -f .gitignore ] && ! grep -q "username.nix" .gitignore; then
-        echo "username.nix" >> .gitignore
-    fi
-
     # Create VM-specific configuration if needed
     if [ "$VM_TYPE" != "physical" ]; then
         log "Creating VM-friendly configuration override for $VM_TYPE environment..."
