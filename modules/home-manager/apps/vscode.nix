@@ -4,10 +4,10 @@
 {
   programs.vscode = {
     enable = true;
-    
+
     # Disable mutable extensions to avoid globalStorage issues
     mutableExtensionsDir = false;
-    
+
     profiles.default = {
       userSettings = {
         # Editor settings
@@ -23,19 +23,19 @@
         "editor.cursorBlinking" = "solid";
         "editor.smoothScrolling" = true;
         "editor.cursorSmoothCaretAnimation" = "on";
-        
+
         # Workbench settings
         "workbench.startupEditor" = "none";
         "workbench.editor.enablePreview" = false;
         "workbench.colorTheme" = "Default Dark+ High Contrast";
         "workbench.iconTheme" = "material-icon-theme";
         "workbench.editor.tabSizing" = "shrink";
-        
+
         # Terminal settings
         "terminal.integrated.fontSize" = 13;
         "terminal.integrated.fontFamily" = "JetBrainsMono Nerd Font Mono";
         "terminal.integrated.shell.osx" = "${pkgs.fish}/bin/fish";
-        
+
         # File settings
         "files.trimTrailingWhitespace" = true;
         "files.insertFinalNewline" = true;
@@ -46,7 +46,7 @@
           "**/.direnv" = true;
           "**/node_modules" = true;
         };
-        
+
         # Language-specific settings
         "[javascript]" = {
           "editor.defaultFormatter" = "esbenp.prettier-vscode";
@@ -63,18 +63,18 @@
         };
         "[nix]" = {
           "editor.tabSize" = 2;
-          "editor.formatOnSave" = true;
+          "editor.formatOnSave" = false;
         };
-        
+
         # Git settings
         "git.enableSmartCommit" = true;
         "git.confirmSync" = false;
         "git.autofetch" = true;
-        
+
         # Explorer settings
         "explorer.compactFolders" = false;
       };
-    
+
       keybindings = [
         {
           key = "cmd+1";
@@ -105,29 +105,29 @@
           command = "workbench.action.terminal.toggleTerminal";
         }
       ];
-      
+
       extensions = with pkgs.vscode-extensions; [
         # Theme and UI
         github.github-vscode-theme
         pkief.material-icon-theme
-        
+
         # Language support
         ms-python.python
         rust-lang.rust-analyzer
         golang.go
         hashicorp.terraform
         jnoortheen.nix-ide
-        
+
         # Git
         eamodio.gitlens
-        
+
         # Editing enhancements
         esbenp.prettier-vscode
         formulahendry.auto-rename-tag
-        
+
         # AI assistance
         github.copilot
-        
+
         # Misc
         yzhang.markdown-all-in-one
         ms-azuretools.vscode-docker
@@ -137,7 +137,7 @@
           name = "vscode-fish";
           publisher = "bmalehorn";
           version = "1.0.16";
-          sha256 = "sha256-WT1vzO9910Wyad2qqHVGHufUdSwH8YaZ2DSiTLQb/7k=";  # ✅ Corrected hash
+          sha256 = "sha256-WT1vzO9910Wyad2qqHVGHufUdSwH8YaZ2DSiTLQb/7k=";
         }
       ];
     };
