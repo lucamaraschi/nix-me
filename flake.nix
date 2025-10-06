@@ -27,6 +27,7 @@
         machineType ? null,
         machineName ? hostname,
         system ? "aarch64-darwin",
+        username ? "lucamaraschi",
         extraModules ? []
       }:
         darwin.lib.darwinSystem {
@@ -101,6 +102,7 @@
           hostname = "nabucodonosor";
           machineType = "macbook";
           machineName = "Nabucodonosor";
+          username = "batman"
         };
 
         "macbook-air" = mkDarwinSystem {
