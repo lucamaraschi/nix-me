@@ -3,6 +3,7 @@
 {
   imports = [
     ./installations.nix
+    ./nix-me.nix
     ./raycast.nix
     ./rectangle.nix
     ./vm-manager.nix
