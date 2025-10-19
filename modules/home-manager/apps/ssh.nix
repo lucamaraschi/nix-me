@@ -1,4 +1,4 @@
-{ config, lib, pkgs, ... }:
+{ config, lib, pkgs, username,... }:
 
 {
   programs.ssh = {
@@ -22,6 +22,20 @@
           StrictHostKeyChecking = "accept-new";
           ForwardAgent = "no";
         };
+      };
+
+      "utm-*" = {
+        extraOptions = {
+          User = "${username}";
+          IdentityFile = "~/.ssh/utm_automation";
+          StrictHostKeyChecking = "no";
+          UserKnownHostsFile = "/dev/null";
+          LogLevel = "ERROR";
+        };
+      };
+
+      "vm-test" = {
+        hostname = "192.168.64.5";
       };
     };
 
