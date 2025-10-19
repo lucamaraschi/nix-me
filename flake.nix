@@ -102,7 +102,7 @@
           hostname = "nabucodonosor";
           machineType = "macbook";
           machineName = "Nabucodonosor";
-          username = "batman"
+          username = "batman";
         };
 
         "macbook-air" = mkDarwinSystem {
