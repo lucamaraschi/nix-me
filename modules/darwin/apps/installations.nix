@@ -49,6 +49,7 @@ let
       "protonvpn"
       
       # Development
+      "claude-code"
       "docker-desktop"
       "ghostty"
       "github"
