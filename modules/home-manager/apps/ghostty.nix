@@ -37,6 +37,10 @@
     palette = 14=#7dcfff
     palette = 15=#c0caf5
 
+    # Key bindings
+    # Configure shift+enter for Claude Code compatibility
+    keybind = shift+enter=text:\x1b[13;2u
+
     # Shell
     command = ${pkgs.fish}/bin/fish
   '';

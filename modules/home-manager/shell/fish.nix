@@ -81,6 +81,14 @@
         starship init fish | source
       end
 
+      # Claude Code shell integration
+      if command -v claude >/dev/null
+        # Add Claude Code to PATH if installed via Homebrew
+        if test -d /Applications/Claude\ Code.app/Contents/Resources/app/bin
+          fish_add_path /Applications/Claude\ Code.app/Contents/Resources/app/bin
+        end
+      end
+
       # Custom functions
       function mkcd
         mkdir -p $argv && cd $argv
@@ -243,7 +251,6 @@
               nodePackages.pnpm
               nodePackages.typescript
               nodePackages.ts-node
-              nodePackages.nodemon
             ];
 
             shellHook = '''
