@@ -47,10 +47,17 @@ cd /path/to/nix-me
 ```
 
 That's it! The script will:
-- Clone the base VM
+- Clone the base VM (default: "macOS Tahoe - base")
+- Create a test VM with random name
 - Install nix-me
 - Run tests
 - Ask if you want to keep or delete the test VM
+
+**If your base VM has a different name:**
+
+```bash
+./tests/vm-test.sh --base-vm="Your VM Name"
+```
 
 ## Usage Examples
 

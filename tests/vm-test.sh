@@ -18,8 +18,8 @@ NC='\033[0m'
 
 # Configuration
 UTMCTL="/Applications/UTM.app/Contents/MacOS/utmctl"
-BASE_VM_NAME="macOS Tahoe - base"
-TEST_VM_NAME="nix-me-test-$(date +%Y%m%d-%H%M%S)"
+BASE_VM_NAME=""  # Will be set from flag or default
+TEST_VM_NAME=""  # Will be set from flag or generated
 VM_TIMEOUT=300  # 5 minutes for VM to start
 INSTALL_TIMEOUT=1800  # 30 minutes for installation
 
@@ -44,6 +44,8 @@ Usage: $0 [OPTIONS]
 Automated VM testing for nix-me installation
 
 OPTIONS:
+    --base-vm=NAME          Name of the base VM to clone [default: macOS Tahoe - base]
+    --name=NAME             Name for the test VM [default: nix-me-test-RANDOM]
     --source=SOURCE         Source to test from: 'github' or 'local' [default: github]
     --onsuccess=ACTION      What to do if tests pass: 'keep', 'delete', or 'ask' [default: ask]
     --onfailure=ACTION      What to do if tests fail: 'keep', 'delete', or 'ask' [default: keep]
@@ -58,9 +60,11 @@ LEGACY OPTIONS (still supported):
 
 EXAMPLES:
     $0                                          # Test GitHub, ask about cleanup
+    $0 --base-vm="My Custom Base"               # Use different base VM
+    $0 --name="my-test-vm"                      # Custom test VM name
     $0 --source=local --onsuccess=delete        # Test local, auto-delete on success
     $0 --source=github --onfailure=keep         # Test GitHub, keep on failure
-    $0 --source=local --onsuccess=keep          # Test local, always keep
+    $0 --base-vm="macOS Sonoma" --name="test-1" # Custom base and test VM names
     $0 --local --keep                           # Legacy format still works
 
 EOF
@@ -70,6 +74,14 @@ EOF
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
+        --base-vm=*)
+            BASE_VM_NAME="${1#*=}"
+            shift
+            ;;
+        --name=*)
+            TEST_VM_NAME="${1#*=}"
+            shift
+            ;;
         --source=*)
             SOURCE="${1#*=}"
             if [[ ! "$SOURCE" =~ ^(github|local)$ ]]; then
@@ -125,6 +137,17 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# Set defaults if not specified
+if [ -z "$BASE_VM_NAME" ]; then
+    BASE_VM_NAME="macOS Tahoe - base"
+fi
+
+if [ -z "$TEST_VM_NAME" ]; then
+    # Generate random name with timestamp and random suffix
+    RANDOM_SUFFIX=$(openssl rand -hex 4 2>/dev/null || echo $(date +%s | tail -c 5))
+    TEST_VM_NAME="nix-me-test-$(date +%Y%m%d-%H%M%S)-${RANDOM_SUFFIX}"
+fi
 
 # Cleanup function
 cleanup_vm() {

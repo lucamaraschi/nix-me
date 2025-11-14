@@ -89,11 +89,28 @@ Test the latest version from GitHub:
 ```
 
 This will:
-1. Clone your base VM
-2. Start the test VM
-3. Install nix-me from GitHub
-4. Run verification tests
-5. Ask if you want to keep or delete the VM
+1. Clone your base VM (default: "macOS Tahoe - base")
+2. Create a test VM with a random name (nix-me-test-YYYYMMDD-HHMMSS-RANDOM)
+3. Start the test VM
+4. Install nix-me from GitHub
+5. Run verification tests
+6. Ask if you want to keep or delete the VM
+
+### Using a Different Base VM
+
+If your base VM has a different name:
+
+```bash
+./tests/vm-test.sh --base-vm="macOS Sonoma Clean"
+```
+
+### Custom Test VM Name
+
+Specify a custom name for the test VM:
+
+```bash
+./tests/vm-test.sh --name="my-test-vm"
+```
 
 ### Test Local Changes
 
@@ -134,8 +151,14 @@ Flags can be combined for precise control:
 # Test GitHub version, keep on failure for debugging
 ./tests/vm-test.sh --source=github --onfailure=keep
 
+# Use custom base VM with specific test name
+./tests/vm-test.sh --base-vm="macOS Sonoma" --name="integration-test-1"
+
 # Test with verbose logging and custom cleanup
 ./tests/vm-test.sh --verbose --source=github --onsuccess=delete --onfailure=keep
+
+# Full custom setup
+./tests/vm-test.sh --base-vm="My Base VM" --name="test-pr-123" --source=github --onsuccess=delete
 ```
 
 ### Legacy Flags
@@ -200,16 +223,28 @@ The script runs the following verification tests:
 
 ## Configuration
 
-Edit `tests/vm-test.sh` to customize:
+### Command-line Configuration
 
 ```bash
-# Base VM to clone
-BASE_VM_NAME="macOS Tahoe - base"
+# Specify base VM to clone
+./tests/vm-test.sh --base-vm="Your Base VM Name"
 
+# Specify test VM name
+./tests/vm-test.sh --name="your-test-name"
+```
+
+### Script Configuration
+
+Edit `tests/vm-test.sh` to customize timeouts:
+
+```bash
 # Timeouts
 VM_TIMEOUT=300        # 5 minutes for VM to start
 INSTALL_TIMEOUT=1800  # 30 minutes for installation
 ```
+
+Default base VM name if not specified: `macOS Tahoe - base`
+Default test VM name format: `nix-me-test-YYYYMMDD-HHMMSS-RANDOM`
 
 ## Continuous Integration
 
