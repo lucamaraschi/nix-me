@@ -1,0 +1,306 @@
+================================================================================
+                   NIX-ME SEARCH IMPLEMENTATION ISSUES
+                         Quick Reference Summary
+================================================================================
+
+PROJECT: nix-me (Interactive Nix Configuration Manager)
+FOCUS: Search functionality, process management, and details panel
+ISSUES: 2 critical implementation problems identified
+
+================================================================================
+                              ISSUE #1
+              Process Accumulation During Multiple Searches
+================================================================================
+
+PROBLEM:
+--------
+When user searches for packages and then starts a NEW search, the first 
+search's processes don't get properly cleaned up, accumulating system resources.
+
+SYMPTOMS:
+- fzf hangs or behaves erratically on second+ search
+- System resource usage increases with each search
+- Multiple 'brew info' and 'fzf' processes visible in ps aux
+- Occasional deadlocks in preview generation
+
+ROOT CAUSE:
+-----------
+File: /Users/batman/src/lm/nix-me/lib/package-manager.sh
+Lines: 50-182 (function browse_homebrew_casks_fzf)
+Specific Problem: Lines 156-170
+
+The function launches fzf WITHOUT process tracking:
+1. fzf starts and spawns preview subprocesses (brew info)
+2. Each keystroke may spawn new subprocess
+3. User presses ESC to cancel
+4. Function returns and cleanup happens (lines 169-170)
+5. BUT: old 'brew info' processes may still be running
+6. Next search finds these zombie processes
+
+CODE ANALYSIS:
+--------------
+Current (Lines 156-170):
+    local selected=$(cat "$formatted_file" | fzf \
+        --multi \
+        --height=80% \
+        ...
+        --preview="brew info --cask {2} 2>/dev/null | head -10" \
+        ...
+    )
+    
+    rm "$temp_file"           ← Cleanup happens AFTER fzf
+    rm "$formatted_file"      ← But subprocesses may still be running
+
+MISSING:
+- No signal handlers (SIGTERM, SIGINT)
+- No PID tracking for fzf
+- No wait() for child processes
+- No timeout mechanism for preview
+
+FIX APPROACH:
+-------------
+1. Add trap handlers before launching fzf
+2. Capture and track fzf process ID
+3. Kill preview processes on exit
+4. Implement timeout for preview operations
+
+REPRODUCTION:
+--------------
+1. Terminal 1: watch -n 0.5 "ps aux | grep -E 'brew|fzf' | grep -v grep"
+2. Terminal 2: nix-me search docker    (ESC to cancel)
+3. Terminal 2: nix-me search spotify   (watch accumulation in Terminal 1)
+4. Repeat with more searches
+
+SEVERITY: HIGH - Affects usability with multiple searches
+
+================================================================================
+                              ISSUE #2
+            Non-Installed Packages Missing Details in Preview
+================================================================================
+
+PROBLEM:
+--------
+When browsing packages, non-installed (i.e., not already on system) packages 
+don't show any details/information in the details panel. Only installed 
+packages show preview information.
+
+SYMPTOMS:
+- Browse all apps or search
+- Find an app NOT installed on your system
+- Look at preview pane (right side)
+- Shows nothing or error
+- If app IS installed, preview works fine
+
+ROOT CAUSE:
+-----------
+File: /Users/batman/src/lm/nix-me/lib/package-manager.sh
+TWO PROBLEMS:
+
+Problem 1 - Inconsistent Formatting (Lines 140-149):
+    if echo "$installed_casks" | grep -q "^${cask}$"; then
+        echo -e "\033[0;32m✓\033[0m $cask"    ← Installed: "✓ spotify"
+    else
+        echo "  $cask"                        ← Not installed: "  docker"
+    fi
+
+Creates inconsistent whitespace:
+- Installed packages: tick + space + name
+- Non-installed packages: TWO spaces + name
+
+Problem 2 - Token Extraction Failure (Line 162):
+    --preview="brew info --cask {2} 2>/dev/null | head -10" \
+
+fzf {2} token extracts 2nd whitespace-separated field:
+- "✓ spotify" → splits to ["✓", "spotify"] → {2} = "spotify" ✓ WORKS
+- "  docker" → splits to ["", "", "docker"] → {2} = "" ✗ FAILS
+
+When {2} is empty or wrong, fzf runs:
+    brew info --cask      (missing package name)
+→ Error or blank preview
+
+CODE LOCATIONS:
+---------------
+Line 140-149:  Inconsistent formatting
+    while IFS= read -r cask; do
+        if echo "$installed_casks" | grep -q "^${cask}$"; then
+            echo -e "\033[0;32m✓\033[0m $cask" >> "$formatted_file"
+        else
+            echo "  $cask" >> "$formatted_file"
+        fi
+    done < "$temp_file"
+
+Line 162: Preview command with broken token
+    --preview="brew info --cask {2} 2>/dev/null | head -10" \
+
+FIX APPROACH - OPTION A (Recommended):
+--------------------------------------
+Use consistent delimiter (pipe character):
+
+    if echo "$installed_casks" | grep -q "^${cask}$"; then
+        echo "✓|$cask"     ← Installed: consistent format
+    else
+        echo " |$cask"     ← Not installed: consistent format
+    fi
+
+Update preview to:
+    --preview="brew info --cask {2} 2>/dev/null | head -10" \
+    
+Now {2} always extracts package name correctly.
+
+FIX APPROACH - OPTION B (Alternative):
+---------------------------------------
+Use consistent column spacing with printf:
+
+    printf "%-1s %s\n" "✓" "$cask"    ← Installed
+    printf "%-1s %s\n" " " "$cask"    ← Not installed
+
+Then update preview field token accordingly.
+
+FIX APPROACH - OPTION C (More Complex):
+----------------------------------------
+Use fzf's full line ({}) and extract with sed:
+
+    --preview="echo {} | sed 's/^[[:space:]]*✓[[:space:]]*//' | \
+               xargs brew info --cask 2>/dev/null | head -10" \
+
+REPRODUCTION:
+--------------
+1. nix-me browse
+2. Choose option 1: Browse all
+3. Search for "zoom" (if not installed)
+4. Look at preview pane on right
+5. Should show: "Zoom: Video conferencing"
+6. Actually shows: Empty or error
+7. Compare with "spotify" if it's installed - preview works
+
+SEVERITY: MEDIUM - Usability issue, but users can still add packages
+
+================================================================================
+                          FILES TO MODIFY
+================================================================================
+
+PRIMARY:
+  /Users/batman/src/lm/nix-me/lib/package-manager.sh
+  - browse_homebrew_casks_fzf() function (lines 50-182)
+  
+  Sub-problems:
+  - Lines 140-149: Output formatting (Issue #2)
+  - Lines 156-170: Process management (Issue #1)
+  - Line 162: fzf preview token (Issue #2)
+
+SECONDARY (may need updates):
+  /Users/batman/src/lm/nix-me/bin/nix-me
+  - Lines 157-200: cmd_search() (calls the buggy function)
+  - Lines 96-155: cmd_browse() (routes to buggy function)
+
+================================================================================
+                          KEY CODE SNIPPETS
+================================================================================
+
+ENTRY POINT (bin/nix-me - Line 157):
+    cmd_search() {
+        local query="$1"
+        ...
+        local selected=$(browse_homebrew_casks_fzf "$query")  ← CALLS BUGGY FUNCTION
+        ...
+    }
+
+CORE PROBLEM (lib/package-manager.sh - Lines 140-149):
+    # CREATE FORMATTED OUTPUT
+    while IFS= read -r cask; do
+        if echo "$installed_casks" | grep -q "^${cask}$"; then
+            echo -e "\033[0;32m✓\033[0m $cask" >> "$formatted_file"  ← INCONSISTENT
+        else
+            echo "  $cask" >> "$formatted_file"                      ← INCONSISTENT
+        fi
+    done < "$temp_file"
+
+FZF LAUNCH (lib/package-manager.sh - Lines 156-167):
+    local selected=$(cat "$formatted_file" | fzf \
+        --multi \
+        ...
+        --preview="brew info --cask {2} 2>/dev/null | head -10" \  ← BROKEN TOKEN
+        ...
+    )
+    
+    rm "$temp_file"       ← CLEANUP TOO LATE (ISSUE #1)
+    rm "$formatted_file"  ← CLEANUP TOO LATE (ISSUE #1)
+
+================================================================================
+                        DETAILED ANALYSIS DOCS
+================================================================================
+
+TWO COMPREHENSIVE DOCUMENTS CREATED:
+
+1. SEARCH_IMPLEMENTATION_ANALYSIS.md
+   - Full architectural overview
+   - How search is handled currently
+   - How processes are managed (or not)
+   - How details panel works
+   - How installed vs non-installed packages handled
+   - Root causes of both issues
+   - Fix recommendations
+
+2. CODE_REFERENCE_GUIDE.md
+   - Exact code locations with line numbers
+   - Current problematic code snippets
+   - Step-by-step problem explanations
+   - How to reproduce issues
+   - Fix implementation patterns
+   - Process flow diagrams
+
+Read these files for complete understanding:
+  /Users/batman/src/lm/nix-me/SEARCH_IMPLEMENTATION_ANALYSIS.md
+  /Users/batman/src/lm/nix-me/CODE_REFERENCE_GUIDE.md
+
+================================================================================
+                          QUICK REFERENCE
+================================================================================
+
+Issue #1: Process Management Problem
+  Location: lib/package-manager.sh, lines 156-170
+  Type: Missing process tracking
+  Fix: Add signal handlers and PID tracking
+  Severity: HIGH
+  Impact: Multiple searches cause resource accumulation
+
+Issue #2: Non-Installed Package Preview
+  Location: lib/package-manager.sh, lines 140-149 and 162
+  Type: Output formatting incompatible with fzf token extraction
+  Fix: Use consistent field separator
+  Severity: MEDIUM
+  Impact: Users can't see details for packages not on system
+
+Both issues located in SAME function:
+  browse_homebrew_casks_fzf() in /Users/batman/src/lm/nix-me/lib/package-manager.sh
+
+Both are fixable without major architectural changes.
+
+================================================================================
+                          NEXT STEPS
+================================================================================
+
+IMMEDIATE:
+1. Read SEARCH_IMPLEMENTATION_ANALYSIS.md (full overview)
+2. Read CODE_REFERENCE_GUIDE.md (exact code locations)
+3. Review the problematic code yourself
+
+FOR ISSUE #1 (Process Management):
+1. Add trap handlers before fzf launch
+2. Capture fzf PID
+3. Implement cleanup on signal
+4. Test with multiple consecutive searches
+
+FOR ISSUE #2 (Non-Installed Details):
+1. Change output format to use consistent delimiter
+2. Update fzf preview token to match format
+3. Test preview on both installed and non-installed
+4. Verify all packages show details
+
+VERIFICATION:
+1. Run reproduction steps (see above)
+2. Confirm issues no longer occur
+3. Test full browse/search workflow
+4. Check no new issues introduced
+
+================================================================================

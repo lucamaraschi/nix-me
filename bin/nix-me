@@ -1,121 +1,215 @@
 #!/bin/bash
 
+# nix-me - Interactive Nix Configuration Manager
+# A user-friendly CLI for managing macOS configurations with nix-darwin
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB_DIR="$SCRIPT_DIR/../lib"
 
 # Source libraries
 source "$LIB_DIR/ui.sh"
 source "$LIB_DIR/config-builder.sh" 2>/dev/null || true
+source "$LIB_DIR/package-manager.sh" 2>/dev/null || true
+source "$LIB_DIR/config-wizard.sh" 2>/dev/null || true
 
 CONFIG_DIR="${HOME}/.config/nixpkgs"
+
+# ============================================================================
+# Help and Documentation
+# ============================================================================
 
 show_help() {
     print_header "nix-me - Nix Configuration Manager"
     cat << EOF
-Usage: nix-me <command> [options]
 
-Commands:
-  setup              Run interactive setup wizard
-  add <type> <name>  Add packages or features
-  remove <type>      Remove packages (coming soon)
-  customize          Interactive customization menu
-  switch             Apply configuration changes
-  update             Update packages
-  status             Show system status
-  doctor             Diagnose configuration issues
-  list               List installed packages
+${CYAN}Usage:${NC} nix-me <command> [options]
 
-Package Types:
-  app <name>         GUI application (Homebrew cask)
-  tool <name>        CLI tool (Nix package)
+${CYAN}Configuration Commands:${NC}
+  ${GREEN}create${NC}              Create new machine configuration (wizard)
+  ${GREEN}setup${NC}               Alias for 'create'
+  ${GREEN}reconfigure${NC} [host]  Modify existing configuration
+  ${GREEN}clone${NC} <from> <to>   Clone configuration to new machine
 
-Examples:
-  nix-me setup
+${CYAN}Package Management:${NC}
+  ${GREEN}browse${NC}              Browse and add apps interactively
+  ${GREEN}search${NC} <query>      Search for apps
+  ${GREEN}add${NC} <type> <name>   Add specific package
+  ${GREEN}remove${NC} <type> <name> Remove package (interactive)
+
+${CYAN}System Management:${NC}
+  ${GREEN}switch${NC}              Apply configuration changes
+  ${GREEN}build${NC}               Build configuration (test only)
+  ${GREEN}update${NC}              Update packages
+  ${GREEN}rollback${NC}            Rollback to previous configuration
+
+${CYAN}Information:${NC}
+  ${GREEN}status${NC}              Show system status
+  ${GREEN}doctor${NC}              Diagnose configuration issues
+  ${GREEN}list${NC}                List installed packages
+  ${GREEN}diff${NC}                Show configuration changes
+
+${CYAN}Package Types:${NC}
+  ${GREEN}app${NC} <name>          GUI application (Homebrew cask)
+  ${GREEN}tool${NC} <name>         CLI tool (Nix package)
+
+${CYAN}Examples:${NC}
+  ${YELLOW}# Create new configuration${NC}
+  nix-me create
+
+  ${YELLOW}# Browse and add apps interactively${NC}
+  nix-me browse
+
+  ${YELLOW}# Search for specific apps${NC}
+  nix-me search docker
+
+  ${YELLOW}# Add specific app${NC}
   nix-me add app spotify
-  nix-me add tool jq
-  nix-me customize
+
+  ${YELLOW}# Apply changes${NC}
   nix-me switch
+
+  ${YELLOW}# Check system health${NC}
   nix-me doctor
 
-For more help: nix-me <command> --help
+${CYAN}For more help:${NC} nix-me <command> --help
+
 EOF
+}
+
+# ============================================================================
+# Configuration Commands
+# ============================================================================
+
+cmd_create() {
+    run_configuration_wizard
+}
+
+cmd_reconfigure() {
+    local hostname="${1:-$(hostname -s | tr '[:upper:]' '[:lower:]')}"
+    reconfigure_machine "$hostname"
+}
+
+# ============================================================================
+# Package Management Commands
+# ============================================================================
+
+cmd_browse() {
+    print_header "Browse Applications"
+    echo ""
+
+    if ! command -v fzf &>/dev/null; then
+        print_error "fzf is required for interactive browsing"
+        print_info "Install with: nix-me add tool fzf"
+        return 1
+    fi
+
+    echo "  ${CYAN}1${NC}) Browse all applications"
+    echo "  ${CYAN}2${NC}) Browse by category"
+    echo "  ${CYAN}3${NC}) Search specific apps"
+    echo ""
+
+    read -p "Choice [1]: " choice
+    choice=${choice:-1}
+
+    case $choice in
+        1)
+            local selected=$(browse_homebrew_casks_fzf "")
+            ;;
+        2)
+            local selected=$(browse_by_category)
+            ;;
+        3)
+            read -p "Search for: " query
+            local selected=$(browse_homebrew_casks_fzf "$query")
+            ;;
+        *)
+            print_error "Invalid choice"
+            return 1
+            ;;
+    esac
+
+    if [ -n "$selected" ]; then
+        local packages=()
+        readarray -t packages <<< "$selected"
+
+        # Get list of installed casks to show status
+        local installed_casks=$(brew list --cask 2>/dev/null | sort)
+
+        print_info "Selected ${#packages[@]} apps:"
+        for pkg in "${packages[@]}"; do
+            if echo "$installed_casks" | grep -q "^${pkg}$"; then
+                echo -e "  ${GREEN}✓${NC} $pkg ${YELLOW}(already installed)${NC}"
+            else
+                echo "  ${GREEN}•${NC} $pkg"
+            fi
+        done
+        echo ""
+
+        local hostname=$(hostname -s | tr '[:upper:]' '[:lower:]')
+        add_casks_to_config "$hostname" "${packages[@]}"
+
+        if [ $? -eq 2 ]; then
+            cmd_switch
+        fi
+    fi
+}
+
+cmd_search() {
+    local query="$1"
+
+    if [ -z "$query" ]; then
+        print_error "Please provide a search term"
+        echo "Usage: nix-me search <query>"
+        return 1
+    fi
+
+    if ! command -v fzf &>/dev/null; then
+        print_warn "fzf not available, showing simple results"
+        brew search --cask "$query" 2>/dev/null | head -20
+        return 0
+    fi
+
+    local selected=$(browse_homebrew_casks_fzf "$query")
+
+    if [ -n "$selected" ]; then
+        local packages=()
+        readarray -t packages <<< "$selected"
+
+        # Get list of installed casks to show status
+        local installed_casks=$(brew list --cask 2>/dev/null | sort)
+
+        print_info "Selected ${#packages[@]} apps:"
+        for pkg in "${packages[@]}"; do
+            if echo "$installed_casks" | grep -q "^${pkg}$"; then
+                echo -e "  ${GREEN}✓${NC} $pkg ${YELLOW}(already installed)${NC}"
+            else
+                echo "  ${GREEN}•${NC} $pkg"
+            fi
+        done
+        echo ""
+
+        if ask_yes_no "Add these to your configuration?" "y"; then
+            local hostname=$(hostname -s | tr '[:upper:]' '[:lower:]')
+            add_casks_to_config "$hostname" "${packages[@]}"
+
+            if [ $? -eq 2 ]; then
+                cmd_switch
+            fi
+        fi
+    fi
 }
 
 cmd_add_app() {
     local app_name="$1"
 
     if [ -z "$app_name" ]; then
-        print_error "Please specify an app name"
-        echo "Usage: nix-me add app <name>"
-        return 1
+        # No app specified, show interactive browser
+        cmd_browse
+        return $?
     fi
 
-    print_header "Adding GUI Application"
-    print_info "Searching for: $app_name"
-
-    # Check if Homebrew is available
-    if ! command -v brew &>/dev/null; then
-        print_error "Homebrew is not installed"
-        return 1
-    fi
-
-    # Search Homebrew
-    print_info "Searching Homebrew casks..."
-    local results=$(brew search --cask "$app_name" 2>/dev/null | grep -v "==>" | head -10)
-
-    if [ -z "$results" ]; then
-        print_error "No applications found matching '$app_name'"
-        return 1
-    fi
-
-    echo ""
-    echo "Found applications:"
-    local apps_array=()
-    local index=1
-    while IFS= read -r line; do
-        if [ -n "$line" ]; then
-            apps_array+=("$line")
-            echo "  ${CYAN}${index}${NC}) $line"
-            ((index++))
-        fi
-    done <<< "$results"
-    echo "  ${CYAN}0${NC}) Cancel"
-    echo ""
-
-    read -p "Select application [0-${#apps_array[@]}]: " selection
-
-    if [ "$selection" -eq 0 ] || [ -z "$selection" ]; then
-        print_info "Cancelled"
-        return 0
-    fi
-
-    if [ "$selection" -lt 1 ] || [ "$selection" -gt "${#apps_array[@]}" ]; then
-        print_error "Invalid selection"
-        return 1
-    fi
-
-    local selected_app="${apps_array[$((selection-1))]}"
-
-    # Add to configuration
-    print_info "Adding $selected_app to configuration..."
-    echo ""
-    print_warn "To add this app, edit:"
-    echo "  ${CYAN}$CONFIG_DIR/modules/darwin/homebrew.nix${NC}"
-    echo ""
-    echo "Add to the casks array:"
-    echo "  ${GREEN}\"$selected_app\"${NC}"
-    echo ""
-
-    if ask_yes_no "Open homebrew.nix in editor?" "y"; then
-        ${EDITOR:-nano} "$CONFIG_DIR/modules/darwin/homebrew.nix"
-    fi
-
-    echo ""
-    if ask_yes_no "Apply changes now?" "y"; then
-        cmd_switch
-    else
-        print_info "Run 'nix-me switch' when ready to apply changes"
-    fi
+    # Specific app requested
+    cmd_search "$app_name"
 }
 
 cmd_add_tool() {
@@ -130,15 +224,29 @@ cmd_add_tool() {
     print_header "Adding CLI Tool"
     print_info "Tool: $tool_name"
     echo ""
-    print_warn "To add this tool, edit:"
-    echo "  ${CYAN}$CONFIG_DIR/modules/darwin/apps.nix${NC}"
+
+    # Check if tool exists in nixpkgs
+    print_info "Searching nixpkgs..."
+    local search_result=$(nix search nixpkgs "$tool_name" --json 2>/dev/null | jq -r 'keys[0]' 2>/dev/null)
+
+    if [ -n "$search_result" ]; then
+        local package_name=$(echo "$search_result" | cut -d'.' -f2)
+        print_success "Found: $package_name"
+    else
+        print_warn "Package not found in nixpkgs, using provided name"
+        local package_name="$tool_name"
+    fi
+
     echo ""
-    echo "Add to systemPackages:"
-    echo "  ${GREEN}$tool_name${NC}"
+    print_info "To add this tool, edit:"
+    echo "  ${CYAN}$CONFIG_DIR/modules/darwin/apps/installations.nix${NC}"
+    echo ""
+    echo "Add to systemPackages array:"
+    echo "  ${GREEN}\"$package_name\"${NC}"
     echo ""
 
-    if ask_yes_no "Open apps.nix in editor?" "y"; then
-        ${EDITOR:-nano} "$CONFIG_DIR/modules/darwin/apps.nix"
+    if ask_yes_no "Open installations.nix in editor?" "y"; then
+        ${EDITOR:-nano} "$CONFIG_DIR/modules/darwin/apps/installations.nix"
     fi
 
     echo ""
@@ -149,83 +257,74 @@ cmd_add_tool() {
     fi
 }
 
-cmd_customize() {
-    while true; do
-        clear
-        print_header "Customization Menu"
-
-        echo "What would you like to customize?"
-        echo ""
-        echo "  ${CYAN}1${NC}) Add GUI applications"
-        echo "  ${CYAN}2${NC}) Add CLI tools"
-        echo "  ${CYAN}3${NC}) Edit Fish shell config"
-        echo "  ${CYAN}4${NC}) Edit system preferences"
-        echo "  ${CYAN}5${NC}) Edit Homebrew config"
-        echo "  ${CYAN}6${NC}) Review current configuration"
-        echo "  ${CYAN}7${NC}) Apply changes and exit"
-        echo "  ${CYAN}0${NC}) Exit without applying"
-        echo ""
-
-        read -p "Choice: " choice
-
-        case $choice in
-            1)
-                echo ""
-                read -p "Enter app name to search: " app_name
-                cmd_add_app "$app_name"
-                read -p "Press Enter to continue..."
-                ;;
-            2)
-                echo ""
-                read -p "Enter tool name: " tool_name
-                cmd_add_tool "$tool_name"
-                read -p "Press Enter to continue..."
-                ;;
-            3)
-                ${EDITOR:-nano} "$CONFIG_DIR/modules/home-manager/fish.nix"
-                ;;
-            4)
-                ${EDITOR:-nano} "$CONFIG_DIR/modules/darwin/system.nix"
-                ;;
-            5)
-                ${EDITOR:-nano} "$CONFIG_DIR/modules/darwin/homebrew.nix"
-                ;;
-            6)
-                cmd_status
-                read -p "Press Enter to continue..."
-                ;;
-            7)
-                echo ""
-                if ask_yes_no "Apply configuration changes now?" "y"; then
-                    cmd_switch
-                fi
-                break
-                ;;
-            0) break ;;
-            *) print_error "Invalid choice" ;;
-        esac
-    done
+cmd_remove() {
+    print_warn "Remove functionality coming soon"
+    print_info "For now, manually edit configuration files:"
+    echo "  ${CYAN}$CONFIG_DIR/hosts/<hostname>/default.nix${NC}"
+    echo "  ${CYAN}$CONFIG_DIR/modules/darwin/apps/installations.nix${NC}"
 }
+
+# ============================================================================
+# System Management Commands
+# ============================================================================
 
 cmd_switch() {
     print_header "Applying Configuration"
+
+    if [ ! -d "$CONFIG_DIR" ]; then
+        print_error "Configuration directory not found: $CONFIG_DIR"
+        return 1
+    fi
+
     cd "$CONFIG_DIR" || exit 1
 
-    print_info "Building configuration..."
+    print_info "Building and applying configuration..."
+    echo ""
+
     if make switch; then
         print_success "Configuration applied successfully!"
+        echo ""
+        print_info "Your system has been updated"
     else
         print_error "Failed to apply configuration"
+        print_info "Check the error messages above for details"
+        return 1
+    fi
+}
+
+cmd_build() {
+    print_header "Building Configuration (Test Mode)"
+
+    if [ ! -d "$CONFIG_DIR" ]; then
+        print_error "Configuration directory not found: $CONFIG_DIR"
+        return 1
+    fi
+
+    cd "$CONFIG_DIR" || exit 1
+
+    print_info "Building configuration (no changes will be applied)..."
+    echo ""
+
+    if make build; then
+        print_success "Configuration builds successfully!"
+    else
+        print_error "Configuration has errors"
         return 1
     fi
 }
 
 cmd_update() {
     print_header "Updating System"
+
+    if [ ! -d "$CONFIG_DIR" ]; then
+        print_error "Configuration directory not found: $CONFIG_DIR"
+        return 1
+    fi
+
     cd "$CONFIG_DIR" || exit 1
 
     print_info "Updating flake inputs..."
-    nix flake update
+    nix flake update --extra-experimental-features "nix-command flakes"
 
     echo ""
     if ask_yes_no "Apply updates now?" "y"; then
@@ -234,6 +333,34 @@ cmd_update() {
         print_info "Run 'nix-me switch' to apply updates later"
     fi
 }
+
+cmd_rollback() {
+    print_header "Rollback Configuration"
+
+    print_info "Available generations:"
+    darwin-rebuild --list-generations 2>/dev/null | tail -5
+
+    echo ""
+    read -p "Rollback to previous generation? (y/N): " confirm
+
+    if [[ "$confirm" =~ ^[Yy]$ ]]; then
+        print_info "Rolling back..."
+        sudo darwin-rebuild switch --rollback
+
+        if [ $? -eq 0 ]; then
+            print_success "Successfully rolled back to previous generation"
+        else
+            print_error "Rollback failed"
+            return 1
+        fi
+    else
+        print_info "Rollback cancelled"
+    fi
+}
+
+# ============================================================================
+# Information Commands
+# ============================================================================
 
 cmd_status() {
     clear
@@ -250,80 +377,79 @@ cmd_status() {
     fi
     echo ""
 
-    print_step "2/5" "Nix Generation"
+    print_step "2/5" "Current Machine"
+    local hostname=$(hostname -s | tr '[:upper:]' '[:lower:]')
+    print_info "Hostname: $hostname"
+
+    if [ -d "$CONFIG_DIR/hosts/$hostname" ]; then
+        print_success "Configuration exists for this machine"
+    else
+        print_warn "No configuration found for this hostname"
+    fi
+    echo ""
+
+    print_step "3/5" "Nix Generation"
     local current_gen=$(darwin-rebuild --list-generations 2>/dev/null | tail -1 || echo "unknown")
     print_info "Current: $current_gen"
     echo ""
 
-    print_step "3/5" "Nix Store"
-    local store_size=$(du -sh /nix/store 2>/dev/null | cut -f1 || echo "unknown")
-    print_info "Nix store size: $store_size"
-    echo ""
-
     print_step "4/5" "Installed Packages"
     local brew_count=$(brew list --cask 2>/dev/null | wc -l | tr -d ' ' || echo "0")
-    local nix_count=$(nix-env -q 2>/dev/null | wc -l | tr -d ' ' || echo "0")
+    local nix_count=$(ls /nix/var/nix/profiles/system/sw/bin 2>/dev/null | wc -l | tr -d ' ' || echo "0")
     print_info "Homebrew casks: $brew_count"
     print_info "Nix packages: $nix_count"
     echo ""
 
-    print_step "5/5" "Recent Changes"
-    if [ -d "$CONFIG_DIR/.git" ]; then
-        cd "$CONFIG_DIR"
-        local last_commit=$(git log -1 --oneline 2>/dev/null || echo "No commits")
-        print_info "Last commit: $last_commit"
-    fi
+    print_step "5/5" "Disk Usage"
+    local store_size=$(du -sh /nix/store 2>/dev/null | cut -f1 || echo "unknown")
+    print_info "Nix store size: $store_size"
 }
 
 cmd_doctor() {
     print_header "System Diagnostics"
     echo ""
 
+    local issues=0
+
     # Check Nix installation
-    print_step "1/7" "Checking Nix installation"
+    print_step "1/8" "Checking Nix installation"
     if command -v nix &>/dev/null; then
         local nix_version=$(nix --version 2>/dev/null || echo "unknown")
         print_success "Nix is installed: $nix_version"
     else
         print_error "Nix is not installed"
+        ((issues++))
     fi
     echo ""
 
-    # Check darwin-rebuild
-    print_step "2/7" "Checking nix-darwin"
+    # Check nix-darwin
+    print_step "2/8" "Checking nix-darwin"
     if command -v darwin-rebuild &>/dev/null; then
         print_success "nix-darwin is installed"
     else
         print_error "nix-darwin is not installed"
+        ((issues++))
     fi
     echo ""
 
     # Check configuration
-    print_step "3/7" "Validating configuration"
-    cd "$CONFIG_DIR" 2>/dev/null || { print_error "Config directory not found"; return 1; }
-    if make check &>/dev/null; then
-        print_success "Configuration is valid"
-    else
-        print_warn "Configuration may have errors (run 'make check' for details)"
-    fi
-    echo ""
-
-    # Check 1Password SSH
-    print_step "4/7" "Checking 1Password SSH agent"
-    local onepass_socket="$HOME/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"
-    if [ -S "$onepass_socket" ]; then
-        print_success "1Password SSH agent is available"
-        if ssh-add -l &>/dev/null; then
-            local key_count=$(ssh-add -l 2>/dev/null | wc -l | tr -d ' ')
-            print_info "Keys available: $key_count"
+    print_step "3/8" "Validating configuration"
+    if [ -d "$CONFIG_DIR" ]; then
+        print_success "Configuration directory exists"
+        cd "$CONFIG_DIR" 2>/dev/null
+        if make check &>/dev/null 2>&1; then
+            print_success "Configuration is valid"
+        else
+            print_warn "Configuration may have errors (run 'make check' for details)"
         fi
     else
-        print_warn "1Password SSH agent not found"
+        print_error "Configuration directory not found"
+        ((issues++))
     fi
     echo ""
 
     # Check Homebrew
-    print_step "5/7" "Checking Homebrew"
+    print_step "4/8" "Checking Homebrew"
     if command -v brew &>/dev/null; then
         print_success "Homebrew is installed"
         local outdated=$(brew outdated 2>/dev/null | wc -l | tr -d ' ')
@@ -335,70 +461,141 @@ cmd_doctor() {
     fi
     echo ""
 
+    # Check fzf
+    print_step "5/8" "Checking interactive tools"
+    if command -v fzf &>/dev/null; then
+        print_success "fzf is installed (interactive features available)"
+    else
+        print_warn "fzf not installed (interactive features limited)"
+        print_info "Install with: nix-me add tool fzf"
+    fi
+    echo ""
+
+    # Check 1Password SSH
+    print_step "6/8" "Checking 1Password SSH agent"
+    local onepass_socket="$HOME/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"
+    if [ -S "$onepass_socket" ]; then
+        print_success "1Password SSH agent is available"
+        if ssh-add -l &>/dev/null 2>&1; then
+            local key_count=$(ssh-add -l 2>/dev/null | wc -l | tr -d ' ')
+            print_info "Keys available: $key_count"
+        fi
+    else
+        print_info "1Password SSH agent not found (optional)"
+    fi
+    echo ""
+
     # Check disk space
-    print_step "6/7" "Checking disk space"
+    print_step "7/8" "Checking disk space"
     local available=$(df -h / | tail -1 | awk '{print $4}')
-    print_info "Available space: $available"
+    local used_percent=$(df -h / | tail -1 | awk '{print $5}')
+    print_info "Available space: $available (${used_percent} used)"
+
     local store_size=$(du -sh /nix/store 2>/dev/null | cut -f1 || echo "unknown")
     print_info "Nix store size: $store_size"
     echo ""
 
     # Check for common issues
-    print_step "7/7" "Common issues"
-    local issues_found=0
+    print_step "8/8" "Common issues"
 
-    # Check for dirty git state
     if [ -d "$CONFIG_DIR/.git" ]; then
         cd "$CONFIG_DIR"
         if ! git diff --quiet HEAD 2>/dev/null; then
             print_warn "Uncommitted changes in configuration"
-            issues_found=$((issues_found + 1))
+            ((issues++))
         fi
     fi
 
-    # Check nix daemon
     if ! pgrep nix-daemon &>/dev/null; then
         print_warn "Nix daemon may not be running"
-        issues_found=$((issues_found + 1))
+        ((issues++))
     fi
 
-    if [ $issues_found -eq 0 ]; then
-        print_success "No common issues detected"
+    if [ $issues -eq 0 ]; then
+        print_success "No issues detected"
+    else
+        print_warn "Found $issues potential issues"
     fi
     echo ""
 
     print_header "Diagnostics Complete"
+
+    if [ $issues -eq 0 ]; then
+        echo ""
+        print_success "✅ Your system is healthy!"
+    fi
 }
 
 cmd_list() {
     print_header "Installed Packages"
     echo ""
 
-    print_step "1/2" "Homebrew Casks"
+    print_step "1/2" "Homebrew Casks (GUI Apps)"
     if command -v brew &>/dev/null; then
-        brew list --cask 2>/dev/null | while read cask; do
-            echo "  ${CYAN}•${NC} $cask"
+        local cask_count=$(brew list --cask 2>/dev/null | wc -l | tr -d ' ')
+        echo "Total: $cask_count"
+        echo ""
+        brew list --cask 2>/dev/null | sort | while read cask; do
+            echo -e "  ${GREEN}✓${NC} $cask"
         done
     else
         print_warn "Homebrew not installed"
     fi
     echo ""
 
-    print_step "2/2" "Nix Packages"
-    if command -v nix-env &>/dev/null; then
-        nix-env -q 2>/dev/null | while read pkg; do
-            echo "  ${CYAN}•${NC} $pkg"
+    print_step "2/2" "Nix Packages (CLI Tools)"
+    if [ -d "/nix/var/nix/profiles/system/sw/bin" ]; then
+        local tool_count=$(ls /nix/var/nix/profiles/system/sw/bin 2>/dev/null | wc -l | tr -d ' ')
+        echo "Total: $tool_count"
+        echo ""
+        ls /nix/var/nix/profiles/system/sw/bin 2>/dev/null | sort | head -50 | while read tool; do
+            echo -e "  ${GREEN}✓${NC} $tool"
         done
     else
         print_warn "Nix not installed"
     fi
 }
 
-# Main command router
+cmd_diff() {
+    print_header "Configuration Changes"
+
+    if [ ! -d "$CONFIG_DIR/.git" ]; then
+        print_error "Configuration is not a git repository"
+        return 1
+    fi
+
+    cd "$CONFIG_DIR"
+
+    print_info "Uncommitted changes:"
+    echo ""
+    git diff --stat HEAD
+
+    echo ""
+    print_info "Recent commits:"
+    git log --oneline -10
+}
+
+# ============================================================================
+# Main Command Router
+# ============================================================================
+
 case "${1:-help}" in
-    setup)
-        source "$LIB_DIR/wizard.sh"
-        run_setup_wizard "$CONFIG_DIR"
+    # Configuration commands
+    create|setup)
+        cmd_create
+        ;;
+    reconfigure)
+        shift
+        cmd_reconfigure "$@"
+        ;;
+
+    # Package management
+    browse)
+        cmd_browse
+        ;;
+    search)
+        shift
+        cmd_search "$@"
         ;;
     add)
         shift
@@ -411,443 +608,43 @@ case "${1:-help}" in
         esac
         ;;
     remove)
-        print_warn "Remove functionality coming soon"
+        shift
+        cmd_remove "$@"
         ;;
-    customize) cmd_customize ;;
-    switch) cmd_switch ;;
-    update) cmd_update ;;
-    status) cmd_status ;;
-    doctor) cmd_doctor ;;
-    list) cmd_list ;;
-    help|--help|-h) show_help ;;
-    *)
-        print_error "Unknown command: $1"
-        echo ""
+
+    # System management
+    switch)
+        cmd_switch
+        ;;
+    build)
+        cmd_build
+        ;;
+    update)
+        cmd_update
+        ;;
+    rollback)
+        cmd_rollback
+        ;;
+
+    # Information
+    status)
+        cmd_status
+        ;;
+    doctor)
+        cmd_doctor
+        ;;
+    list)
+        cmd_list
+        ;;
+    diff)
+        cmd_diff
+        ;;
+
+    # Help
+    help|--help|-h)
         show_help
-        exit 1
         ;;
-esac
-#!/bin/bash
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LIB_DIR="$SCRIPT_DIR/../lib"
-
-# Source libraries
-source "$LIB_DIR/ui.sh"
-source "$LIB_DIR/config-builder.sh" 2>/dev/null || true
-
-CONFIG_DIR="${HOME}/.config/nixpkgs"
-
-show_help() {
-    print_header "nix-me - Nix Configuration Manager"
-    cat << EOF
-Usage: nix-me <command> [options]
-
-Commands:
-  setup              Run interactive setup wizard
-  add <type> <name>  Add packages or features
-  remove <type> <name> Remove packages or features
-  customize          Interactive customization menu
-  switch             Apply configuration changes
-  update             Update packages
-  status             Show system status
-  doctor             Diagnose configuration issues
-  list               List installed packages
-
-Package Types:
-  app <name>         GUI application (Homebrew cask)
-  tool <name>        CLI tool (Nix package)
-
-Examples:
-  nix-me add app spotify
-  nix-me add tool jq
-  nix-me customize
-  nix-me switch
-  nix-me doctor
-
-For more help: nix-me <command> --help
-EOF
-}
-
-cmd_add_app() {
-    local app_name="$1"
-
-    if [ -z "$app_name" ]; then
-        print_error "Please specify an app name"
-        echo "Usage: nix-me add app <name>"
-        return 1
-    fi
-
-    print_header "Adding GUI Application"
-    print_info "Searching for: $app_name"
-
-    # Check if Homebrew is available
-    if ! command -v brew &>/dev/null; then
-        print_error "Homebrew is not installed"
-        return 1
-    fi
-
-    # Search Homebrew
-    print_info "Searching Homebrew casks..."
-    local results=$(brew search --cask "$app_name" 2>/dev/null | grep -v "==>" | head -10)
-
-    if [ -z "$results" ]; then
-        print_error "No applications found matching '$app_name'"
-        return 1
-    fi
-
-    echo ""
-    echo "Found applications:"
-    local apps_array=()
-    local index=1
-    while IFS= read -r line; do
-        if [ -n "$line" ]; then
-            apps_array+=("$line")
-            echo "  ${CYAN}${index}${NC}) $line"
-            ((index++))
-        fi
-    done <<< "$results"
-    echo "  ${CYAN}0${NC}) Cancel"
-    echo ""
-
-    read -p "Select application [0-${#apps_array[@]}]: " selection
-
-    if [ "$selection" -eq 0 ] || [ -z "$selection" ]; then
-        print_info "Cancelled"
-        return 0
-    fi
-
-    if [ "$selection" -lt 1 ] || [ "$selection" -gt "${#apps_array[@]}" ]; then
-        print_error "Invalid selection"
-        return 1
-    fi
-
-    local selected_app="${apps_array[$((selection-1))]}"
-
-    # Add to configuration
-    print_info "Adding $selected_app to configuration..."
-    echo ""
-    print_warn "To add this app, edit:"
-    echo "  ${CYAN}$CONFIG_DIR/modules/darwin/homebrew.nix${NC}"
-    echo ""
-    echo "Add to the casks array:"
-    echo "  ${GREEN}\"$selected_app\"${NC}"
-    echo ""
-
-    if ask_yes_no "Open homebrew.nix in editor?" "y"; then
-        ${EDITOR:-nano} "$CONFIG_DIR/modules/darwin/homebrew.nix"
-    fi
-
-    echo ""
-    if ask_yes_no "Apply changes now?" "y"; then
-        cmd_switch
-    else
-        print_info "Run 'nix-me switch' when ready to apply changes"
-    fi
-}
-
-cmd_add_tool() {
-    local tool_name="$1"
-
-    if [ -z "$tool_name" ]; then
-        print_error "Please specify a tool name"
-        echo "Usage: nix-me add tool <name>"
-        return 1
-    fi
-
-    print_header "Adding CLI Tool"
-    print_info "Tool: $tool_name"
-    echo ""
-    print_warn "To add this tool, edit:"
-    echo "  ${CYAN}$CONFIG_DIR/modules/darwin/apps.nix${NC}"
-    echo ""
-    echo "Add to systemPackages:"
-    echo "  ${GREEN}$tool_name${NC}"
-    echo ""
-
-    if ask_yes_no "Open apps.nix in editor?" "y"; then
-        ${EDITOR:-nano} "$CONFIG_DIR/modules/darwin/apps.nix"
-    fi
-
-    echo ""
-    if ask_yes_no "Apply changes now?" "y"; then
-        cmd_switch
-    else
-        print_info "Run 'nix-me switch' when ready to apply changes"
-    fi
-}
-
-cmd_customize() {
-    while true; do
-        clear
-        print_header "Customization Menu"
-
-        echo "What would you like to customize?"
-        echo ""
-        echo "  ${CYAN}1${NC}) Add GUI applications"
-        echo "  ${CYAN}2${NC}) Add CLI tools"
-        echo "  ${CYAN}3${NC}) Edit Fish shell config"
-        echo "  ${CYAN}4${NC}) Edit system preferences"
-        echo "  ${CYAN}5${NC}) Edit Homebrew config"
-        echo "  ${CYAN}6${NC}) Review current configuration"
-        echo "  ${CYAN}7${NC}) Apply changes and exit"
-        echo "  ${CYAN}0${NC}) Exit without applying"
-        echo ""
-
-        read -p "Choice: " choice
-
-        case $choice in
-            1)
-                echo ""
-                read -p "Enter app name to search: " app_name
-                cmd_add_app "$app_name"
-                read -p "Press Enter to continue..."
-                ;;
-            2)
-                echo ""
-                read -p "Enter tool name: " tool_name
-                cmd_add_tool "$tool_name"
-                read -p "Press Enter to continue..."
-                ;;
-            3)
-                ${EDITOR:-nano} "$CONFIG_DIR/modules/home-manager/fish.nix"
-                ;;
-            4)
-                ${EDITOR:-nano} "$CONFIG_DIR/modules/darwin/system.nix"
-                ;;
-            5)
-                ${EDITOR:-nano} "$CONFIG_DIR/modules/darwin/homebrew.nix"
-                ;;
-            6)
-                cmd_status
-                read -p "Press Enter to continue..."
-                ;;
-            7)
-                echo ""
-                if ask_yes_no "Apply configuration changes now?" "y"; then
-                    cmd_switch
-                fi
-                break
-                ;;
-            0) break ;;
-            *) print_error "Invalid choice" ;;
-        esac
-    done
-}
-
-cmd_switch() {
-    print_header "Applying Configuration"
-    cd "$CONFIG_DIR" || exit 1
-
-    print_info "Building configuration..."
-    if make switch; then
-        print_success "Configuration applied successfully!"
-    else
-        print_error "Failed to apply configuration"
-        return 1
-    fi
-}
-
-cmd_update() {
-    print_header "Updating System"
-    cd "$CONFIG_DIR" || exit 1
-
-    print_info "Updating flake inputs..."
-    nix flake update
-
-    echo ""
-    if ask_yes_no "Apply updates now?" "y"; then
-        cmd_switch
-    else
-        print_info "Run 'nix-me switch' to apply updates later"
-    fi
-}
-
-cmd_status() {
-    clear
-    print_header "System Status"
-    echo ""
-
-    print_step "1/5" "Configuration Location"
-    if [ -d "$CONFIG_DIR" ]; then
-        print_success "Configuration found at: $CONFIG_DIR"
-        local branch=$(cd "$CONFIG_DIR" && git branch --show-current 2>/dev/null)
-        print_info "Git branch: ${branch:-unknown}"
-    else
-        print_error "Configuration not found at: $CONFIG_DIR"
-    fi
-    echo ""
-
-    print_step "2/5" "Nix Generation"
-    local current_gen=$(darwin-rebuild --list-generations 2>/dev/null | tail -1 || echo "unknown")
-    print_info "Current: $current_gen"
-    echo ""
-
-    print_step "3/5" "Nix Store"
-    local store_size=$(du -sh /nix/store 2>/dev/null | cut -f1 || echo "unknown")
-    print_info "Nix store size: $store_size"
-    echo ""
-
-    print_step "4/5" "Installed Packages"
-    local brew_count=$(brew list --cask 2>/dev/null | wc -l | tr -d ' ' || echo "0")
-    local nix_count=$(nix-env -q 2>/dev/null | wc -l | tr -d ' ' || echo "0")
-    print_info "Homebrew casks: $brew_count"
-    print_info "Nix packages: $nix_count"
-    echo ""
-
-    print_step "5/5" "Recent Changes"
-    if [ -d "$CONFIG_DIR/.git" ]; then
-        cd "$CONFIG_DIR"
-        local last_commit=$(git log -1 --oneline 2>/dev/null || echo "No commits")
-        print_info "Last commit: $last_commit"
-    fi
-}
-
-cmd_doctor() {
-    print_header "System Diagnostics"
-    echo ""
-
-    # Check Nix installation
-    print_step "1/7" "Checking Nix installation"
-    if command -v nix &>/dev/null; then
-        local nix_version=$(nix --version 2>/dev/null || echo "unknown")
-        print_success "Nix is installed: $nix_version"
-    else
-        print_error "Nix is not installed"
-    fi
-    echo ""
-
-    # Check darwin-rebuild
-    print_step "2/7" "Checking nix-darwin"
-    if command -v darwin-rebuild &>/dev/null; then
-        print_success "nix-darwin is installed"
-    else
-        print_error "nix-darwin is not installed"
-    fi
-    echo ""
-
-    # Check configuration
-    print_step "3/7" "Validating configuration"
-    cd "$CONFIG_DIR" 2>/dev/null || { print_error "Config directory not found"; return 1; }
-    if make check &>/dev/null; then
-        print_success "Configuration is valid"
-    else
-        print_warn "Configuration may have errors (run 'make check' for details)"
-    fi
-    echo ""
-
-    # Check 1Password SSH
-    print_step "4/7" "Checking 1Password SSH agent"
-    local onepass_socket="$HOME/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"
-    if [ -S "$onepass_socket" ]; then
-        print_success "1Password SSH agent is available"
-        if ssh-add -l &>/dev/null; then
-            local key_count=$(ssh-add -l 2>/dev/null | wc -l | tr -d ' ')
-            print_info "Keys available: $key_count"
-        fi
-    else
-        print_warn "1Password SSH agent not found"
-    fi
-    echo ""
-
-    # Check Homebrew
-    print_step "5/7" "Checking Homebrew"
-    if command -v brew &>/dev/null; then
-        print_success "Homebrew is installed"
-        local outdated=$(brew outdated 2>/dev/null | wc -l | tr -d ' ')
-        if [ "$outdated" -gt 0 ]; then
-            print_info "Outdated packages: $outdated"
-        fi
-    else
-        print_warn "Homebrew is not installed"
-    fi
-    echo ""
-
-    # Check disk space
-    print_step "6/7" "Checking disk space"
-    local available=$(df -h / | tail -1 | awk '{print $4}')
-    print_info "Available space: $available"
-    local store_size=$(du -sh /nix/store 2>/dev/null | cut -f1 || echo "unknown")
-    print_info "Nix store size: $store_size"
-    echo ""
-
-    # Check for common issues
-    print_step "7/7" "Common issues"
-    local issues_found=0
-
-    # Check for dirty git state
-    if [ -d "$CONFIG_DIR/.git" ]; then
-        cd "$CONFIG_DIR"
-        if ! git diff --quiet HEAD 2>/dev/null; then
-            print_warn "Uncommitted changes in configuration"
-            issues_found=$((issues_found + 1))
-        fi
-    fi
-
-    # Check nix daemon
-    if ! pgrep nix-daemon &>/dev/null; then
-        print_warn "Nix daemon may not be running"
-        issues_found=$((issues_found + 1))
-    fi
-
-    if [ $issues_found -eq 0 ]; then
-        print_success "No common issues detected"
-    fi
-    echo ""
-
-    print_header "Diagnostics Complete"
-}
-
-cmd_list() {
-    print_header "Installed Packages"
-    echo ""
-
-    print_step "1/2" "Homebrew Casks"
-    if command -v brew &>/dev/null; then
-        brew list --cask 2>/dev/null | while read cask; do
-            echo "  ${CYAN}•${NC} $cask"
-        done
-    else
-        print_warn "Homebrew not installed"
-    fi
-    echo ""
-
-    print_step "2/2" "Nix Packages"
-    if command -v nix-env &>/dev/null; then
-        nix-env -q 2>/dev/null | while read pkg; do
-            echo "  ${CYAN}•${NC} $pkg"
-        done
-    else
-        print_warn "Nix not installed"
-    fi
-}
-
-# Main command router
-case "${1:-help}" in
-    setup)
-        source "$LIB_DIR/wizard.sh"
-        run_setup_wizard
-        ;;
-    add)
-        shift
-        type="$1"
-        shift
-        case "$type" in
-            app) cmd_add_app "$@" ;;
-            tool) cmd_add_tool "$@" ;;
-            *) print_error "Unknown type: $type"; show_help; exit 1 ;;
-        esac
-        ;;
-    remove)
-        print_warn "Remove functionality coming soon"
-        ;;
-    customize) cmd_customize ;;
-    switch) cmd_switch ;;
-    update) cmd_update ;;
-    status) cmd_status ;;
-    doctor) cmd_doctor ;;
-    list) cmd_list ;;
-    help|--help|-h) show_help ;;
     *)
         print_error "Unknown command: $1"
         echo ""

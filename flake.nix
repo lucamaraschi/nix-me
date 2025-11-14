@@ -131,6 +131,54 @@
           machineType = "vm";
           machineName = "NixOS VM";
         };
+
+        # ========================================
+        # Profile-based configurations examples
+        # ========================================
+
+        # MacBook Pro with Work profile
+        "work-macbook-pro" = mkDarwinSystem {
+          hostname = "work-macbook-pro";
+          machineType = "macbook-pro";
+          machineName = "Work MacBook Pro";
+          username = "batman";
+          extraModules = [
+            ./hosts/profiles/work.nix
+          ];
+        };
+
+        # MacBook Pro with Personal profile
+        "personal-macbook-pro" = mkDarwinSystem {
+          hostname = "personal-macbook-pro";
+          machineType = "macbook-pro";
+          machineName = "Personal MacBook Pro";
+          username = "batman";
+          extraModules = [
+            ./hosts/profiles/personal.nix
+          ];
+        };
+
+        # Regular MacBook with Work profile
+        "work-macbook" = mkDarwinSystem {
+          hostname = "work-macbook";
+          machineType = "macbook";
+          machineName = "Work MacBook";
+          username = "batman";
+          extraModules = [
+            ./hosts/profiles/work.nix
+          ];
+        };
+
+        # Mac Mini with Personal profile (home workstation)
+        "home-studio" = mkDarwinSystem {
+          hostname = "home-studio";
+          machineType = "macmini";
+          machineName = "Home Studio";
+          username = "batman";
+          extraModules = [
+            ./hosts/profiles/personal.nix
+          ];
+        };
       };
 
       nixosConfigurations = {
