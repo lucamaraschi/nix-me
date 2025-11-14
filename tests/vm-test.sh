@@ -246,6 +246,34 @@ vm_exec() {
     $UTMCTL exec "$TEST_VM_NAME" --cmd /bin/bash -c "$cmd"
 }
 
+# Timeout function compatible with macOS
+run_with_timeout() {
+    local timeout_duration=$1
+    shift
+    local cmd="$@"
+
+    # Run command in background
+    eval "$cmd" &
+    local cmd_pid=$!
+
+    # Wait with timeout
+    local elapsed=0
+    while kill -0 $cmd_pid 2>/dev/null; do
+        if [ $elapsed -ge $timeout_duration ]; then
+            kill -TERM $cmd_pid 2>/dev/null
+            sleep 2
+            kill -KILL $cmd_pid 2>/dev/null
+            return 124  # timeout exit code
+        fi
+        sleep 5
+        elapsed=$((elapsed + 5))
+    done
+
+    # Get exit code
+    wait $cmd_pid
+    return $?
+}
+
 # Copy files to VM
 copy_files_to_vm() {
     step "4/7" "Preparing nix-me repository in VM"
@@ -286,7 +314,7 @@ run_installation() {
     log "Running: $install_cmd"
 
     # Run installation with timeout
-    if timeout $INSTALL_TIMEOUT bash -c "$UTMCTL exec '$TEST_VM_NAME' --cmd /bin/bash -c '$install_cmd'"; then
+    if run_with_timeout $INSTALL_TIMEOUT "$UTMCTL exec '$TEST_VM_NAME' --cmd /bin/bash -c '$install_cmd'"; then
         log "Installation completed successfully!"
         return 0
     else
