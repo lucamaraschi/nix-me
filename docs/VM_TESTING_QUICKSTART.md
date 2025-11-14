@@ -12,32 +12,30 @@ brew install --cask utm
 
 ### 2. Create Base VM
 
-1. Open UTM
-2. Create new VM:
+**Quick Way (Automated):**
+
+1. Create new VM in UTM:
    - Type: **Virtualize** (macOS 12+)
-   - OS: **macOS**
    - RAM: **4GB** minimum
    - CPU: **2 cores** minimum
    - Disk: **64GB** minimum
 
-3. Install macOS and complete setup wizard
+2. Install macOS and complete setup wizard
 
-4. Inside the VM, run:
+3. **Enable Remote Login** in VM:
+   System Settings → General → Sharing → Remote Login
 
-```bash
-# Copy the setup script to VM (manually or via download)
-curl -fsSL https://raw.githubusercontent.com/lucamaraschi/nix-me/main/tests/setup-base-vm.sh -o setup-base-vm.sh
-chmod +x setup-base-vm.sh
-./setup-base-vm.sh
-```
-
-5. Shut down the VM:
+4. **From your host machine**, run:
 
 ```bash
-sudo shutdown -h now
+./tests/setup-base-vm-ssh.sh --vm="macOS Tahoe - base" --user=admin
 ```
 
-6. Rename VM in UTM to: `macOS Tahoe - base`
+**Done!** The script handles everything automatically.
+
+**Manual Way:**
+
+Follow steps in [Base VM Setup Guide](./BASE_VM_SETUP.md)
 
 ### 3. Run Tests
 

@@ -1,6 +1,8 @@
 #!/bin/bash
 
-# Helper script to set up a base VM for nix-me testing
+# Manual setup script to be run INSIDE the base VM
+# For automated setup from the host, use: setup-base-vm-ssh.sh
+#
 # This script should be run INSIDE the base VM after macOS installation
 
 set -e
@@ -21,11 +23,12 @@ step() { echo -e "${CYAN}[$1]${NC} $2"; }
 
 echo ""
 echo -e "${CYAN}╔════════════════════════════════════════════╗${NC}"
-echo -e "${CYAN}║  nix-me Base VM Setup                      ║${NC}"
+echo -e "${CYAN}║  nix-me Base VM Setup (Manual)             ║${NC}"
 echo -e "${CYAN}╚════════════════════════════════════════════╝${NC}"
 echo ""
 
 info "This script will configure this macOS VM for nix-me testing"
+info "NOTE: For automated setup, use setup-base-vm-ssh.sh from the host"
 echo ""
 
 # Check if we're in a VM

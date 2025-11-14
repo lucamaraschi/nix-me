@@ -47,36 +47,39 @@ You need a base macOS VM with:
 
 #### Creating the Base VM
 
-1. Open UTM and create a new macOS VM:
+**Quick Setup (Automated)** ⭐
+
+1. Create a fresh macOS VM in UTM:
    - Use "Virtualize" mode (faster, requires macOS 12+)
    - Allocate at least 4GB RAM, 2 CPU cores
    - 64GB+ disk space recommended
 
-2. Install macOS:
-   - Complete the installation wizard
-   - Create a user account (e.g., "test" or "admin")
-   - Enable automatic login (optional, speeds up testing)
+2. Install macOS and complete setup wizard
 
-3. Install QEMU Guest Agent:
+3. **Enable Remote Login:**
+   - System Settings → General → Sharing
+   - Turn on "Remote Login"
 
-   Once macOS is installed, open Terminal in the VM:
-
+4. **Run automated setup:**
    ```bash
-   # Download and install QEMU guest agent
-   brew install qemu
-
-   # Enable guest agent
-   sudo brew services start qemu
+   ./tests/setup-base-vm-ssh.sh --vm="macOS Tahoe - base" --user=admin
    ```
 
-4. Configure the VM:
-   - Disable sleep/screen saver
-   - Enable SSH (optional, for debugging)
-   - Ensure network is set to "Shared Network"
+Done! The script installs everything automatically via SSH.
 
-5. Save the VM as `macOS Tahoe - base` (or update the script with your VM name)
+**Manual Setup (Alternative)**
 
-6. Shut down the VM (don't suspend)
+If you prefer manual setup, see the detailed steps in [BASE_VM_SETUP.md](./BASE_VM_SETUP.md).
+
+1. Open UTM and create a new macOS VM
+2. Install macOS
+3. Inside the VM, run:
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/lucamaraschi/nix-me/main/tests/setup-base-vm.sh | bash
+   ```
+4. Shut down the VM
+
+See [Base VM Setup Guide](./BASE_VM_SETUP.md) for complete instructions.
 
 ## Usage
 
