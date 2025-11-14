@@ -1,0 +1,29 @@
+# Nix build results
+result
+result-*
+
+# Nix garbage
+.direnv/
+.envrc
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+.claude/
+
+# Temporary files
+*.tmp
+*.bak
+*.backup
+
+# Test outputs
+tests/*.log
+tests/output/
