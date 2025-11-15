@@ -69,6 +69,7 @@ EXAMPLES:
     $0 --vm-user=admin --onsuccess=delete       # Auto-delete on success
     $0 --vm-user=admin --ssh-key=~/.ssh/id_rsa  # Use specific SSH key
     $0 --vm-user=admin --source=github          # Test from GitHub (default)
+    $0 --vm-user=admin --source=local           # Test local changes via SCP
 
 EOF
     exit 0

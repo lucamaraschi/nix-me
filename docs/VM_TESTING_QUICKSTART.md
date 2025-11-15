@@ -73,6 +73,8 @@ That's it! The script will:
 ./tests/vm-test.sh --vm-user=admin --source=local
 ```
 
+This copies your local project files to the VM via SCP and runs the installation from there.
+
 ### Cleanup Control
 
 ```bash
