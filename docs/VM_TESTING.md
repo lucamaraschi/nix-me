@@ -127,7 +127,7 @@ Test uncommitted changes in your working directory:
 ./tests/vm-test.sh --vm-user=admin --source=local
 ```
 
-**Note:** Currently falls back to GitHub clone. Local file copy requires advanced guest agent features (coming soon).
+This will copy your local project files to the VM via SSH and run the installation from there. Perfect for testing changes before committing!
 
 ### Cleanup Strategies
 

@@ -365,8 +365,10 @@ run_installation() {
 
     local vm_ip=$(get_vm_ip)
     local ssh_opts="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10"
+    local scp_opts="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
     if [ -n "$VM_SSH_KEY" ]; then
         ssh_opts="$ssh_opts -i $VM_SSH_KEY"
+        scp_opts="$scp_opts -i $VM_SSH_KEY"
     fi
 
     local install_cmd=""
@@ -374,8 +376,36 @@ run_installation() {
         install_cmd="curl -fsSL https://raw.githubusercontent.com/lucamaraschi/nix-me/main/install.sh | bash"
         log "Installing from GitHub"
     else
-        warn "Local source testing not yet implemented, using GitHub"
-        install_cmd="curl -fsSL https://raw.githubusercontent.com/lucamaraschi/nix-me/main/install.sh | bash"
+        log "Installing from local source"
+
+        # Copy local project to VM
+        local remote_dir="/tmp/nix-me-test-$$"
+        log "Copying local files to VM at $remote_dir..."
+
+        # Create remote directory
+        ssh $ssh_opts "$VM_USER@$vm_ip" "mkdir -p $remote_dir" || {
+            error "Failed to create remote directory"
+            return 1
+        }
+
+        # Copy project files via scp (excluding .git, tests, docs, and other non-essential files)
+        if ! scp $scp_opts -r \
+            "$PROJECT_DIR/install.sh" \
+            "$PROJECT_DIR/flake.nix" \
+            "$PROJECT_DIR/flake.lock" \
+            "$PROJECT_DIR/bin" \
+            "$PROJECT_DIR/lib" \
+            "$PROJECT_DIR/hosts" \
+            "$PROJECT_DIR/modules" \
+            "$VM_USER@$vm_ip:$remote_dir/"; then
+            error "Failed to copy files to VM"
+            return 1
+        fi
+
+        log "Local files copied successfully"
+
+        # Run installation from local copy
+        install_cmd="cd $remote_dir && bash install.sh"
     fi
 
     log "Running: $install_cmd"
