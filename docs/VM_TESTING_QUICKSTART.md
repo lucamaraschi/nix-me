@@ -41,20 +41,22 @@ Follow steps in [Base VM Setup Guide](./BASE_VM_SETUP.md)
 
 ```bash
 cd /path/to/nix-me
-./tests/vm-test.sh
+./tests/vm-test.sh --vm-user=admin
 ```
+
+**Note:** Replace `admin` with the username in your base VM.
 
 That's it! The script will:
 - Clone the base VM (default: "macOS Tahoe - base")
 - Create a test VM with random name
-- Install nix-me
+- Connect via SSH and install nix-me (including Homebrew)
 - Run tests
 - Ask if you want to keep or delete the test VM
 
 **If your base VM has a different name:**
 
 ```bash
-./tests/vm-test.sh --base-vm="Your VM Name"
+./tests/vm-test.sh --vm-user=admin --base-vm="Your VM Name"
 ```
 
 ## Usage Examples
@@ -62,44 +64,44 @@ That's it! The script will:
 ### Test Latest Release
 
 ```bash
-./tests/vm-test.sh
+./tests/vm-test.sh --vm-user=admin
 ```
 
 ### Test Local Changes
 
 ```bash
-./tests/vm-test.sh --source=local
+./tests/vm-test.sh --vm-user=admin --source=local
 ```
 
 ### Cleanup Control
 
 ```bash
 # Delete on success, keep on failure (recommended for development)
-./tests/vm-test.sh --onsuccess=delete --onfailure=keep
+./tests/vm-test.sh --vm-user=admin --onsuccess=delete --onfailure=keep
 
 # Always keep for inspection
-./tests/vm-test.sh --onsuccess=keep --onfailure=keep
+./tests/vm-test.sh --vm-user=admin --onsuccess=keep --onfailure=keep
 
 # Always delete (good for CI)
-./tests/vm-test.sh --onsuccess=delete --onfailure=delete
+./tests/vm-test.sh --vm-user=admin --onsuccess=delete --onfailure=delete
 ```
 
 ### Combined Examples
 
 ```bash
 # Test local changes, auto-delete if successful
-./tests/vm-test.sh --source=local --onsuccess=delete
+./tests/vm-test.sh --vm-user=admin --source=local --onsuccess=delete
 
 # Test with verbose output, keep on failure
-./tests/vm-test.sh --verbose --onfailure=keep
+./tests/vm-test.sh --vm-user=admin --verbose --onfailure=keep
 ```
 
 ### Legacy Flags (Still Supported)
 
 ```bash
-./tests/vm-test.sh --local    # Same as --source=local
-./tests/vm-test.sh --keep     # Keep regardless of result
-./tests/vm-test.sh --delete   # Delete regardless of result
+./tests/vm-test.sh --vm-user=admin --local    # Same as --source=local
+./tests/vm-test.sh --vm-user=admin --keep     # Keep regardless of result
+./tests/vm-test.sh --vm-user=admin --delete   # Delete regardless of result
 ```
 
 ## What Gets Tested
@@ -122,15 +124,20 @@ Or edit `tests/vm-test.sh` and change:
 BASE_VM_NAME="Your VM Name Here"
 ```
 
-### "VM did not become ready"
+### "Could not connect via SSH"
 
-Ensure QEMU guest agent is installed:
+Ensure Remote Login is enabled in your base VM:
 
 ```bash
-# Inside the VM
-brew install qemu
-brew services start qemu
+# Inside the VM (or via System Settings)
+sudo systemsetup -setremotelogin on
+
+# Verify it's enabled
+sudo systemsetup -getremotelogin
+# Should show: Remote Login: On
 ```
+
+Or use System Settings → General → Sharing → Remote Login
 
 ### Installation Times Out
 

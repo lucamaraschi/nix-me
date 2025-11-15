@@ -22,11 +22,13 @@ Complete guide for setting up a base macOS VM for nix-me testing.
 
 That's it! The script will:
 - ✓ Start the VM
-- ✓ Install Homebrew
-- ✓ Install QEMU guest agent
-- ✓ Configure system settings
+- ✓ Configure system settings (disable sleep, screensaver, updates)
 - ✓ Shut down the VM
 - ✓ VM is ready for testing
+
+**What's NOT installed** (to test the complete installation flow):
+- ✗ NO Homebrew (installed during nix-me test)
+- ✗ NO guest agent (not needed - we use SSH)
 
 **First run will prompt for password** (or use SSH keys for passwordless setup)
 
@@ -161,21 +163,23 @@ Should show the VM's IP address.
 
 ---
 
-## What Gets Installed
+## What Gets Configured
 
-The setup scripts install and configure:
+The setup scripts configure (but do NOT install software):
 
-### Software
-- ✓ **Homebrew** - Package manager
-- ✓ **QEMU guest agent** - For UTM communication
-
-### System Settings
+### System Settings (ONLY)
 - ✓ Disable screen saver (prevents sleep during tests)
 - ✓ Disable system sleep
 - ✓ Disable automatic updates
 
+### What's NOT Installed
+- ✗ **NO Homebrew** - Installed during nix-me test to validate complete installation
+- ✗ **NO guest agent** - Not needed, we use SSH instead
+- ✗ **NO development tools** - Keeps VM truly clean
+
 ### Network
 - ✓ Shared network (VM can access internet)
+- ✓ Remote Login (SSH) enabled
 - ✓ Host can SSH to VM
 
 ---

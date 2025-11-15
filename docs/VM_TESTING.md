@@ -41,9 +41,11 @@ brew install --cask utm
 You need a base macOS VM with:
 
 1. **Clean macOS installation** (Ventura, Sonoma, or Sequoia)
-2. **QEMU Guest Agent** installed
-3. **Network connectivity** configured
+2. **Remote Login (SSH) enabled** - System Settings → Sharing → Remote Login
+3. **Network connectivity** configured (Shared Network in UTM)
 4. **User account** set up with sudo access
+
+**Important:** No Homebrew or guest agent needed - keeps the VM truly clean to test complete installation flow!
 
 #### Creating the Base VM
 
@@ -65,7 +67,7 @@ You need a base macOS VM with:
    ./tests/setup-base-vm-ssh.sh --vm="macOS Tahoe - base" --user=admin
    ```
 
-Done! The script installs everything automatically via SSH.
+Done! The script configures system settings via SSH (no software installed - keeps VM clean).
 
 **Manual Setup (Alternative)**
 
@@ -88,14 +90,16 @@ See [Base VM Setup Guide](./BASE_VM_SETUP.md) for complete instructions.
 Test the latest version from GitHub:
 
 ```bash
-./tests/vm-test.sh
+./tests/vm-test.sh --vm-user=admin
 ```
+
+**Note:** `--vm-user` is required (the username in your base VM with SSH access).
 
 This will:
 1. Clone your base VM (default: "macOS Tahoe - base")
 2. Create a test VM with a random name (nix-me-test-YYYYMMDD-HHMMSS-RANDOM)
-3. Start the test VM
-4. Install nix-me from GitHub
+3. Start the test VM and wait for SSH connectivity
+4. Install nix-me from GitHub via SSH (including Homebrew)
 5. Run verification tests
 6. Ask if you want to keep or delete the VM
 
@@ -104,7 +108,7 @@ This will:
 If your base VM has a different name:
 
 ```bash
-./tests/vm-test.sh --base-vm="macOS Sonoma Clean"
+./tests/vm-test.sh --vm-user=admin --base-vm="macOS Sonoma Clean"
 ```
 
 ### Custom Test VM Name
@@ -112,7 +116,7 @@ If your base VM has a different name:
 Specify a custom name for the test VM:
 
 ```bash
-./tests/vm-test.sh --name="my-test-vm"
+./tests/vm-test.sh --vm-user=admin --name="my-test-vm"
 ```
 
 ### Test Local Changes
@@ -120,7 +124,7 @@ Specify a custom name for the test VM:
 Test uncommitted changes in your working directory:
 
 ```bash
-./tests/vm-test.sh --source=local
+./tests/vm-test.sh --vm-user=admin --source=local
 ```
 
 **Note:** Currently falls back to GitHub clone. Local file copy requires advanced guest agent features (coming soon).
@@ -131,16 +135,16 @@ Control VM cleanup with `--onsuccess` and `--onfailure` flags:
 
 ```bash
 # Delete VM if tests pass, keep if they fail
-./tests/vm-test.sh --onsuccess=delete --onfailure=keep
+./tests/vm-test.sh --vm-user=admin --onsuccess=delete --onfailure=keep
 
 # Always keep VM for inspection
-./tests/vm-test.sh --onsuccess=keep --onfailure=keep
+./tests/vm-test.sh --vm-user=admin --onsuccess=keep --onfailure=keep
 
 # Always delete (good for CI)
-./tests/vm-test.sh --onsuccess=delete --onfailure=delete
+./tests/vm-test.sh --vm-user=admin --onsuccess=delete --onfailure=delete
 
 # Ask in both cases (default)
-./tests/vm-test.sh --onsuccess=ask --onfailure=ask
+./tests/vm-test.sh --vm-user=admin --onsuccess=ask --onfailure=ask
 ```
 
 ### Combined Flags
@@ -149,29 +153,29 @@ Flags can be combined for precise control:
 
 ```bash
 # Test local changes, auto-delete on success
-./tests/vm-test.sh --source=local --onsuccess=delete
+./tests/vm-test.sh --vm-user=admin --source=local --onsuccess=delete
 
 # Test GitHub version, keep on failure for debugging
-./tests/vm-test.sh --source=github --onfailure=keep
+./tests/vm-test.sh --vm-user=admin --source=github --onfailure=keep
 
 # Use custom base VM with specific test name
-./tests/vm-test.sh --base-vm="macOS Sonoma" --name="integration-test-1"
+./tests/vm-test.sh --vm-user=admin --base-vm="macOS Sonoma" --name="integration-test-1"
 
 # Test with verbose logging and custom cleanup
-./tests/vm-test.sh --verbose --source=github --onsuccess=delete --onfailure=keep
+./tests/vm-test.sh --vm-user=admin --verbose --source=github --onsuccess=delete --onfailure=keep
 
-# Full custom setup
-./tests/vm-test.sh --base-vm="My Base VM" --name="test-pr-123" --source=github --onsuccess=delete
+# Full custom setup with SSH key
+./tests/vm-test.sh --vm-user=admin --ssh-key=~/.ssh/id_rsa --base-vm="My Base VM" --name="test-pr-123" --source=github --onsuccess=delete
 ```
 
 ### Legacy Flags
 
-Old flag format still works for backward compatibility:
+Old flag format still works for backward compatibility (but `--vm-user` is still required):
 
 ```bash
-./tests/vm-test.sh --local    # Same as --source=local
-./tests/vm-test.sh --keep     # Keep regardless of result
-./tests/vm-test.sh --delete   # Delete regardless of result
+./tests/vm-test.sh --vm-user=admin --local    # Same as --source=local
+./tests/vm-test.sh --vm-user=admin --keep     # Keep regardless of result
+./tests/vm-test.sh --vm-user=admin --delete   # Delete regardless of result
 ```
 
 ## Verification Tests
@@ -195,14 +199,16 @@ The script runs the following verification tests:
 - Check that UTM is not running another instance
 - Verify you have enough system resources (RAM, disk)
 
-### Guest Agent Not Ready
+### SSH Connection Failed
 
-**Symptom:** "VM did not become ready within 300s"
+**Symptom:** "Could not connect to VM via SSH" or "SSH connection timed out"
 
 **Solutions:**
-- Ensure QEMU guest agent is installed in base VM
-- Check that guest agent service is running
-- Try increasing `VM_TIMEOUT` in the script
+- Ensure Remote Login is enabled in base VM (System Settings → Sharing → Remote Login)
+- Check VM network connectivity and IP address
+- Verify SSH credentials (username/password or SSH key)
+- Try increasing `SSH_TIMEOUT` in the script
+- Manually test SSH: `ssh admin@$(utmctl ip-address "VM Name")`
 
 ### Installation Timeout
 
@@ -229,11 +235,14 @@ The script runs the following verification tests:
 ### Command-line Configuration
 
 ```bash
-# Specify base VM to clone
-./tests/vm-test.sh --base-vm="Your Base VM Name"
+# Specify base VM to clone and VM user
+./tests/vm-test.sh --vm-user=admin --base-vm="Your Base VM Name"
 
 # Specify test VM name
-./tests/vm-test.sh --name="your-test-name"
+./tests/vm-test.sh --vm-user=admin --name="your-test-name"
+
+# Use SSH key for authentication
+./tests/vm-test.sh --vm-user=admin --ssh-key=~/.ssh/id_rsa
 ```
 
 ### Script Configuration
@@ -298,16 +307,19 @@ Delete a specific test VM:
 3. Right-click → Show
 4. View console output or interact with the VM
 
-### Check Guest Agent Status
+### Check SSH Connectivity
 
-Inside the VM:
+Test SSH connection to your VM:
 
 ```bash
-# Check if guest agent is running
-brew services list | grep qemu
+# Get VM IP
+/Applications/UTM.app/Contents/MacOS/utmctl ip-address "macOS Tahoe - base"
 
-# Start guest agent
-sudo brew services start qemu
+# Test SSH connection
+ssh -o ConnectTimeout=10 admin@<VM_IP> "echo 'SSH working!'"
+
+# Check Remote Login status inside VM
+ssh admin@<VM_IP> "sudo systemsetup -getremotelogin"
 ```
 
 ## Advanced Usage

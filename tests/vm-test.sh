@@ -28,6 +28,8 @@ SOURCE="github"           # github | local
 ON_SUCCESS="ask"          # ask | keep | delete
 ON_FAILURE="keep"         # ask | keep | delete
 VERBOSE=false
+VM_USER=""                # SSH username for VM
+VM_SSH_KEY=""             # SSH key path (optional)
 
 # Logging functions
 log() { echo -e "${GREEN}[$(date '+%H:%M:%S')]${NC} $1"; }
@@ -46,6 +48,8 @@ Automated VM testing for nix-me installation
 OPTIONS:
     --base-vm=NAME          Name of the base VM to clone [default: macOS Tahoe - base]
     --name=NAME             Name for the test VM [default: nix-me-test-RANDOM]
+    --vm-user=USERNAME      SSH username for VM (required for testing)
+    --ssh-key=PATH          Path to SSH key (optional, uses default if not specified)
     --source=SOURCE         Source to test from: 'github' or 'local' [default: github]
     --onsuccess=ACTION      What to do if tests pass: 'keep', 'delete', or 'ask' [default: ask]
     --onfailure=ACTION      What to do if tests fail: 'keep', 'delete', or 'ask' [default: keep]
@@ -59,13 +63,12 @@ LEGACY OPTIONS (still supported):
     --delete                Delete VM regardless of result
 
 EXAMPLES:
-    $0                                          # Test GitHub, ask about cleanup
-    $0 --base-vm="My Custom Base"               # Use different base VM
-    $0 --name="my-test-vm"                      # Custom test VM name
-    $0 --source=local --onsuccess=delete        # Test local, auto-delete on success
-    $0 --source=github --onfailure=keep         # Test GitHub, keep on failure
-    $0 --base-vm="macOS Sonoma" --name="test-1" # Custom base and test VM names
-    $0 --local --keep                           # Legacy format still works
+    $0 --vm-user=admin                          # Basic test with SSH user
+    $0 --vm-user=admin --base-vm="My VM"        # Use different base VM
+    $0 --vm-user=admin --name="test-1"          # Custom test VM name
+    $0 --vm-user=admin --onsuccess=delete       # Auto-delete on success
+    $0 --vm-user=admin --ssh-key=~/.ssh/id_rsa  # Use specific SSH key
+    $0 --vm-user=admin --source=github          # Test from GitHub (default)
 
 EOF
     exit 0
@@ -80,6 +83,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --name=*)
             TEST_VM_NAME="${1#*=}"
+            shift
+            ;;
+        --vm-user=*)
+            VM_USER="${1#*=}"
+            shift
+            ;;
+        --ssh-key=*)
+            VM_SSH_KEY="${1#*=}"
             shift
             ;;
         --source=*)
@@ -147,6 +158,13 @@ if [ -z "$TEST_VM_NAME" ]; then
     # Generate random name with timestamp and random suffix
     RANDOM_SUFFIX=$(openssl rand -hex 4 2>/dev/null || echo $(date +%s | tail -c 5))
     TEST_VM_NAME="nix-me-test-$(date +%Y%m%d-%H%M%S)-${RANDOM_SUFFIX}"
+fi
+
+# Validate required parameters
+if [ -z "$VM_USER" ]; then
+    error "VM user is required. Use --vm-user=USERNAME"
+    echo ""
+    usage
 fi
 
 # Cleanup function
@@ -234,16 +252,45 @@ start_vm() {
 
 # Get VM IP address
 get_vm_ip() {
-    $UTMCTL ip-address "$TEST_VM_NAME" 2>/dev/null | head -1 || echo "unknown"
+    local attempts=0
+    local vm_ip=""
+
+    while [ $attempts -lt 30 ]; do
+        vm_ip=$($UTMCTL ip-address "$TEST_VM_NAME" 2>/dev/null | head -1)
+
+        if [ -n "$vm_ip" ] && [ "$vm_ip" != "unknown" ]; then
+            echo "$vm_ip"
+            return 0
+        fi
+
+        sleep 2
+        attempts=$((attempts + 1))
+    done
+
+    echo "unknown"
+    return 1
 }
 
-# Execute command in VM
+# Execute command in VM via SSH
 vm_exec() {
     local cmd="$1"
-    if [ "$VERBOSE" = "true" ]; then
-        log "Executing in VM: $cmd"
+    local vm_ip=$(get_vm_ip)
+
+    if [ "$vm_ip" = "unknown" ]; then
+        error "Could not get VM IP address"
+        return 1
     fi
-    $UTMCTL exec "$TEST_VM_NAME" --cmd /bin/bash -c "$cmd"
+
+    local ssh_opts="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10"
+    if [ -n "$VM_SSH_KEY" ]; then
+        ssh_opts="$ssh_opts -i $VM_SSH_KEY"
+    fi
+
+    if [ "$VERBOSE" = "true" ]; then
+        log "Executing in VM ($vm_ip): $cmd"
+    fi
+
+    ssh $ssh_opts "$VM_USER@$vm_ip" "$cmd"
 }
 
 # Timeout function compatible with macOS
@@ -274,28 +321,39 @@ run_with_timeout() {
     return $?
 }
 
-# Copy files to VM
-copy_files_to_vm() {
-    step "4/7" "Preparing nix-me repository in VM"
+# Wait for SSH to be ready
+wait_for_ssh() {
+    step "4/7" "Waiting for SSH connectivity"
 
-    if [ "$SOURCE" = "local" ]; then
-        log "Copying local files to VM..."
-
-        # Create temp directory in VM
-        vm_exec "mkdir -p /tmp/nix-me-test"
-
-        # Copy files (excluding .git, tests, docs to save time)
-        # Note: This requires QEMU guest agent file operations
-        warn "Local file copy requires advanced guest agent features"
-        warn "Falling back to GitHub clone for now"
-
-        # TODO: Implement file copy via shared folder or guest agent
-        SOURCE="github"
+    local vm_ip=$(get_vm_ip)
+    if [ "$vm_ip" = "unknown" ]; then
+        error "Could not get VM IP address"
+        return 1
     fi
 
-    if [ "$SOURCE" = "github" ]; then
-        log "VM will clone from GitHub: https://github.com/lucamaraschi/nix-me.git"
+    log "VM IP: $vm_ip"
+    log "Waiting for SSH to become available..."
+
+    local ssh_opts="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5"
+    if [ -n "$VM_SSH_KEY" ]; then
+        ssh_opts="$ssh_opts -i $VM_SSH_KEY"
     fi
+
+    local attempts=0
+    while [ $attempts -lt 30 ]; do
+        if ssh $ssh_opts "$VM_USER@$vm_ip" "echo 'SSH ready'" &>/dev/null; then
+            log "SSH connection established"
+            return 0
+        fi
+
+        sleep 2
+        attempts=$((attempts + 1))
+        echo -n "."
+    done
+
+    echo ""
+    error "SSH did not become available within timeout"
+    return 1
 }
 
 # Run installation in VM
@@ -303,18 +361,27 @@ run_installation() {
     step "5/7" "Running nix-me installation in VM"
 
     log "Installing nix-me (this will take 15-30 minutes)..."
+    log "Testing complete installation flow (Homebrew will be installed)"
+
+    local vm_ip=$(get_vm_ip)
+    local ssh_opts="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10"
+    if [ -n "$VM_SSH_KEY" ]; then
+        ssh_opts="$ssh_opts -i $VM_SSH_KEY"
+    fi
 
     local install_cmd=""
     if [ "$SOURCE" = "github" ]; then
         install_cmd="curl -fsSL https://raw.githubusercontent.com/lucamaraschi/nix-me/main/install.sh | bash"
+        log "Installing from GitHub"
     else
-        install_cmd="cd /tmp/nix-me-test && bash install.sh"
+        warn "Local source testing not yet implemented, using GitHub"
+        install_cmd="curl -fsSL https://raw.githubusercontent.com/lucamaraschi/nix-me/main/install.sh | bash"
     fi
 
     log "Running: $install_cmd"
 
-    # Run installation with timeout
-    if run_with_timeout $INSTALL_TIMEOUT "$UTMCTL exec '$TEST_VM_NAME' --cmd /bin/bash -c '$install_cmd'"; then
+    # Run installation via SSH with timeout
+    if run_with_timeout $INSTALL_TIMEOUT "ssh $ssh_opts '$VM_USER@$vm_ip' '$install_cmd'"; then
         log "Installation completed successfully!"
         return 0
     else
@@ -414,7 +481,7 @@ main() {
     trap "log 'Stopping VM...'; $UTMCTL stop '$TEST_VM_NAME' 2>/dev/null || true" EXIT
 
     start_vm
-    copy_files_to_vm
+    wait_for_ssh
 
     # Run installation
     local install_success=false

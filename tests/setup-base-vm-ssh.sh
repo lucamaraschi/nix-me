@@ -65,11 +65,12 @@ EXAMPLES:
 WHAT IT DOES:
     1. Starts the VM (if needed)
     2. Connects via SSH
-    3. Installs Homebrew
-    4. Installs QEMU guest agent
-    5. Configures system settings
-    6. Optionally disables SSH
-    7. Optionally shuts down VM
+    3. Configures system settings (disables sleep, screensaver, updates)
+    4. Optionally disables SSH
+    5. Optionally shuts down VM
+
+NOTE: Does NOT install Homebrew or guest agent - keeps VM truly clean
+      to test the complete installation flow
 
 EOF
     exit 0
@@ -219,73 +220,8 @@ main() {
 
     log "SSH connection successful"
 
-    # Step 4: Install Homebrew
-    step "4/7" "Installing Homebrew"
-
-    log "Checking if Homebrew is installed..."
-
-    if ssh $SSH_OPTS "$VM_USER@$VM_IP" "command -v brew" &>/dev/null; then
-        log "Homebrew already installed"
-    else
-        log "Installing Homebrew (this may take several minutes)..."
-
-        ssh $SSH_OPTS "$VM_USER@$VM_IP" << 'ENDSSH'
-set -e
-export NONINTERACTIVE=1
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-
-# Add to PATH
-if [ -f /opt/homebrew/bin/brew ]; then
-    echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
-    eval "$(/opt/homebrew/bin/brew shellenv)"
-elif [ -f /usr/local/bin/brew ]; then
-    echo 'eval "$(/usr/local/bin/brew shellenv)"' >> ~/.zprofile
-    eval "$(/usr/local/bin/brew shellenv)"
-fi
-
-echo "Homebrew installed successfully"
-ENDSSH
-
-        log "Homebrew installed successfully"
-    fi
-
-    # Step 5: Install QEMU guest agent
-    step "5/7" "Installing QEMU guest agent"
-
-    log "Installing QEMU..."
-
-    ssh $SSH_OPTS "$VM_USER@$VM_IP" << 'ENDSSH'
-set -e
-
-# Ensure brew is in PATH
-if [ -f /opt/homebrew/bin/brew ]; then
-    eval "$(/opt/homebrew/bin/brew shellenv)"
-elif [ -f /usr/local/bin/brew ]; then
-    eval "$(/usr/local/bin/brew shellenv)"
-fi
-
-# Install QEMU if not already installed
-if ! brew list qemu &>/dev/null; then
-    echo "Installing QEMU..."
-    brew install qemu
-else
-    echo "QEMU already installed"
-fi
-
-# Start guest agent
-echo "Starting guest agent..."
-if brew services list | grep -q "qemu.*started"; then
-    echo "Guest agent already running"
-else
-    brew services start qemu
-    echo "Guest agent started"
-fi
-ENDSSH
-
-    log "QEMU guest agent installed and started"
-
-    # Step 6: Configure system settings
-    step "6/7" "Configuring system settings"
+    # Step 4: Configure system settings
+    step "4/5" "Configuring system settings"
 
     log "Applying system configurations..."
 
@@ -307,8 +243,8 @@ ENDSSH
 
     log "System settings configured"
 
-    # Step 7: Optional SSH disable and shutdown
-    step "7/7" "Finalizing setup"
+    # Step 5: Optional SSH disable and shutdown
+    step "5/5" "Finalizing setup"
 
     if [ "$DISABLE_SSH_AFTER" = "true" ]; then
         log "Disabling Remote Login (SSH)..."
@@ -352,14 +288,18 @@ ENDSSH
     echo "  VM Name:          $VM_NAME"
     echo "  Status:           Ready for testing"
     echo ""
-    echo -e "${GREEN}Installed:${NC}"
-    echo "  ✓ Homebrew"
-    echo "  ✓ QEMU guest agent"
-    echo "  ✓ System configurations"
+    echo -e "${GREEN}Configured:${NC}"
+    echo "  ✓ System settings (sleep, screensaver, updates disabled)"
+    echo "  ✓ SSH enabled for testing"
+    echo ""
+    echo -e "${GREEN}What's kept clean:${NC}"
+    echo "  • NO Homebrew (installed during test)"
+    echo "  • NO guest agent (not needed for SSH-based testing)"
+    echo "  • Truly clean macOS for complete installation testing"
     echo ""
     echo -e "${GREEN}Next steps:${NC}"
-    echo "  1. VM is ready to be used as a base for testing"
-    echo "  2. Run tests with: ${CYAN}./tests/vm-test.sh --base-vm=\"$VM_NAME\"${NC}"
+    echo "  1. VM is ready as a clean base for testing"
+    echo "  2. Run tests with: ${CYAN}./tests/vm-test.sh --base-vm=\"$VM_NAME\" --vm-user=$VM_USER${NC}"
     echo ""
 
     if [ "$DISABLE_SSH_AFTER" != "true" ]; then
