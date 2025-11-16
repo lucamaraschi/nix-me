@@ -376,7 +376,7 @@ scan_ssh_ips() {
 
 # Scan for new VMs on the network (comparing to baseline)
 scan_for_vm_ip() {
-    log "Scanning network for new VM IP..."
+    # Note: This function should only output the IP address (no log messages to stdout)
 
     local subnet="192.168.64"
     local ssh_opts="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=2 -o BatchMode=yes"
@@ -387,7 +387,6 @@ scan_for_vm_ip() {
     # Find the NEW IP (not in EXISTING_SSH_IPS)
     for ip in $current_ips; do
         if [[ ! " $EXISTING_SSH_IPS " =~ " $ip " ]]; then
-            log "Found new VM IP: $ip"
             echo "$ip"
             return 0
         fi
@@ -418,6 +417,7 @@ wait_for_ssh() {
         log "Waiting 60 seconds for VM to boot and get network..."
         sleep 60
 
+        log "Scanning network for new VM..."
         vm_ip=$(scan_for_vm_ip)
 
         if [ "$vm_ip" = "unknown" ]; then
@@ -433,7 +433,7 @@ wait_for_ssh() {
         DETECTED_VM_IP="$vm_ip"
     fi
 
-    log "VM IP: $vm_ip"
+    log "Using VM IP: $vm_ip"
     log "Waiting for SSH to become available..."
 
     local ssh_opts="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5"
