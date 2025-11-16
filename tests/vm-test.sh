@@ -30,6 +30,7 @@ ON_FAILURE="keep"         # ask | keep | delete
 VERBOSE=false
 VM_USER=""                # SSH username for VM
 VM_SSH_KEY=""             # SSH key path (optional)
+VM_IP=""                  # VM IP address (optional, auto-detected if not provided)
 
 # Logging functions
 log() { echo -e "${GREEN}[$(date '+%H:%M:%S')]${NC} $1"; }
@@ -49,6 +50,7 @@ OPTIONS:
     --base-vm=NAME          Name of the base VM to clone [default: macOS Tahoe - base]
     --name=NAME             Name for the test VM [default: nix-me-test-RANDOM]
     --vm-user=USERNAME      SSH username for VM (required for testing)
+    --vm-ip=IP_ADDRESS      VM IP address (optional, auto-detected if not specified)
     --ssh-key=PATH          Path to SSH key (optional, uses default if not specified)
     --source=SOURCE         Source to test from: 'github' or 'local' [default: github]
     --onsuccess=ACTION      What to do if tests pass: 'keep', 'delete', or 'ask' [default: ask]
@@ -63,13 +65,17 @@ LEGACY OPTIONS (still supported):
     --delete                Delete VM regardless of result
 
 EXAMPLES:
-    $0 --vm-user=admin                          # Basic test with SSH user
+    $0 --vm-user=admin --vm-ip=192.168.64.5     # Provide VM IP (recommended)
     $0 --vm-user=admin --base-vm="My VM"        # Use different base VM
     $0 --vm-user=admin --name="test-1"          # Custom test VM name
     $0 --vm-user=admin --onsuccess=delete       # Auto-delete on success
     $0 --vm-user=admin --ssh-key=~/.ssh/id_rsa  # Use specific SSH key
     $0 --vm-user=admin --source=github          # Test from GitHub (default)
     $0 --vm-user=admin --source=local           # Test local changes via SCP
+
+NOTE: Without guest agent in VM, you need to provide --vm-ip manually.
+      Start the base VM first, get its IP from System Settings → Network,
+      then use that IP with --vm-ip.
 
 EOF
     exit 0
@@ -92,6 +98,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --ssh-key=*)
             VM_SSH_KEY="${1#*=}"
+            shift
+            ;;
+        --vm-ip=*)
+            VM_IP="${1#*=}"
             shift
             ;;
         --source=*)
@@ -227,6 +237,14 @@ start_vm() {
         exit 1
     fi
 
+    # If user provided IP, don't wait for guest agent
+    if [ -n "$VM_IP" ]; then
+        log "VM started, using provided IP: $VM_IP"
+        log "Waiting 30 seconds for VM to fully boot..."
+        sleep 30
+        return 0
+    fi
+
     log "VM started, waiting for guest agent..."
 
     # Wait for VM to be ready (guest agent available)
@@ -245,7 +263,12 @@ start_vm() {
 
     echo ""
     error "VM did not become ready within ${VM_TIMEOUT}s"
-    error "Guest agent may not be installed in base VM"
+    error ""
+    error "Without guest agent, you must provide the VM IP address manually."
+    error "After the VM starts, find its IP via System Settings → Network"
+    error "Then run with: --vm-ip=<IP_ADDRESS>"
+    error ""
+    error "Example: $0 --vm-user=$VM_USER --vm-ip=192.168.64.X --source=$SOURCE"
     $UTMCTL stop "$TEST_VM_NAME"
     cleanup_vm "$TEST_VM_NAME" true
     exit 1
@@ -253,20 +276,20 @@ start_vm() {
 
 # Get VM IP address
 get_vm_ip() {
-    local attempts=0
+    # If user provided IP, use it
+    if [ -n "$VM_IP" ]; then
+        echo "$VM_IP"
+        return 0
+    fi
+
+    # Try utmctl ip-address (requires guest agent)
     local vm_ip=""
+    vm_ip=$($UTMCTL ip-address "$TEST_VM_NAME" 2>/dev/null | head -1)
 
-    while [ $attempts -lt 30 ]; do
-        vm_ip=$($UTMCTL ip-address "$TEST_VM_NAME" 2>/dev/null | head -1)
-
-        if [ -n "$vm_ip" ] && [ "$vm_ip" != "unknown" ]; then
-            echo "$vm_ip"
-            return 0
-        fi
-
-        sleep 2
-        attempts=$((attempts + 1))
-    done
+    if [ -n "$vm_ip" ] && [ "$vm_ip" != "unknown" ] && [ "$vm_ip" != "" ]; then
+        echo "$vm_ip"
+        return 0
+    fi
 
     echo "unknown"
     return 1
@@ -506,6 +529,11 @@ main() {
 
     info "Test VM name: $TEST_VM_NAME"
     info "Source: $SOURCE"
+    if [ -n "$VM_IP" ]; then
+        info "VM IP: $VM_IP (provided)"
+    else
+        info "VM IP: (will auto-detect via guest agent)"
+    fi
     info "On success: $ON_SUCCESS"
     info "On failure: $ON_FAILURE"
     echo ""
