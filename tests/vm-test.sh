@@ -353,19 +353,21 @@ EXISTING_SSH_IPS=""
 
 # Scan for all IPs with SSH enabled on the network
 scan_ssh_ips() {
-    local subnet="192.168.64"
     local found_ips=""
-    local ssh_opts="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=1 -o BatchMode=yes"
+    local ssh_opts="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=2 -o BatchMode=yes"
 
-    for i in {2..20}; do  # Usually UTM assigns low IPs
-        local test_ip="$subnet.$i"
+    # Use ARP table to find IPs on bridge100 (UTM's network)
+    local arp_ips=$(arp -a | grep "bridge100" | grep -oE '192\.168\.[0-9]+\.[0-9]+' | sort -u)
 
-        # Quick ping check
-        if ping -c 1 -W 1 "$test_ip" &>/dev/null; then
-            # Try SSH (ConnectTimeout handles the timeout)
-            if ssh $ssh_opts "$VM_USER@$test_ip" "echo 'ok'" &>/dev/null 2>&1; then
-                found_ips="$found_ips $test_ip"
-            fi
+    for test_ip in $arp_ips; do
+        # Skip the gateway (.1)
+        if [[ "$test_ip" =~ \.1$ ]]; then
+            continue
+        fi
+
+        # Try SSH (ConnectTimeout handles the timeout)
+        if ssh $ssh_opts "$VM_USER@$test_ip" "echo 'ok'" &>/dev/null 2>&1; then
+            found_ips="$found_ips $test_ip"
         fi
     done
 
