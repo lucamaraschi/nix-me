@@ -137,11 +137,18 @@ in
       default = [];
       description = "List of MAS app names to remove from the base list";
     };
-    
+
     masAppsToAdd = lib.mkOption {
       type = lib.types.attrsOf lib.types.int;
       default = {};
       description = "Additional MAS apps to install (name = appStoreId)";
+    };
+
+    # Option to disable masApps entirely (useful for VMs without iCloud)
+    skipMasApps = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Skip Mac App Store apps installation (for VMs or systems without iCloud)";
     };
   };
 
@@ -176,12 +183,15 @@ in
       );
       
       masApps = lib.mkDefault (
-        let
-          finalMasApps = if config.homebrew.useBaseLists
-            then (baseLists.masApps // config.homebrew.masAppsToAdd) // (lib.genAttrs config.homebrew.masAppsToRemove (_: null))
-            else baseLists.masApps;
-        in
-          lib.filterAttrs (name: id: id != null) finalMasApps
+        if config.homebrew.skipMasApps
+        then {}  # Skip all Mac App Store apps
+        else
+          let
+            finalMasApps = if config.homebrew.useBaseLists
+              then (baseLists.masApps // config.homebrew.masAppsToAdd) // (lib.genAttrs config.homebrew.masAppsToRemove (_: null))
+              else baseLists.masApps;
+          in
+            lib.filterAttrs (name: id: id != null) finalMasApps
       );
     };
   };

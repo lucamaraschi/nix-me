@@ -6,6 +6,7 @@
 #   FORCE_NIX_REINSTALL=1    Force complete Nix reinstall
 #   NON_INTERACTIVE=1        Skip confirmation prompts
 #   SKIP_BREW_ON_VM=1        Skip Homebrew installation in VMs
+#   SKIP_MAS_APPS=1          Skip Mac App Store apps (for VMs without iCloud)
 #   USE_WIZARD=1             Enable interactive wizard (default)
 
 set -e

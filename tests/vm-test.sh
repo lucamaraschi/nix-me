@@ -373,8 +373,13 @@ run_installation() {
     fi
 
     local install_cmd=""
+    # Set environment variables for VM testing
+    # SKIP_MAS_APPS=1: Skip Mac App Store apps (iCloud doesn't work in VMs)
+    # NON_INTERACTIVE=1: Don't prompt for user input
+    local env_vars="SKIP_MAS_APPS=1 NON_INTERACTIVE=1"
+
     if [ "$SOURCE" = "github" ]; then
-        install_cmd="curl -fsSL https://raw.githubusercontent.com/lucamaraschi/nix-me/main/install.sh | bash"
+        install_cmd="$env_vars bash -c 'curl -fsSL https://raw.githubusercontent.com/lucamaraschi/nix-me/main/install.sh | bash'"
         log "Installing from GitHub"
     else
         log "Installing from local source"
@@ -405,11 +410,12 @@ run_installation() {
 
         log "Local files copied successfully"
 
-        # Run installation from local copy
-        install_cmd="cd $remote_dir && bash install.sh"
+        # Run installation from local copy with VM environment variables
+        install_cmd="cd $remote_dir && $env_vars bash install.sh"
     fi
 
     log "Running: $install_cmd"
+    log "Environment: SKIP_MAS_APPS=1 (skipping Mac App Store apps)"
 
     # Run installation via SSH with timeout
     if run_with_timeout $INSTALL_TIMEOUT "ssh $ssh_opts '$VM_USER@$vm_ip' '$install_cmd'"; then
