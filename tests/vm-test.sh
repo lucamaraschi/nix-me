@@ -237,13 +237,10 @@ start_vm() {
         exit 1
     fi
 
-    # If user provided IP, don't wait for guest agent
-    if [ -n "$VM_IP" ]; then
-        log "VM started, using provided IP: $VM_IP"
-        log "Waiting 30 seconds for VM to fully boot..."
-        sleep 30
-        return 0
-    fi
+    # Note: Even if user provided base VM IP, the cloned VM gets a NEW IP
+    # So we still need to scan or use guest agent to find the clone's IP
+    log "VM started"
+    log "Note: Cloned VM will get a new IP (different from base VM)"
 
     log "VM started, waiting for guest agent..."
 
@@ -276,11 +273,8 @@ start_vm() {
 
 # Get VM IP address
 get_vm_ip() {
-    # If user provided IP, use it
-    if [ -n "$VM_IP" ]; then
-        echo "$VM_IP"
-        return 0
-    fi
+    # Note: --vm-ip flag is for reference only, cloned VM gets a NEW IP
+    # So we ignore it here and try to auto-detect
 
     # Try utmctl ip-address (requires guest agent)
     local vm_ip=""
@@ -291,9 +285,18 @@ get_vm_ip() {
         return 0
     fi
 
+    # If we already scanned and found an IP, use it
+    if [ -n "$DETECTED_VM_IP" ]; then
+        echo "$DETECTED_VM_IP"
+        return 0
+    fi
+
     echo "unknown"
     return 1
 }
+
+# Store detected IP globally
+DETECTED_VM_IP=""
 
 # Execute command in VM via SSH
 vm_exec() {
@@ -345,14 +348,87 @@ run_with_timeout() {
     return $?
 }
 
+# Store IPs found before starting VM
+EXISTING_SSH_IPS=""
+
+# Scan for all IPs with SSH enabled on the network
+scan_ssh_ips() {
+    local subnet="192.168.64"
+    local found_ips=""
+    local ssh_opts="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=1 -o BatchMode=yes"
+
+    for i in {2..20}; do  # Usually UTM assigns low IPs
+        local test_ip="$subnet.$i"
+
+        # Quick ping check
+        if ping -c 1 -W 1 "$test_ip" &>/dev/null; then
+            # Try SSH (ConnectTimeout handles the timeout)
+            if ssh $ssh_opts "$VM_USER@$test_ip" "echo 'ok'" &>/dev/null 2>&1; then
+                found_ips="$found_ips $test_ip"
+            fi
+        fi
+    done
+
+    echo "$found_ips"
+}
+
+# Scan for new VMs on the network (comparing to baseline)
+scan_for_vm_ip() {
+    log "Scanning network for new VM IP..."
+
+    local subnet="192.168.64"
+    local ssh_opts="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=2 -o BatchMode=yes"
+
+    # Get current IPs with SSH
+    local current_ips=$(scan_ssh_ips)
+
+    # Find the NEW IP (not in EXISTING_SSH_IPS)
+    for ip in $current_ips; do
+        if [[ ! " $EXISTING_SSH_IPS " =~ " $ip " ]]; then
+            log "Found new VM IP: $ip"
+            echo "$ip"
+            return 0
+        fi
+    done
+
+    # If no new IP found, return the first one we find (maybe base VM wasn't running)
+    for ip in $current_ips; do
+        echo "$ip"
+        return 0
+    done
+
+    echo "unknown"
+    return 1
+}
+
 # Wait for SSH to be ready
 wait_for_ssh() {
     step "4/7" "Waiting for SSH connectivity"
 
     local vm_ip=$(get_vm_ip)
+
+    # If no IP provided and no guest agent, try to scan for it
     if [ "$vm_ip" = "unknown" ]; then
-        error "Could not get VM IP address"
-        return 1
+        warn "No VM IP provided and no guest agent available"
+        log "Will scan network for VM after boot..."
+
+        # Wait for VM to fully boot first
+        log "Waiting 60 seconds for VM to boot and get network..."
+        sleep 60
+
+        vm_ip=$(scan_for_vm_ip)
+
+        if [ "$vm_ip" = "unknown" ]; then
+            error "Could not detect VM IP address"
+            error ""
+            error "Please provide the IP manually with --vm-ip=<IP>"
+            error "Check the VM's network settings to find its IP"
+            return 1
+        fi
+
+        log "Found VM at: $vm_ip"
+        # Store for later use
+        DETECTED_VM_IP="$vm_ip"
     fi
 
     log "VM IP: $vm_ip"
@@ -377,6 +453,13 @@ wait_for_ssh() {
 
     echo ""
     error "SSH did not become available within timeout"
+    error "IP: $vm_ip"
+    error ""
+    error "Possible issues:"
+    error "  1. Remote Login not enabled in VM"
+    error "  2. Wrong IP address (cloned VM gets new IP)"
+    error "  3. Password authentication required (try without --ssh-key)"
+    error "  4. VM still booting"
     return 1
 }
 
@@ -541,6 +624,16 @@ main() {
     # Run test steps
     check_prerequisites
     clone_vm
+
+    # Record existing SSH-enabled IPs before starting VM
+    # This helps us identify the NEW VM's IP after it starts
+    log "Recording existing SSH-enabled IPs on network..."
+    EXISTING_SSH_IPS=$(scan_ssh_ips)
+    if [ -n "$EXISTING_SSH_IPS" ]; then
+        log "Found existing IPs:$EXISTING_SSH_IPS"
+    else
+        log "No existing SSH-enabled VMs found"
+    fi
 
     # Set up cleanup trap
     trap "log 'Stopping VM...'; $UTMCTL stop '$TEST_VM_NAME' 2>/dev/null || true" EXIT
