@@ -53,7 +53,7 @@ let
     brews = [
       "coreutils"
       "direnv"
-      "fd" 
+      "fd"
       "gcc"
       "git"
       "grep"
@@ -175,12 +175,11 @@ in
         then (lib.subtractLists config.homebrew.casksToRemove baseLists.casks) ++ config.homebrew.casksToAdd
         else baseLists.casks  # Use base list as default
       );
-      
-      brews = lib.mkDefault (
+
+      brews =
         if config.homebrew.useBaseLists
         then (lib.subtractLists config.homebrew.brewsToRemove baseLists.brews) ++ config.homebrew.brewsToAdd
-        else baseLists.brews  # Use base list as default
-      );
+        else baseLists.brews;  # Use base list as default
       
       masApps = lib.mkDefault (
         if config.homebrew.skipMasApps
