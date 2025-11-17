@@ -1,6 +1,24 @@
 # Testing Guide for nix-me Interactive CLI
 
-## Prerequisites
+## Testing Approaches
+
+There are three levels of testing for nix-me:
+
+1. **Unit/Component Testing** - Test individual CLI commands and features (this document)
+2. **VM Integration Testing** - Full installation testing in isolated VMs (see [VM Testing Guide](./VM_TESTING.md))
+3. **Manual Testing** - Interactive testing on your system
+
+### When to Use Each Approach
+
+- **Component Testing**: Quick iteration, testing specific features, daily development
+- **VM Testing**: Pre-release validation, testing clean installations, CI/CD pipelines
+- **Manual Testing**: Real-world validation, UX testing, exploratory testing
+
+---
+
+## Component Testing
+
+### Prerequisites
 
 Before testing, ensure you have:
 - [x] Nix installed

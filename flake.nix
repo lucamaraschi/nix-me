@@ -21,6 +21,9 @@
           detected = builtins.getEnv "USERNAME";
         in if detected != "" then detected else defaultUsername;
 
+        # Check if we're running in VM mode (skip Mac App Store apps)
+        skipMasApps = builtins.getEnv "SKIP_MAS_APPS" == "1";
+
       # Function to create a darwin configuration
       mkDarwinSystem = {
         hostname,
@@ -82,6 +85,9 @@
                 # Add other overlays here
               ];
             }
+
+            # VM mode - skip Mac App Store apps (iCloud doesn't work in VMs)
+            (if skipMasApps then ./modules/darwin/vm-mode.nix else {})
           ] ++ extraModules;
           specialArgs = {
             inherit inputs hostname machineType machineName username;
@@ -123,6 +129,7 @@
           hostname = "vm-test";
           machineType = "vm";
           machineName = "VM";
+          username = username;  # Use USERNAME env var or default
         };
 
         # Add a generic VM configuration for testing
