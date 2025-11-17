@@ -44,6 +44,45 @@
     ];
   };
   
+  # Core system packages
+  environment.systemPackages = with pkgs; [
+    # Development tools
+    jq
+    ripgrep
+    fd
+    eza
+    bat
+    tree
+    htop
+    ncdu
+    python3
+    rustup
+    go
+    gh
+    nmap
+    dnsutils
+    mtr
+    nixpkgs-fmt
+    comma
+    pandoc
+    imagemagick
+
+    # Node.js ecosystem (prebuilt binary)
+    nodejs_22
+    # npm comes bundled with nodejs_22
+    # pnpm and typescript: install via npm or use Homebrew pnpm
+  ];
+
+  # Environment variables
+  environment.variables = lib.mkDefault {
+    EDITOR = "vim";
+    VISUAL = "vim";
+  };
+
+  # System PATH
+  environment.systemPath = lib.mkDefault [ "/opt/homebrew/bin" ];
+  environment.pathsToLink = lib.mkDefault [ "/Applications" ];
+
   # System activation
   system.activationScripts.postActivation.text = ''
     # Reset LaunchPad (as the actual user, not root)
