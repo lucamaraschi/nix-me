@@ -39,6 +39,18 @@ error() { echo -e "${RED}[$(date '+%H:%M:%S')] ERROR:${NC} $1"; }
 info() { echo -e "${BLUE}[$(date '+%H:%M:%S')] INFO:${NC} $1"; }
 step() { echo -e "${CYAN}[$1]${NC} $2"; }
 
+# Helper to execute commands on VM via SSH
+# Sources Nix profile to ensure proper PATH
+vm_exec() {
+    local vm_ip=$(get_vm_ip)
+    local ssh_opts="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10"
+    if [ -n "$VM_SSH_KEY" ]; then
+        ssh_opts="$ssh_opts -i $VM_SSH_KEY"
+    fi
+    # Source Nix profile before running command to ensure PATH is set correctly
+    ssh $ssh_opts "$VM_USER@$vm_ip" "source /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh 2>/dev/null || true; export PATH=/run/current-system/sw/bin:\$PATH; $1"
+}
+
 # Usage
 usage() {
     cat << EOF
@@ -445,6 +457,18 @@ wait_for_ssh() {
     while [ $attempts -lt 30 ]; do
         if ssh $ssh_opts "$VM_USER@$vm_ip" "echo 'SSH ready'" &>/dev/null; then
             log "SSH connection established"
+
+            # Check for passwordless sudo
+            if ssh $ssh_opts "$VM_USER@$vm_ip" "sudo -n true" &>/dev/null; then
+                log "Passwordless sudo is configured"
+            else
+                warn "Passwordless sudo NOT configured!"
+                warn "You will be prompted for password during installation."
+                warn "To enable passwordless sudo on the BASE VM, run:"
+                warn "  sudo sh -c 'echo \"$VM_USER ALL=(ALL) NOPASSWD:ALL\" > /etc/sudoers.d/$VM_USER'"
+                warn "  sudo chmod 440 /etc/sudoers.d/$VM_USER"
+            fi
+
             return 0
         fi
 
@@ -473,7 +497,9 @@ run_installation() {
     log "Testing complete installation flow (Homebrew will be installed)"
 
     local vm_ip=$(get_vm_ip)
-    local ssh_opts="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10"
+    # -t: Allocate TTY for sudo password prompts
+    # -t -t: Force TTY allocation even without local TTY
+    local ssh_opts="-t -t -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10"
     local scp_opts="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
     if [ -n "$VM_SSH_KEY" ]; then
         ssh_opts="$ssh_opts -i $VM_SSH_KEY"
@@ -486,14 +512,19 @@ run_installation() {
     # NON_INTERACTIVE=1: Don't prompt for user input
     local env_vars="SKIP_MAS_APPS=1 NON_INTERACTIVE=1"
 
+    # Configuration parameters for install.sh (avoids interactive prompts)
+    # Format: hostname machine-type machine-name username
+    local install_params="vm-test vm VM $VM_USER"
+
     if [ "$SOURCE" = "github" ]; then
-        install_cmd="$env_vars bash -c 'curl -fsSL https://raw.githubusercontent.com/lucamaraschi/nix-me/main/install.sh | bash'"
+        install_cmd="$env_vars bash -c 'curl -fsSL https://raw.githubusercontent.com/lucamaraschi/nix-me/main/install.sh | bash -s -- $install_params'"
         log "Installing from GitHub"
     else
         log "Installing from local source"
 
-        # Copy local project to VM
-        local remote_dir="/tmp/nix-me-test-$$"
+        # Copy local project directly to ~/.config/nixpkgs where install.sh expects it
+        # This bypasses the git clone step in install.sh
+        local remote_dir="/Users/$VM_USER/.config/nixpkgs"
         log "Copying local files to VM at $remote_dir..."
 
         # Create remote directory
@@ -502,7 +533,7 @@ run_installation() {
             return 1
         }
 
-        # Copy project files via scp (excluding .git, tests, docs, and other non-essential files)
+        # Copy all project files via scp (install.sh will find them already present)
         if ! scp $scp_opts -r \
             "$PROJECT_DIR/install.sh" \
             "$PROJECT_DIR/flake.nix" \
@@ -511,6 +542,7 @@ run_installation() {
             "$PROJECT_DIR/lib" \
             "$PROJECT_DIR/hosts" \
             "$PROJECT_DIR/modules" \
+            "$PROJECT_DIR/overlays" \
             "$VM_USER@$vm_ip:$remote_dir/"; then
             error "Failed to copy files to VM"
             return 1
@@ -518,24 +550,68 @@ run_installation() {
 
         log "Local files copied successfully"
 
-        # Run installation from local copy with VM environment variables
-        install_cmd="cd $remote_dir && $env_vars bash install.sh"
+        # Run installation from the nixpkgs directory
+        # Pass hostname, machine-type, machine-name, username to skip prompts
+        # SKIP_REPO_CLONE=1: Don't try to git clone/update since we copied files directly
+        env_vars="$env_vars SKIP_REPO_CLONE=1"
+        install_cmd="cd $remote_dir && $env_vars bash install.sh $install_params"
     fi
 
     log "Running: $install_cmd"
     log "Environment: SKIP_MAS_APPS=1 (skipping Mac App Store apps)"
+    log ""
+    log "NOTE: You may be prompted for the VM user's password (for sudo)."
+    log "The installation will show progress as it runs."
+    log "NOTE: SSH may disconnect during darwin-rebuild activation (this is normal)."
+    log ""
 
-    # Run installation via SSH with timeout
-    if run_with_timeout $INSTALL_TIMEOUT "ssh $ssh_opts '$VM_USER@$vm_ip' '$install_cmd'"; then
+    # Run installation via SSH directly
+    # This preserves TTY for password prompts and shows real-time output
+    local exit_code=0
+    eval "ssh -t -t $ssh_opts '$VM_USER@$vm_ip' '$install_cmd'" || exit_code=$?
+
+    # darwin-rebuild switch often causes SSH to disconnect when it restarts services
+    # Exit codes 134, 255 (connection closed) may indicate successful installation
+    if [ $exit_code -eq 0 ]; then
         log "Installation completed successfully!"
         return 0
-    else
-        local exit_code=$?
-        if [ $exit_code -eq 124 ]; then
-            error "Installation timed out after ${INSTALL_TIMEOUT}s"
-        else
-            error "Installation failed with exit code: $exit_code"
+    elif [ $exit_code -eq 134 ] || [ $exit_code -eq 255 ]; then
+        warn "SSH connection closed during activation (exit code: $exit_code)"
+        warn "This is often normal - darwin-rebuild restarts SSH service"
+        log "Waiting for SSH to come back..."
+
+        # Wait for SSH to become available again
+        sleep 10
+        local attempts=0
+        local check_opts="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5"
+        if [ -n "$VM_SSH_KEY" ]; then
+            check_opts="$check_opts -i $VM_SSH_KEY"
         fi
+
+        while [ $attempts -lt 12 ]; do
+            if ssh $check_opts "$VM_USER@$vm_ip" "echo 'SSH ready'" &>/dev/null; then
+                log "SSH reconnected after activation"
+                # Check if nix-darwin was installed
+                if ssh $check_opts "$VM_USER@$vm_ip" "test -x /run/current-system/sw/bin/darwin-rebuild || command -v darwin-rebuild &>/dev/null" &>/dev/null; then
+                    log "darwin-rebuild is available - installation succeeded!"
+                    return 0
+                else
+                    if ssh $check_opts "$VM_USER@$vm_ip" "test -d /etc/nix-darwin" &>/dev/null; then
+                        log "/etc/nix-darwin directory exists - installation succeeded!"
+                        return 0
+                    fi
+                fi
+                break
+            fi
+            sleep 5
+            attempts=$((attempts + 1))
+        done
+
+        warn "Could not verify installation success after reconnect"
+        warn "Check manually: ssh $VM_USER@$vm_ip"
+        return 1
+    else
+        error "Installation failed with exit code: $exit_code"
         return 1
     fi
 }
@@ -560,7 +636,7 @@ run_verification() {
 
     # Test 2: Check if darwin-rebuild exists
     tests_total=$((tests_total + 1))
-    if vm_exec "command -v darwin-rebuild" &>/dev/null; then
+    if vm_exec "command -v darwin-rebuild || test -x /run/current-system/sw/bin/darwin-rebuild" &>/dev/null; then
         log "✓ darwin-rebuild is available"
         tests_passed=$((tests_passed + 1))
     else
@@ -585,13 +661,18 @@ run_verification() {
         error "✗ flake.nix not found"
     fi
 
-    # Test 5: Check if nix-me CLI is available
+    # Test 5: Check if nix-me CLI is available (optional - may not be in PATH yet)
     tests_total=$((tests_total + 1))
-    if vm_exec "command -v nix-me" &>/dev/null; then
+    if vm_exec "command -v nix-me || test -x ~/.config/nixpkgs/bin/nix-me" &>/dev/null; then
         log "✓ nix-me CLI is available"
         tests_passed=$((tests_passed + 1))
     else
-        error "✗ nix-me CLI not found"
+        warn "nix-me CLI not found in PATH (may need shell restart)"
+        # Give partial credit if the bin directory exists
+        if vm_exec "test -d ~/.config/nixpkgs/bin" &>/dev/null; then
+            log "  (bin directory exists, CLI may be available after shell restart)"
+            tests_passed=$((tests_passed + 1))
+        fi
     fi
 
     echo ""

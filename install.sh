@@ -7,6 +7,7 @@
 #   NON_INTERACTIVE=1        Skip confirmation prompts
 #   SKIP_BREW_ON_VM=1        Skip Homebrew installation in VMs
 #   SKIP_MAS_APPS=1          Skip Mac App Store apps (for VMs without iCloud)
+#   SKIP_REPO_CLONE=1        Skip git clone/update (use existing files in ~/.config/nixpkgs)
 #   USE_WIZARD=1             Enable interactive wizard (default)
 
 set -e
@@ -199,7 +200,8 @@ ensure_homebrew() {
         eval "$(/usr/local/bin/brew shellenv)"
     else
         log "Installing Homebrew..."
-        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        # Use NONINTERACTIVE=1 to skip confirmation prompts
+        NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
         # Set up PATH after installation
         if [[ -f /opt/homebrew/bin/brew ]]; then
@@ -277,7 +279,12 @@ install_or_fix_nix() {
     # Install fresh Nix
     log "Installing Nix using Determinate Systems installer..."
 
-    curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
+    # Use --no-confirm for non-interactive installation
+    if [ "$NON_INTERACTIVE" = "1" ]; then
+        curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install --no-confirm
+    else
+        curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
+    fi
 
     # Source environment
     if [ -e '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' ]; then
@@ -507,12 +514,21 @@ main() {
 
     # STEP 2: Request sudo privileges
     print_step "1/6" "Requesting Administrator Privileges"
-    sudo -v || { error "Authentication failed"; exit 1; }
 
-    # Sudo refresh background process
-    ( while true; do sudo -v; sleep 60; done ) &
-    SUDO_REFRESH_PID=$!
-    trap "kill $SUDO_REFRESH_PID 2>/dev/null || true" EXIT
+    # Check if passwordless sudo is configured
+    if sudo -n true 2>/dev/null; then
+        log "Passwordless sudo is configured"
+    else
+        # Request password for sudo
+        sudo -v || { error "Authentication failed"; exit 1; }
+
+        # Sudo refresh background process - refresh every 30 seconds to keep credentials alive
+        # This is critical for long nix builds that can take 20-30 minutes
+        ( while true; do sudo -n -v 2>/dev/null; sleep 30; done ) &
+        SUDO_REFRESH_PID=$!
+        trap "kill $SUDO_REFRESH_PID 2>/dev/null || true" EXIT
+        log "Sudo credentials will be kept alive during installation"
+    fi
 
     print_success "Administrator access granted"
     echo ""
@@ -549,7 +565,14 @@ main() {
 
     # STEP 6: Clone/update repository
     print_step "5/6" "Setting up Configuration Repository"
-    if [ -d "$REPO_DIR" ]; then
+    if [ "${SKIP_REPO_CLONE:-0}" = "1" ]; then
+        log "Skipping git clone/update (SKIP_REPO_CLONE=1)"
+        if [ ! -d "$REPO_DIR" ]; then
+            error "SKIP_REPO_CLONE=1 but $REPO_DIR does not exist"
+            exit 1
+        fi
+        log "Using existing files in $REPO_DIR"
+    elif [ -d "$REPO_DIR" ]; then
         log "Repository exists, safely updating..."
         safe_git_update "$REPO_DIR" "$REPO_BRANCH" || {
             error "Failed to update repository"
@@ -590,15 +613,20 @@ main() {
 
     # Build and activate
     log "Building system configuration (this may take 15-30 minutes)..."
+    # Export USERNAME for flake.nix to read (with --impure flag)
+    export USERNAME="$NIXOS_USERNAME"
+
     if ! command -v darwin-rebuild &>/dev/null; then
         log "Installing nix-darwin..."
-        nix build --extra-experimental-features "nix-command flakes" \
+        nix build --extra-experimental-features "nix-command flakes" --impure \
             ".#darwinConfigurations.$HOST_NAME.system"
         sudo mkdir -p /etc/nix-darwin /etc/static
-        sudo ./result/sw/bin/darwin-rebuild switch --flake ".#$HOST_NAME" --impure
+        # Use sudo env to preserve USERNAME through sudo
+        sudo env USERNAME="$NIXOS_USERNAME" PATH="$PATH" ./result/sw/bin/darwin-rebuild switch --flake ".#$HOST_NAME" --impure
     else
         log "Activating configuration..."
-        sudo darwin-rebuild switch --flake ".#$HOST_NAME" --impure
+        # Use sudo env to preserve USERNAME through sudo
+        sudo env USERNAME="$NIXOS_USERNAME" PATH="$PATH" darwin-rebuild switch --flake ".#$HOST_NAME" --impure
     fi
 
     echo ""

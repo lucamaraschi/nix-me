@@ -129,6 +129,7 @@
           hostname = "vm-test";
           machineType = "vm";
           machineName = "VM";
+          username = username;  # Use USERNAME env var or default
         };
 
         # Add a generic VM configuration for testing
