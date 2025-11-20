@@ -27,3 +27,8 @@ result-*
 # Test outputs
 tests/*.log
 tests/output/
+
+# TUI
+tui/node_modules/
+tui/dist/
+tui/*.log
