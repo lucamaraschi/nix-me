@@ -1,0 +1,31 @@
+{
+  "name": "nix-me-tui",
+  "version": "1.0.0",
+  "description": "Terminal UI for nix-me configuration manager",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "nix-me-tui": "./dist/index.js"
+  },
+  "scripts": {
+    "dev": "tsx src/index.tsx",
+    "build": "tsx build.ts",
+    "bundle": "esbuild src/index.tsx --bundle --platform=node --target=node18 --format=esm --outfile=dist/index.js --external:fsevents && chmod +x dist/index.js",
+    "watch": "tsx watch src/index.tsx"
+  },
+  "dependencies": {
+    "ink": "^4.4.1",
+    "ink-select-input": "^5.0.0",
+    "ink-spinner": "^5.0.0",
+    "ink-text-input": "^5.0.1",
+    "react": "^18.2.0",
+    "zx": "^7.2.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.5",
+    "@types/react": "^18.2.45",
+    "esbuild": "^0.19.10",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  }
+}
