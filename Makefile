@@ -188,3 +188,27 @@ vm-help: ## Show VM management help
 
 # Convenience aliases
 vm: vm-create ## Alias for vm-create (quick VM creation)
+
+# Omarchy VM Management
+.PHONY: omarchy-iso omarchy-create omarchy-list omarchy-build omarchy-help
+
+omarchy-iso: ## Download NixOS ISO for Omarchy VM
+	@./scripts/omarchy-vm.sh download-iso
+
+omarchy-create: ## Create Omarchy VM setup (usage: make omarchy-create name=myvm)
+	@if [ -n "$(name)" ]; then \
+		./scripts/omarchy-vm.sh create "$(name)" "$(mem)" "$(cpu)" "$(disk)"; \
+	else \
+		./scripts/omarchy-vm.sh create; \
+	fi
+
+omarchy-list: ## List Omarchy VM configurations
+	@./scripts/omarchy-vm.sh list
+
+omarchy-build: ## Validate Omarchy VM NixOS configuration
+	@./scripts/omarchy-vm.sh build
+
+omarchy-help: ## Show Omarchy VM help
+	@./scripts/omarchy-vm.sh help
+
+omarchy: omarchy-create ## Alias for omarchy-create
