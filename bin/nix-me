@@ -6,13 +6,22 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB_DIR="$SCRIPT_DIR/../lib"
 
+# Detect CONFIG_DIR - prefer current project if running from nix-me repo
+if [[ -f "$SCRIPT_DIR/../flake.nix" ]]; then
+    CONFIG_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+elif [[ -d "${HOME}/.config/nixpkgs" ]]; then
+    CONFIG_DIR="${HOME}/.config/nixpkgs"
+else
+    CONFIG_DIR="${HOME}/.config/nixpkgs"  # Default even if doesn't exist
+fi
+
 # Source libraries
 source "$LIB_DIR/ui.sh"
 source "$LIB_DIR/config-builder.sh" 2>/dev/null || true
 source "$LIB_DIR/package-manager.sh" 2>/dev/null || true
 source "$LIB_DIR/config-wizard.sh" 2>/dev/null || true
-
-CONFIG_DIR="${HOME}/.config/nixpkgs"
+source "$LIB_DIR/vm-manager.sh" 2>/dev/null || true
+source "$LIB_DIR/tui.sh" 2>/dev/null || true
 
 # ============================================================================
 # Help and Documentation
@@ -42,6 +51,14 @@ ${CYAN}System Management:${NC}
   ${GREEN}update${NC}              Update packages
   ${GREEN}rollback${NC}            Rollback to previous configuration
 
+${CYAN}VM Management:${NC}
+  ${GREEN}vm${NC}                  Interactive VM management menu
+  ${GREEN}vm create${NC}           Create new VM (Omarchy/NixOS/Ubuntu)
+  ${GREEN}vm list${NC}             List VMs
+  ${GREEN}vm start${NC}            Start a VM
+  ${GREEN}vm stop${NC}             Stop a VM
+  ${GREEN}vm delete${NC}           Delete a VM
+
 ${CYAN}Information:${NC}
   ${GREEN}status${NC}              Show system status
   ${GREEN}doctor${NC}              Diagnose configuration issues
@@ -70,6 +87,16 @@ ${CYAN}Examples:${NC}
 
   ${YELLOW}# Check system health${NC}
   nix-me doctor
+
+  ${YELLOW}# Manage VMs${NC}
+  nix-me vm
+
+  ${YELLOW}# Create new Omarchy VM${NC}
+  nix-me vm create
+
+  ${YELLOW}# Open interactive menu${NC}
+  nix-me
+  nix-me menu
 
 ${CYAN}For more help:${NC} nix-me <command> --help
 
@@ -579,7 +606,21 @@ cmd_diff() {
 # Main Command Router
 # ============================================================================
 
-case "${1:-help}" in
+case "${1:-menu}" in
+    # Main interactive menu (default)
+    menu|"")
+        # Try Node TUI first (using npx tsx for development), fallback to bash TUI
+        if [[ -f "$SCRIPT_DIR/../tui/src/index.tsx" ]] && command -v npx &>/dev/null; then
+            cd "$SCRIPT_DIR/../tui" && exec npx tsx src/index.tsx
+        elif [[ -x "$SCRIPT_DIR/../tui/dist/index.js" ]] && command -v node &>/dev/null; then
+            exec node "$SCRIPT_DIR/../tui/dist/index.js"
+        elif type main_menu &>/dev/null; then
+            main_menu
+        else
+            show_help
+        fi
+        ;;
+
     # Configuration commands
     create|setup)
         cmd_create
@@ -624,6 +665,36 @@ case "${1:-help}" in
         ;;
     rollback)
         cmd_rollback
+        ;;
+
+    # VM Management
+    vm)
+        shift
+        case "${1:-menu}" in
+            menu|"")
+                vm_main_menu
+                ;;
+            create)
+                vm_create_wizard
+                ;;
+            list)
+                vm_list
+                ;;
+            start)
+                vm_start_menu
+                ;;
+            stop)
+                vm_stop_menu
+                ;;
+            delete)
+                vm_delete_menu
+                ;;
+            *)
+                print_error "Unknown vm subcommand: $1"
+                echo "Available: create, list, start, stop, delete"
+                exit 1
+                ;;
+        esac
         ;;
 
     # Information
