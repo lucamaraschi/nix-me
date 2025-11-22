@@ -25,7 +25,7 @@ interface ConfigInspectorProps {
   onBack: () => void;
 }
 
-type ViewMode = 'menu' | 'packages' | 'files' | 'dependencies';
+type ViewMode = 'menu' | 'packages' | 'files' | 'dependencies' | 'host-flow';
 
 function BorderedBox({ children, color = 'white', title }: { children: React.ReactNode; color?: string; title?: string }) {
   return (
@@ -65,6 +65,8 @@ export function ConfigInspector({ onBack }: ConfigInspectorProps) {
         setViewMode('files');
       } else if (input === '3') {
         setViewMode('dependencies');
+      } else if (input === '4') {
+        setViewMode('host-flow');
       }
     } else if (key.upArrow || input === 'k') {
       if (viewMode === 'dependencies') {
@@ -396,6 +398,14 @@ export function ConfigInspector({ onBack }: ConfigInspectorProps) {
                 <Box marginLeft={4}>
                   <Text dimColor>Understand which files import which (dependency graph)</Text>
                 </Box>
+
+                <Box marginTop={1} marginBottom={1}>
+                  <Text bold color="blue">[4]</Text>
+                  <Text>  📊 This Host's Configuration Flow</Text>
+                </Box>
+                <Box marginLeft={4}>
+                  <Text dimColor>See how THIS machine's config is built & what packages it installs</Text>
+                </Box>
               </Box>
             </Box>
           </BorderedBox>
@@ -589,6 +599,44 @@ export function ConfigInspector({ onBack }: ConfigInspectorProps) {
             </BorderedBox>
           </Box>
         </Box>
+
+        <Box marginTop={1}>
+          <Text bold color="red">[0]</Text>
+          <Text>  ← Back to inspector menu</Text>
+        </Box>
+      </Box>
+    );
+  }
+
+  // Host Configuration Flow View
+  if (viewMode === 'host-flow') {
+    return (
+      <Box flexDirection="column" width={100}>
+        <Box marginBottom={1}>
+          <Text bold color="blue"> 📊 HOST CONFIGURATION FLOW </Text>
+          <Text dimColor>  How THIS machine's config is built</Text>
+        </Box>
+
+        <BorderedBox color="blue">
+          <Box flexDirection="column">
+            <Text bold color="cyan">🖥️  Current Host Configuration</Text>
+            <Box marginTop={1}>
+              <Text dimColor>Analyzing configuration chain...</Text>
+            </Box>
+            <Box marginTop={1}>
+              <Text>This feature is being built step-by-step.</Text>
+            </Box>
+            <Box marginTop={1}>
+              <Text dimColor>It will show:</Text>
+            </Box>
+            <Box marginTop={1} flexDirection="column">
+              <Text>• Your hostname and host config file</Text>
+              <Text>• Import chain from host → modules → packages</Text>
+              <Text>• What packages each file contributes</Text>
+              <Text>• Visual dependency tree for THIS machine only</Text>
+            </Box>
+          </Box>
+        </BorderedBox>
 
         <Box marginTop={1}>
           <Text bold color="red">[0]</Text>
