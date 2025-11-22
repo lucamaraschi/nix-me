@@ -1,5 +1,10 @@
 # modules/shared/packages.nix
 # Cross-platform CLI tools that work on both Darwin and Linux
+#
+# NOTE: This file is currently NOT imported anywhere. It's kept as a reference
+# for package lists that could be used in the future. The actual package
+# configuration is in modules/darwin/apps/installations.nix
+#
 { pkgs, ... }:
 
 {
