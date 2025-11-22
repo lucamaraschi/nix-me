@@ -105,6 +105,26 @@ export function ConfigInspector({ onBack }: ConfigInspectorProps) {
     }
   }, [hostConfigPath]);
 
+  // Helper function to find the project root (directory containing flake.nix)
+  const findProjectRoot = (): string => {
+    let currentDir = process.cwd();
+
+    // Check current directory
+    if (fs.existsSync(path.join(currentDir, 'flake.nix'))) {
+      return currentDir;
+    }
+
+    // Check parent directory
+    const parentDir = path.dirname(currentDir);
+    if (fs.existsSync(path.join(parentDir, 'flake.nix'))) {
+      return parentDir;
+    }
+
+    // If still not found, return current directory as fallback
+    console.warn('Could not find flake.nix in current or parent directory');
+    return currentDir;
+  };
+
   const detectHostConfig = async () => {
     try {
       // Get hostname
@@ -113,7 +133,7 @@ export function ConfigInspector({ onBack }: ConfigInspectorProps) {
       setHostname(detectedHostname);
 
       // Look for host config file
-      const projectRoot = process.cwd();
+      const projectRoot = findProjectRoot();
       const hostsDir = path.join(projectRoot, 'hosts');
 
       if (!fs.existsSync(hostsDir)) {
@@ -146,7 +166,7 @@ export function ConfigInspector({ onBack }: ConfigInspectorProps) {
   const loadConfigStructure = async () => {
     setLoading(true);
     try {
-      const projectRoot = process.cwd();
+      const projectRoot = findProjectRoot();
 
       // Detect host configuration
       await detectHostConfig();
@@ -421,7 +441,7 @@ export function ConfigInspector({ onBack }: ConfigInspectorProps) {
 
   const buildImportTree = async (filePath: string, depth: number = 0, visited: Set<string> = new Set()): Promise<ImportNode | null> => {
     try {
-      const projectRoot = process.cwd();
+      const projectRoot = findProjectRoot();
       const absolutePath = path.isAbsolute(filePath) ? filePath : path.join(projectRoot, filePath);
 
       // Avoid circular dependencies
@@ -484,7 +504,7 @@ export function ConfigInspector({ onBack }: ConfigInspectorProps) {
     if (!hostConfigPath) return;
 
     console.log(`Building import tree for: ${hostConfigPath}`);
-    const projectRoot = process.cwd();
+    const projectRoot = findProjectRoot();
     const fullPath = path.join(projectRoot, hostConfigPath);
 
     const tree = await buildImportTree(fullPath, 0, new Set());
@@ -718,7 +738,7 @@ export function ConfigInspector({ onBack }: ConfigInspectorProps) {
                 <Text>• There may be an issue parsing the files</Text>
               </Box>
               <Box marginTop={1}>
-                <Text dimColor>Project root: {process.cwd()}</Text>
+                <Text dimColor>Project root: {findProjectRoot()}</Text>
               </Box>
             </Box>
           </BorderedBox>
