@@ -183,21 +183,35 @@ export function ConfigInspector({ onBack }: ConfigInspectorProps) {
       const content = fs.readFileSync(filePath, 'utf-8');
       const imports: string[] = [];
 
-      // Match imports = [ ... ]
+      // Match imports = [ ... ] - can span multiple lines
       const importMatch = content.match(/imports\s*=\s*\[([\s\S]*?)\];/);
       if (importMatch) {
         const importBlock = importMatch[1];
-        // Extract paths like ./path or ../path
-        const importPaths = importBlock.match(/\.\.?\/[^\s\]]+/g) || [];
-        imports.push(...importPaths.map(p => p.replace(/["'\s]/g, '')));
+        // Extract paths - match ./path, ../path with various characters
+        const importPaths = importBlock.match(/[\(]?\s*(\.\.?\/[^\s\)\]"';]+)/g) || [];
+        imports.push(...importPaths.map(p => {
+          // Clean up the path - remove parentheses, quotes, etc.
+          let cleaned = p.trim()
+            .replace(/^\(?\s*/, '')  // Remove leading paren and spaces
+            .replace(/["'\s\)]/g, ''); // Remove quotes, spaces, closing paren
+          return cleaned;
+        }));
       }
 
-      // Match direct imports
+      // Match direct import statements: import ./path or import ../path
       const directImports = content.match(/import\s+(\.\.?\/[^\s;]+)/g) || [];
-      imports.push(...directImports.map(i => i.replace('import ', '').trim().replace(/["';]/g, '')));
+      imports.push(...directImports.map(i => {
+        return i.replace('import ', '').trim().replace(/["';]/g, '');
+      }));
 
-      return [...new Set(imports)];
+      // Also match <./path> or <../path> style imports
+      const angleImports = content.match(/<(\.\.?\/[^>]+)>/g) || [];
+      imports.push(...angleImports.map(i => i.replace(/[<>]/g, '')));
+
+      // Remove duplicates and filter empty strings
+      return [...new Set(imports)].filter(imp => imp.length > 0);
     } catch (error) {
+      console.error(`Error extracting imports from ${filePath}:`, error);
       return [];
     }
   };
@@ -212,8 +226,10 @@ export function ConfigInspector({ onBack }: ConfigInspectorProps) {
 
         for (const entry of entries) {
           if (entry.name.startsWith('.')) continue;
+          if (entry.name === 'node_modules') continue; // Skip node_modules
+
           const fullPath = path.join(dir, entry.name);
-          const relativePath = path.join(basePath, entry.name);
+          const relativePath = basePath ? path.join(basePath, entry.name) : entry.name;
 
           if (entry.isDirectory()) {
             files.push(...findNixFiles(fullPath, relativePath));
@@ -222,21 +238,22 @@ export function ConfigInspector({ onBack }: ConfigInspectorProps) {
           }
         }
       } catch (error) {
-        // Ignore errors
+        console.error(`Error reading directory ${dir}:`, error);
       }
       return files;
     };
 
     const nixFiles = findNixFiles(rootPath);
+    console.log(`Found ${nixFiles.length} .nix files`);
 
     for (const file of nixFiles) {
       const fullPath = path.join(rootPath, file);
       const imports = await extractImports(fullPath);
-      if (imports.length > 0) {
-        deps.push({ file, imports });
-      }
+      // Include all files, even those with no imports, so we can see everything
+      deps.push({ file, imports });
     }
 
+    // Sort by number of imports (most complex first)
     return deps.sort((a, b) => b.imports.length - a.imports.length);
   };
 
@@ -424,6 +441,39 @@ export function ConfigInspector({ onBack }: ConfigInspectorProps) {
 
   // Dependencies View
   if (viewMode === 'dependencies') {
+    if (dependencies.length === 0) {
+      return (
+        <Box flexDirection="column" width={100}>
+          <Box marginBottom={1}>
+            <Text bold color="magenta"> 🔗 FILE DEPENDENCIES </Text>
+            <Text dimColor>  Analyzing file relationships...</Text>
+          </Box>
+
+          <BorderedBox color="magenta">
+            <Box flexDirection="column">
+              <Text color="yellow">⚠️  No dependencies found yet</Text>
+              <Box marginTop={1}>
+                <Text dimColor>This might mean:</Text>
+              </Box>
+              <Box marginTop={1} flexDirection="column">
+                <Text>• The analysis is still loading</Text>
+                <Text>• No .nix files have imports statements</Text>
+                <Text>• There may be an issue parsing the files</Text>
+              </Box>
+              <Box marginTop={1}>
+                <Text dimColor>Project root: {process.cwd()}</Text>
+              </Box>
+            </Box>
+          </BorderedBox>
+
+          <Box marginTop={1}>
+            <Text bold color="red">[0]</Text>
+            <Text>  ← Back to inspector menu</Text>
+          </Box>
+        </Box>
+      );
+    }
+
     const visibleStart = Math.max(0, selectedIndex - 10);
     const visibleEnd = Math.min(dependencies.length, selectedIndex + 10);
     const visibleDeps = dependencies.slice(visibleStart, visibleEnd);
@@ -432,36 +482,48 @@ export function ConfigInspector({ onBack }: ConfigInspectorProps) {
       <Box flexDirection="column" width={100}>
         <Box marginBottom={1}>
           <Text bold color="magenta"> 🔗 FILE DEPENDENCIES </Text>
-          <Text dimColor>  Which files import which ({dependencies.length} total)</Text>
+          <Text dimColor>  Which files import which ({dependencies.length} total files)</Text>
         </Box>
 
         <BorderedBox color="magenta">
           <Box flexDirection="column">
-            <Text bold color="cyan">File Import Relationships</Text>
-            <Text dimColor>Use ↑↓ arrows to navigate, selected file shows its imports</Text>
+            <Text bold color="cyan">Import Relationships (sorted by most imports)</Text>
+            <Text dimColor>Navigate with ↑↓ arrows, selected file shows what it imports</Text>
             <Box marginTop={1} flexDirection="column">
-              {visibleDeps.map((dep, index) => {
-                const actualIndex = visibleStart + index;
-                const isSelected = actualIndex === selectedIndex;
+              {visibleDeps.length === 0 ? (
+                <Text color="yellow">No files visible in this range</Text>
+              ) : (
+                visibleDeps.map((dep, index) => {
+                  const actualIndex = visibleStart + index;
+                  const isSelected = actualIndex === selectedIndex;
 
-                return (
-                  <Box key={dep.file} flexDirection="column" marginBottom={1}>
-                    <Box>
-                      {isSelected ? <Text color="cyan">▶ </Text> : <Text>  </Text>}
-                      <Text bold={isSelected} color={isSelected ? 'cyan' : 'white'}>
-                        {dep.file}
-                      </Text>
-                      <Text dimColor> ({dep.imports.length} imports)</Text>
-                    </Box>
-                    {isSelected && dep.imports.map((imp, i) => (
-                      <Box key={i} marginLeft={4}>
-                        <Text dimColor>  ├─ </Text>
-                        <Text color="magenta">{imp}</Text>
+                  return (
+                    <Box key={dep.file} flexDirection="column" marginBottom={1}>
+                      <Box>
+                        {isSelected ? <Text color="cyan">▶ </Text> : <Text>  </Text>}
+                        <Text bold={isSelected} color={isSelected ? 'cyan' : 'white'}>
+                          {dep.file}
+                        </Text>
+                        <Text dimColor> ({dep.imports.length} imports)</Text>
                       </Box>
-                    ))}
-                  </Box>
-                );
-              })}
+                      {isSelected && dep.imports.length > 0 && dep.imports.map((imp, i) => (
+                        <Box key={i} marginLeft={4}>
+                          <Text dimColor>  ├─ </Text>
+                          <Text color="magenta">{imp}</Text>
+                        </Box>
+                      ))}
+                      {isSelected && dep.imports.length === 0 && (
+                        <Box marginLeft={4}>
+                          <Text dimColor>  (no imports)</Text>
+                        </Box>
+                      )}
+                    </Box>
+                  );
+                })
+              )}
+            </Box>
+            <Box marginTop={1}>
+              <Text dimColor>Showing {visibleStart + 1}-{Math.min(visibleEnd, dependencies.length)} of {dependencies.length}</Text>
             </Box>
           </Box>
         </BorderedBox>
