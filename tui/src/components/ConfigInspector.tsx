@@ -141,20 +141,38 @@ export function ConfigInspector({ onBack }: ConfigInspectorProps) {
         return;
       }
 
-      // Try to find a matching host directory
-      const hostEntries = fs.readdirSync(hostsDir, { withFileTypes: true });
+      // Strategy 1: Look for exact hostname match
+      const exactHostDir = path.join(hostsDir, detectedHostname);
+      const exactHostNix = path.join(exactHostDir, 'default.nix');
 
+      if (fs.existsSync(exactHostNix)) {
+        const relativePath = path.relative(projectRoot, exactHostNix);
+        setHostConfigPath(relativePath);
+        console.log(`Found exact host config: ${relativePath}`);
+        return;
+      }
+
+      // Strategy 2: Fall back to hosts/shared/default.nix (the base configuration)
+      const sharedHostNix = path.join(hostsDir, 'shared', 'default.nix');
+      if (fs.existsSync(sharedHostNix)) {
+        const relativePath = path.relative(projectRoot, sharedHostNix);
+        setHostConfigPath(relativePath);
+        console.log(`Using shared host config: ${relativePath}`);
+        return;
+      }
+
+      // Strategy 3: Find any host config as last resort
+      const hostEntries = fs.readdirSync(hostsDir, { withFileTypes: true });
       for (const entry of hostEntries) {
-        if (entry.isDirectory()) {
+        if (entry.isDirectory() && entry.name !== 'profiles') {
           const hostDir = path.join(hostsDir, entry.name);
           const defaultNix = path.join(hostDir, 'default.nix');
 
           if (fs.existsSync(defaultNix)) {
-            // Check if this might be our host
             const relativePath = path.relative(projectRoot, defaultNix);
             setHostConfigPath(relativePath);
-            console.log(`Found host config: ${relativePath}`);
-            break;
+            console.log(`Found fallback host config: ${relativePath}`);
+            return;
           }
         }
       }
