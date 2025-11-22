@@ -47,6 +47,8 @@ export function ConfigInspector({ onBack }: ConfigInspectorProps) {
   });
   const [loading, setLoading] = useState(true);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [hostname, setHostname] = useState<string>('');
+  const [hostConfigPath, setHostConfigPath] = useState<string>('');
 
   useInput((input, key) => {
     if (input === '0' || key.escape) {
@@ -83,10 +85,51 @@ export function ConfigInspector({ onBack }: ConfigInspectorProps) {
     loadConfigStructure();
   }, []);
 
+  const detectHostConfig = async () => {
+    try {
+      // Get hostname
+      const { stdout: hostnameOutput } = await execAsync('hostname -s');
+      const detectedHostname = hostnameOutput.trim();
+      setHostname(detectedHostname);
+
+      // Look for host config file
+      const projectRoot = process.cwd();
+      const hostsDir = path.join(projectRoot, 'hosts');
+
+      if (!fs.existsSync(hostsDir)) {
+        console.log('No hosts directory found');
+        return;
+      }
+
+      // Try to find a matching host directory
+      const hostEntries = fs.readdirSync(hostsDir, { withFileTypes: true });
+
+      for (const entry of hostEntries) {
+        if (entry.isDirectory()) {
+          const hostDir = path.join(hostsDir, entry.name);
+          const defaultNix = path.join(hostDir, 'default.nix');
+
+          if (fs.existsSync(defaultNix)) {
+            // Check if this might be our host
+            const relativePath = path.relative(projectRoot, defaultNix);
+            setHostConfigPath(relativePath);
+            console.log(`Found host config: ${relativePath}`);
+            break;
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to detect host config:', error);
+    }
+  };
+
   const loadConfigStructure = async () => {
     setLoading(true);
     try {
       const projectRoot = process.cwd();
+
+      // Detect host configuration
+      await detectHostConfig();
 
       // Build file tree
       const tree = await buildFileTree(projectRoot);
@@ -619,22 +662,34 @@ export function ConfigInspector({ onBack }: ConfigInspectorProps) {
 
         <BorderedBox color="blue">
           <Box flexDirection="column">
-            <Text bold color="cyan">🖥️  Current Host Configuration</Text>
-            <Box marginTop={1}>
-              <Text dimColor>Analyzing configuration chain...</Text>
-            </Box>
-            <Box marginTop={1}>
-              <Text>This feature is being built step-by-step.</Text>
-            </Box>
-            <Box marginTop={1}>
-              <Text dimColor>It will show:</Text>
-            </Box>
+            <Text bold color="cyan">🖥️  Machine Information</Text>
             <Box marginTop={1} flexDirection="column">
-              <Text>• Your hostname and host config file</Text>
-              <Text>• Import chain from host → modules → packages</Text>
-              <Text>• What packages each file contributes</Text>
-              <Text>• Visual dependency tree for THIS machine only</Text>
+              <Box>
+                <Text dimColor>Hostname: </Text>
+                <Text bold color="green">{hostname || 'detecting...'}</Text>
+              </Box>
+              <Box>
+                <Text dimColor>Host Config: </Text>
+                <Text bold color="yellow">{hostConfigPath || 'searching...'}</Text>
+              </Box>
             </Box>
+
+            {hostConfigPath ? (
+              <Box marginTop={1} flexDirection="column">
+                <Text bold color="cyan">✓ Step 2 Complete</Text>
+                <Text dimColor>Found your host configuration file!</Text>
+                <Box marginTop={1}>
+                  <Text dimColor>Next: We'll trace the import chain and show packages...</Text>
+                </Box>
+              </Box>
+            ) : (
+              <Box marginTop={1} flexDirection="column">
+                <Text color="yellow">⚠️  No host configuration found</Text>
+                <Box marginTop={1}>
+                  <Text dimColor>Looking in: hosts/*/default.nix</Text>
+                </Box>
+              </Box>
+            )}
           </Box>
         </BorderedBox>
 
