@@ -21,6 +21,18 @@ interface Dependency {
   imports: string[];
 }
 
+interface ImportNode {
+  file: string;
+  fullPath: string;
+  imports: ImportNode[];
+  depth: number;
+  packages?: {
+    brew: string[];
+    cask: string[];
+    nix: string[];
+  };
+}
+
 interface ConfigInspectorProps {
   onBack: () => void;
 }
@@ -49,6 +61,7 @@ export function ConfigInspector({ onBack }: ConfigInspectorProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [hostname, setHostname] = useState<string>('');
   const [hostConfigPath, setHostConfigPath] = useState<string>('');
+  const [importTree, setImportTree] = useState<ImportNode | null>(null);
 
   useInput((input, key) => {
     if (input === '0' || key.escape) {
@@ -84,6 +97,13 @@ export function ConfigInspector({ onBack }: ConfigInspectorProps) {
   useEffect(() => {
     loadConfigStructure();
   }, []);
+
+  useEffect(() => {
+    // When host config is detected, build the import tree
+    if (hostConfigPath) {
+      buildHostImportTree();
+    }
+  }, [hostConfigPath]);
 
   const detectHostConfig = async () => {
     try {
@@ -357,6 +377,190 @@ export function ConfigInspector({ onBack }: ConfigInspectorProps) {
     } catch (error) {}
 
     return pkgs;
+  };
+
+  const extractPackagesFromFile = async (filePath: string): Promise<{brew: string[], cask: string[], nix: string[]}> => {
+    const pkgs = { brew: [] as string[], cask: [] as string[], nix: [] as string[] };
+
+    try {
+      const content = fs.readFileSync(filePath, 'utf-8');
+
+      // Extract homebrew formulas
+      const brewMatch = content.match(/brews\s*=\s*\[([\s\S]*?)\];/);
+      if (brewMatch) {
+        const brewList = brewMatch[1].match(/"([^"]+)"/g) || [];
+        pkgs.brew = brewList.map(b => b.replace(/"/g, ''));
+      }
+
+      // Extract homebrew casks
+      const caskMatch = content.match(/casks\s*=\s*\[([\s\S]*?)\];/);
+      if (caskMatch) {
+        const caskList = caskMatch[1].match(/"([^"]+)"/g) || [];
+        pkgs.cask = caskList.map(c => c.replace(/"/g, ''));
+      }
+
+      // Extract nix packages
+      const nixMatch = content.match(/environment\.systemPackages\s*=\s*with\s+pkgs;\s*\[([\s\S]*?)\];/);
+      if (nixMatch) {
+        const nixList = nixMatch[1].match(/[\w-]+/g) || [];
+        pkgs.nix = nixList;
+      }
+
+      // Also check for home.packages pattern
+      const homeMatch = content.match(/home\.packages\s*=\s*with\s+pkgs;\s*\[([\s\S]*?)\];/);
+      if (homeMatch) {
+        const homeList = homeMatch[1].match(/[\w-]+/g) || [];
+        pkgs.nix.push(...homeList);
+      }
+    } catch (error) {
+      console.error(`Error extracting packages from ${filePath}:`, error);
+    }
+
+    return pkgs;
+  };
+
+  const buildImportTree = async (filePath: string, depth: number = 0, visited: Set<string> = new Set()): Promise<ImportNode | null> => {
+    try {
+      const projectRoot = process.cwd();
+      const absolutePath = path.isAbsolute(filePath) ? filePath : path.join(projectRoot, filePath);
+
+      // Avoid circular dependencies
+      if (visited.has(absolutePath)) {
+        return null;
+      }
+      visited.add(absolutePath);
+
+      // Check if file exists
+      if (!fs.existsSync(absolutePath)) {
+        console.error(`File not found: ${absolutePath}`);
+        return null;
+      }
+
+      // Extract imports from this file
+      const imports = await extractImports(absolutePath);
+
+      // Extract packages from this file
+      const filePkgs = await extractPackagesFromFile(absolutePath);
+
+      // Build the import nodes recursively
+      const importNodes: ImportNode[] = [];
+      for (const imp of imports) {
+        // Resolve relative import to absolute path
+        const importDir = path.dirname(absolutePath);
+        const resolvedPath = path.resolve(importDir, imp);
+
+        // If it's a directory, look for default.nix
+        let targetPath = resolvedPath;
+        if (fs.existsSync(resolvedPath) && fs.statSync(resolvedPath).isDirectory()) {
+          targetPath = path.join(resolvedPath, 'default.nix');
+        }
+
+        // Recursively build the tree for this import
+        const childNode = await buildImportTree(targetPath, depth + 1, new Set(visited));
+        if (childNode) {
+          importNodes.push(childNode);
+        }
+      }
+
+      // Create the node with packages
+      const node: ImportNode = {
+        file: path.relative(projectRoot, absolutePath),
+        fullPath: absolutePath,
+        imports: importNodes,
+        depth: depth,
+        packages: (filePkgs.brew.length > 0 || filePkgs.cask.length > 0 || filePkgs.nix.length > 0)
+          ? filePkgs
+          : undefined
+      };
+
+      return node;
+    } catch (error) {
+      console.error(`Error building import tree for ${filePath}:`, error);
+      return null;
+    }
+  };
+
+  const buildHostImportTree = async () => {
+    if (!hostConfigPath) return;
+
+    console.log(`Building import tree for: ${hostConfigPath}`);
+    const projectRoot = process.cwd();
+    const fullPath = path.join(projectRoot, hostConfigPath);
+
+    const tree = await buildImportTree(fullPath, 0, new Set());
+    setImportTree(tree);
+    console.log('Import tree built:', tree);
+  };
+
+  const renderImportTree = (node: ImportNode, isLast: boolean = true, prefix: string = ''): React.ReactNode[] => {
+    const elements: React.ReactNode[] = [];
+    const connector = isLast ? '└─ ' : '├─ ';
+    const fileName = path.basename(node.file);
+    const dirName = path.dirname(node.file);
+
+    // Color based on file type/location
+    let color = 'magenta';
+    if (node.file.includes('hosts/')) color = 'cyan';
+    else if (node.file.includes('modules/')) color = 'yellow';
+    else if (node.file.includes('home-configurations/')) color = 'green';
+
+    // Calculate total packages
+    const totalPkgs = node.packages
+      ? (node.packages.brew.length + node.packages.cask.length + node.packages.nix.length)
+      : 0;
+
+    elements.push(
+      <Box key={node.file}>
+        <Text dimColor>{prefix}{node.depth > 0 ? connector : ''}</Text>
+        <Text color={color}>📄 {fileName}</Text>
+        <Text dimColor> ({dirName})</Text>
+        {totalPkgs > 0 && (
+          <Text bold color="green"> [{totalPkgs} pkg{totalPkgs > 1 ? 's' : ''}]</Text>
+        )}
+      </Box>
+    );
+
+    // Show package details if this file has packages
+    if (node.packages && totalPkgs > 0) {
+      const pkgPrefix = prefix + (node.depth > 0 ? (isLast ? '   ' : '│  ') : '');
+
+      if (node.packages.brew.length > 0) {
+        elements.push(
+          <Box key={`${node.file}-brew`} marginLeft={4}>
+            <Text dimColor>{pkgPrefix}  🍺 brew: </Text>
+            <Text color="magenta">{node.packages.brew.join(', ')}</Text>
+          </Box>
+        );
+      }
+
+      if (node.packages.cask.length > 0) {
+        elements.push(
+          <Box key={`${node.file}-cask`} marginLeft={4}>
+            <Text dimColor>{pkgPrefix}  📱 cask: </Text>
+            <Text color="cyan">{node.packages.cask.join(', ')}</Text>
+          </Box>
+        );
+      }
+
+      if (node.packages.nix.length > 0) {
+        elements.push(
+          <Box key={`${node.file}-nix`} marginLeft={4}>
+            <Text dimColor>{pkgPrefix}  ❄️  nix:  </Text>
+            <Text color="blue">{node.packages.nix.join(', ')}</Text>
+          </Box>
+        );
+      }
+    }
+
+    if (node.imports && node.imports.length > 0) {
+      const newPrefix = prefix + (node.depth > 0 ? (isLast ? '   ' : '│  ') : '');
+      node.imports.forEach((child, index) => {
+        const childIsLast = index === node.imports.length - 1;
+        elements.push(...renderImportTree(child, childIsLast, newPrefix));
+      });
+    }
+
+    return elements;
   };
 
   const renderTree = (node: TreeNode, depth: number = 0, isLast: boolean = true, prefix: string = ''): React.ReactNode[] => {
@@ -674,15 +878,7 @@ export function ConfigInspector({ onBack }: ConfigInspectorProps) {
               </Box>
             </Box>
 
-            {hostConfigPath ? (
-              <Box marginTop={1} flexDirection="column">
-                <Text bold color="cyan">✓ Step 2 Complete</Text>
-                <Text dimColor>Found your host configuration file!</Text>
-                <Box marginTop={1}>
-                  <Text dimColor>Next: We'll trace the import chain and show packages...</Text>
-                </Box>
-              </Box>
-            ) : (
+            {!hostConfigPath && (
               <Box marginTop={1} flexDirection="column">
                 <Text color="yellow">⚠️  No host configuration found</Text>
                 <Box marginTop={1}>
@@ -692,6 +888,39 @@ export function ConfigInspector({ onBack }: ConfigInspectorProps) {
             )}
           </Box>
         </BorderedBox>
+
+        {importTree && (
+          <Box marginTop={1}>
+            <BorderedBox color="cyan">
+              <Box flexDirection="column">
+                <Text bold color="cyan">🔗 Configuration Import Chain</Text>
+                <Text dimColor>Files are loaded in this order (tree shows inheritance)</Text>
+                <Box marginTop={1} flexDirection="column">
+                  {renderImportTree(importTree)}
+                </Box>
+                <Box marginTop={1}>
+                  <Text dimColor>Color legend: </Text>
+                  <Text color="cyan">hosts</Text>
+                  <Text dimColor> | </Text>
+                  <Text color="yellow">modules</Text>
+                  <Text dimColor> | </Text>
+                  <Text color="green">home-configurations</Text>
+                </Box>
+              </Box>
+            </BorderedBox>
+          </Box>
+        )}
+
+        {hostConfigPath && !importTree && (
+          <Box marginTop={1}>
+            <BorderedBox color="yellow">
+              <Box flexDirection="column">
+                <Text color="yellow">⏳ Building import tree...</Text>
+                <Text dimColor>Tracing all configuration dependencies...</Text>
+              </Box>
+            </BorderedBox>
+          </Box>
+        )}
 
         <Box marginTop={1}>
           <Text bold color="red">[0]</Text>
