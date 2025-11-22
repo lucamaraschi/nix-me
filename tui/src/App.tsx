@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Text, useInput, useApp } from 'ink';
 import { Dashboard } from './components/Dashboard.js';
-import { Inspector } from './components/Inspector.js';
+import { ConfigInspector } from './components/ConfigInspector.js';
 import { VMManager } from './components/VMManager.js';
 import { PackageBrowser } from './components/PackageBrowser.js';
 import { useSystemInfo } from './hooks/useSystemInfo.js';
@@ -35,7 +35,7 @@ export function App() {
   return (
     <Box flexDirection="column" paddingX={2} paddingY={1}>
       {screen === 'dashboard' && <Dashboard systemInfo={systemInfo} />}
-      {screen === 'inspector' && <Inspector onBack={() => setScreen('dashboard')} />}
+      {screen === 'inspector' && <ConfigInspector onBack={() => setScreen('dashboard')} />}
       {screen === 'vms' && <VMManager onBack={() => setScreen('dashboard')} />}
       {screen === 'browse' && <PackageBrowser onBack={() => setScreen('dashboard')} />}
     </Box>
