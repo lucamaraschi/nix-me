@@ -405,33 +405,52 @@ export function ConfigInspector({ onBack }: ConfigInspectorProps) {
     try {
       const content = fs.readFileSync(filePath, 'utf-8');
 
-      // Extract homebrew formulas
-      const brewMatch = content.match(/brews\s*=\s*\[([\s\S]*?)\];/);
-      if (brewMatch) {
-        const brewList = brewMatch[1].match(/"([^"]+)"/g) || [];
-        pkgs.brew = brewList.map(b => b.replace(/"/g, ''));
+      // Extract homebrew formulas - multiple patterns
+      // Pattern 1: brews = [ ... ];
+      const brewMatch1 = content.match(/brews\s*=\s*\[([\s\S]*?)\];/);
+      if (brewMatch1) {
+        const brewList = brewMatch1[1].match(/"([^"]+)"/g) || [];
+        pkgs.brew.push(...brewList.map(b => b.replace(/"/g, '')));
       }
 
-      // Extract homebrew casks
-      const caskMatch = content.match(/casks\s*=\s*\[([\s\S]*?)\];/);
-      if (caskMatch) {
-        const caskList = caskMatch[1].match(/"([^"]+)"/g) || [];
-        pkgs.cask = caskList.map(c => c.replace(/"/g, ''));
+      // Pattern 2: homebrew.brews = ...
+      const brewMatch2 = content.match(/homebrew\.brews\s*=\s*(?:lib\.mkDefault\s*)?\(?\s*(?:if[\s\S]*?then\s*)?\(?(?:lib\.subtractLists[\s\S]*?\))?\s*\+\+\s*[\s\S]*?\)?\s*;/);
+      // This pattern is complex, let's try a simpler approach - just look for the baseLists definition
+
+      // Extract homebrew casks - multiple patterns
+      // Pattern 1: casks = [ ... ];
+      const caskMatch1 = content.match(/casks\s*=\s*\[([\s\S]*?)\];/);
+      if (caskMatch1) {
+        const caskList = caskMatch1[1].match(/"([^"]+)"/g) || [];
+        pkgs.cask.push(...caskList.map(c => c.replace(/"/g, '')));
       }
 
-      // Extract nix packages
-      const nixMatch = content.match(/environment\.systemPackages\s*=\s*with\s+pkgs;\s*\[([\s\S]*?)\];/);
-      if (nixMatch) {
-        const nixList = nixMatch[1].match(/[\w-]+/g) || [];
-        pkgs.nix = nixList;
+      // Extract nix packages - multiple patterns
+      // Pattern 1: environment.systemPackages with pkgs
+      const nixMatch1 = content.match(/environment\.systemPackages\s*=[\s\S]*?with\s+pkgs;?\s*\[([\s\S]*?)\];/);
+      if (nixMatch1) {
+        const nixList = nixMatch1[1].match(/[\w.-]+/g) || [];
+        pkgs.nix.push(...nixList.filter(p => p !== 'with' && p !== 'pkgs'));
       }
 
-      // Also check for home.packages pattern
-      const homeMatch = content.match(/home\.packages\s*=\s*with\s+pkgs;\s*\[([\s\S]*?)\];/);
+      // Pattern 2: systemPackages = [ ... ]; in let blocks
+      const nixMatch2 = content.match(/systemPackages\s*=\s*\[([\s\S]*?)\];/);
+      if (nixMatch2) {
+        const nixList = nixMatch2[1].match(/"([^"]+)"/g) || [];
+        pkgs.nix.push(...nixList.map(n => n.replace(/"/g, '')));
+      }
+
+      // Pattern 3: home.packages
+      const homeMatch = content.match(/home\.packages\s*=[\s\S]*?with\s+pkgs;?\s*\[([\s\S]*?)\];/);
       if (homeMatch) {
-        const homeList = homeMatch[1].match(/[\w-]+/g) || [];
-        pkgs.nix.push(...homeList);
+        const homeList = homeMatch[1].match(/[\w.-]+/g) || [];
+        pkgs.nix.push(...homeList.filter(p => p !== 'with' && p !== 'pkgs'));
       }
+
+      // Remove duplicates
+      pkgs.brew = [...new Set(pkgs.brew)];
+      pkgs.cask = [...new Set(pkgs.cask)];
+      pkgs.nix = [...new Set(pkgs.nix)];
     } catch (error) {
       console.error(`Error extracting packages from ${filePath}:`, error);
     }
