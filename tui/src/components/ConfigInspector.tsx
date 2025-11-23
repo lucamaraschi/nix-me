@@ -703,11 +703,14 @@ export function ConfigInspector({ onBack }: ConfigInspectorProps) {
     console.log('Import tree built:', tree);
   };
 
-  const renderImportTree = (node: ImportNode, isLast: boolean = true, prefix: string = ''): React.ReactNode[] => {
+  const renderImportTree = (node: ImportNode, isLast: boolean = true, prefix: string = '', isTopLevel: boolean = false): React.ReactNode[] => {
     const elements: React.ReactNode[] = [];
     const connector = isLast ? '└─ ' : '├─ ';
     const fileName = path.basename(node.file);
     const dirName = path.dirname(node.file);
+
+    // Check if this is a top-level module layer (hosts/* or modules/home-manager)
+    const isLayerModule = isTopLevel || node.file.startsWith('hosts/') && node.depth === 0;
 
     // Color based on file type/location
     let color = 'magenta';
@@ -715,13 +718,44 @@ export function ConfigInspector({ onBack }: ConfigInspectorProps) {
     else if (node.file.includes('modules/')) color = 'yellow';
     else if (node.file.includes('home-configurations/')) color = 'green';
 
+    // Add layer indicator for top-level modules
+    if (isLayerModule && node.depth === 0) {
+      let layerLabel = '';
+      let layerNum = 0;
+      if (node.file.includes('hosts/shared')) {
+        layerLabel = 'Layer 1 (Base Config)';
+        layerNum = 1;
+      } else if (node.file.includes('hosts/macbook')) {
+        layerLabel = 'Layer 2 (MacBook Overrides)';
+        layerNum = 2;
+      } else if (node.file.includes('hosts/nabucodonosor')) {
+        layerLabel = 'Layer 3 (Host-Specific)';
+        layerNum = 3;
+      } else if (node.file.includes('modules/home-manager')) {
+        layerLabel = 'Layer 4 (User Config)';
+        layerNum = 4;
+      }
+
+      if (layerLabel) {
+        elements.push(
+          <Box key={`layer-${node.file}`} marginTop={1} marginBottom={0}>
+            <Text bold color="blue">▶ {layerLabel}: </Text>
+            <Text color={color}>{fileName}</Text>
+            <Text dimColor> ({dirName})</Text>
+          </Box>
+        );
+      }
+    }
+
     // Calculate total packages
     const totalPkgs = node.packages
       ? (node.packages.brew.length + node.packages.cask.length + node.packages.nix.length)
       : 0;
 
-    elements.push(
-      <Box key={node.file}>
+    // Skip the tree connector for layer modules since we already showed them with layer label
+    if (!isLayerModule || node.depth > 0) {
+      elements.push(
+        <Box key={node.file}>
         <Text dimColor>{prefix}{node.depth > 0 ? connector : ''}</Text>
         <Text color={color}>📄 {fileName}</Text>
         <Text dimColor> ({dirName})</Text>
@@ -730,6 +764,7 @@ export function ConfigInspector({ onBack }: ConfigInspectorProps) {
         )}
       </Box>
     );
+    }
 
     // Show package details if this file has packages
     if (node.packages && totalPkgs > 0) {
@@ -767,7 +802,9 @@ export function ConfigInspector({ onBack }: ConfigInspectorProps) {
       const newPrefix = prefix + (node.depth > 0 ? (isLast ? '   ' : '│  ') : '');
       node.imports.forEach((child, index) => {
         const childIsLast = index === node.imports.length - 1;
-        elements.push(...renderImportTree(child, childIsLast, newPrefix));
+        // Check if child is also a top-level layer (depth 0 hosts/* or home-manager)
+        const childIsTopLevel = child.depth === 0 && (child.file.startsWith('hosts/') || child.file.includes('home-manager'));
+        elements.push(...renderImportTree(child, childIsLast, newPrefix, childIsTopLevel));
       });
     }
 
@@ -1104,10 +1141,16 @@ export function ConfigInspector({ onBack }: ConfigInspectorProps) {
           <Box marginTop={1}>
             <BorderedBox color="cyan">
               <Box flexDirection="column">
-                <Text bold color="cyan">🔗 Configuration Import Chain</Text>
-                <Text dimColor>Files are loaded in this order (tree shows inheritance)</Text>
+                <Text bold color="cyan">🔗 Configuration Module Layers</Text>
+                <Text dimColor>Modules are loaded in layers (later layers override earlier ones)</Text>
+                <Box marginTop={1}>
+                  <Text dimColor>💡 This machine ({hostname}) uses type: </Text>
+                  <Text color="cyan" bold>{hostname}</Text>
+                  <Text dimColor> is a </Text>
+                  <Text color="yellow" bold>macbook</Text>
+                </Box>
                 <Box marginTop={1} flexDirection="column">
-                  {renderImportTree(importTree)}
+                  {renderImportTree(importTree, true, '', true)}
                 </Box>
                 <Box marginTop={1}>
                   <Text dimColor>Color legend: </Text>
@@ -1116,6 +1159,9 @@ export function ConfigInspector({ onBack }: ConfigInspectorProps) {
                   <Text color="yellow">modules</Text>
                   <Text dimColor> | </Text>
                   <Text color="green">home-configurations</Text>
+                </Box>
+                <Box marginTop={1}>
+                  <Text dimColor>📐 Layers work like CSS: later layers can override settings from earlier layers</Text>
                 </Box>
               </Box>
             </BorderedBox>
