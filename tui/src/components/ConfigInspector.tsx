@@ -286,12 +286,31 @@ export function ConfigInspector({ onBack }: ConfigInspectorProps) {
       const content = fs.readFileSync(filePath, 'utf-8');
       const imports: string[] = [];
 
+      // Remove heredoc blocks first (string templates that contain code examples)
+      // Pattern: << 'EOL' ... EOL or << EOL ... EOL
+      let cleanedContent = content.replace(/<<\s*'?(\w+)'?[\s\S]*?\n\1/g, '');
+
+      // Also remove multi-line strings between '' or ""
+      cleanedContent = cleanedContent.replace(/''[\s\S]*?''/g, '');
+      cleanedContent = cleanedContent.replace(/"(?:[^"\\]|\\.)*"/g, '');
+
       // Match imports = [ ... ] - can span multiple lines
-      const importMatch = content.match(/imports\s*=\s*\[([\s\S]*?)\];/);
+      const importMatch = cleanedContent.match(/imports\s*=\s*\[([\s\S]*?)\];/);
       if (importMatch) {
         const importBlock = importMatch[1];
-        // Extract paths - match ./path, ../path with various characters
-        const importPaths = importBlock.match(/[\(]?\s*(\.\.?\/[^\s\)\]"';]+)/g) || [];
+
+        // Split by lines and filter out commented lines
+        const lines = importBlock.split('\n');
+        const activeLines = lines
+          .filter(line => {
+            const trimmed = line.trim();
+            // Skip empty lines and comments
+            return trimmed.length > 0 && !trimmed.startsWith('#');
+          })
+          .join('\n');
+
+        // Extract paths from non-commented lines only
+        const importPaths = activeLines.match(/[\(]?\s*(\.\.?\/[^\s\)\]"';]+)/g) || [];
         imports.push(...importPaths.map(p => {
           // Clean up the path - remove parentheses, quotes, etc.
           let cleaned = p.trim()
@@ -301,14 +320,19 @@ export function ConfigInspector({ onBack }: ConfigInspectorProps) {
         }));
       }
 
-      // Match direct import statements: import ./path or import ../path
-      const directImports = content.match(/import\s+(\.\.?\/[^\s;]+)/g) || [];
+      // Match direct import statements: import ./path or import ../path (non-commented)
+      const lines = cleanedContent.split('\n');
+      const activeContent = lines
+        .filter(line => !line.trim().startsWith('#'))
+        .join('\n');
+
+      const directImports = activeContent.match(/import\s+(\.\.?\/[^\s;]+)/g) || [];
       imports.push(...directImports.map(i => {
         return i.replace('import ', '').trim().replace(/["';]/g, '');
       }));
 
-      // Also match <./path> or <../path> style imports
-      const angleImports = content.match(/<(\.\.?\/[^>]+)>/g) || [];
+      // Also match <./path> or <../path> style imports (non-commented)
+      const angleImports = activeContent.match(/<(\.\.?\/[^>]+)>/g) || [];
       imports.push(...angleImports.map(i => i.replace(/[<>]/g, '')));
 
       // Remove duplicates and filter empty strings
