@@ -141,7 +141,53 @@ export function ConfigInspector({ onBack }: ConfigInspectorProps) {
         return;
       }
 
-      // Strategy 1: Look for exact hostname match
+      // Try to read flake.nix to determine machine type
+      let machineType: string | null = null;
+      try {
+        const flakePath = path.join(projectRoot, 'flake.nix');
+        const flakeContent = fs.readFileSync(flakePath, 'utf-8');
+
+        // Look for this hostname's configuration in flake.nix
+        const hostConfigPattern = new RegExp(`"${detectedHostname}"\\s*=\\s*mkDarwinSystem\\s*\\{[\\s\\S]*?machineType\\s*=\\s*"([^"]+)"`, 'm');
+        const match = flakeContent.match(hostConfigPattern);
+
+        if (match) {
+          machineType = match[1];
+          console.log(`Detected machine type: ${machineType}`);
+        }
+      } catch (error) {
+        console.error('Failed to parse flake.nix for machine type:', error);
+      }
+
+      // Build module load order based on flake.nix mkDarwinSystem structure:
+      // 1. hosts/shared/default.nix
+      // 2. hosts/${machineType}/default.nix (if specified)
+      // 3. hosts/${hostname}/default.nix (if exists)
+      // 4. modules/home-manager/default.nix (via home-manager.users.${username})
+
+      console.log(`Building module chain for: ${detectedHostname}${machineType ? ` (${machineType})` : ''}`);
+
+      // Strategy 1: Use shared as base (always loaded first in flake)
+      const sharedHostNix = path.join(hostsDir, 'shared', 'default.nix');
+      if (fs.existsSync(sharedHostNix)) {
+        const relativePath = path.relative(projectRoot, sharedHostNix);
+        setHostConfigPath(relativePath);
+        console.log(`Using base config: ${relativePath}`);
+        return;
+      }
+
+      // Strategy 2: If no shared, try machine type
+      if (machineType) {
+        const machineTypePath = path.join(hostsDir, machineType, 'default.nix');
+        if (fs.existsSync(machineTypePath)) {
+          const relativePath = path.relative(projectRoot, machineTypePath);
+          setHostConfigPath(relativePath);
+          console.log(`Using machine type config: ${relativePath}`);
+          return;
+        }
+      }
+
+      // Strategy 3: Try exact hostname match
       const exactHostDir = path.join(hostsDir, detectedHostname);
       const exactHostNix = path.join(exactHostDir, 'default.nix');
 
@@ -152,16 +198,7 @@ export function ConfigInspector({ onBack }: ConfigInspectorProps) {
         return;
       }
 
-      // Strategy 2: Fall back to hosts/shared/default.nix (the base configuration)
-      const sharedHostNix = path.join(hostsDir, 'shared', 'default.nix');
-      if (fs.existsSync(sharedHostNix)) {
-        const relativePath = path.relative(projectRoot, sharedHostNix);
-        setHostConfigPath(relativePath);
-        console.log(`Using shared host config: ${relativePath}`);
-        return;
-      }
-
-      // Strategy 3: Find any host config as last resort
+      // Strategy 4: Find any host config as last resort
       const hostEntries = fs.readdirSync(hostsDir, { withFileTypes: true });
       for (const entry of hostEntries) {
         if (entry.isDirectory() && entry.name !== 'profiles') {
