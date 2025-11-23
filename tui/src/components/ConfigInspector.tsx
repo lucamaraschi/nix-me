@@ -537,6 +537,102 @@ export function ConfigInspector({ onBack }: ConfigInspectorProps) {
     return pkgs;
   };
 
+  const getActualModuleOrder = async (): Promise<string[]> => {
+    try {
+      const projectRoot = findProjectRoot();
+      const detectedHostname = hostname || 'nabucodonosor'; // Use detected hostname
+
+      // Build the expected module order based on flake.nix structure
+      const moduleOrder: string[] = [];
+
+      // Read flake.nix to understand the structure
+      const flakePath = path.join(projectRoot, 'flake.nix');
+      const flakeContent = fs.readFileSync(flakePath, 'utf-8');
+
+      // Extract machine type from flake
+      const hostConfigPattern = new RegExp(`"${detectedHostname}"\\s*=\\s*mkDarwinSystem\\s*\\{[\\s\\S]*?machineType\\s*=\\s*"([^"]+)"`, 'm');
+      const match = flakeContent.match(hostConfigPattern);
+      const machineType = match ? match[1] : null;
+
+      console.log(`Getting actual module order for ${detectedHostname}${machineType ? ` (${machineType})` : ''}`);
+
+      // The mkDarwinSystem function loads modules in this order:
+      // 1. hosts/shared
+      const sharedPath = path.join(projectRoot, 'hosts', 'shared', 'default.nix');
+      if (fs.existsSync(sharedPath)) {
+        moduleOrder.push(path.relative(projectRoot, sharedPath));
+      }
+
+      // 2. hosts/${machineType} (if specified)
+      if (machineType) {
+        const machineTypePath = path.join(projectRoot, 'hosts', machineType, 'default.nix');
+        if (fs.existsSync(machineTypePath)) {
+          moduleOrder.push(path.relative(projectRoot, machineTypePath));
+        }
+      }
+
+      // 3. hosts/${hostname} (if exists and different from machineType)
+      if (detectedHostname !== machineType) {
+        const hostPath = path.join(projectRoot, 'hosts', detectedHostname, 'default.nix');
+        if (fs.existsSync(hostPath)) {
+          moduleOrder.push(path.relative(projectRoot, hostPath));
+        }
+      }
+
+      // 4. modules/home-manager (loaded via home-manager.users.${username})
+      const homeManagerPath = path.join(projectRoot, 'modules', 'home-manager', 'default.nix');
+      if (fs.existsSync(homeManagerPath)) {
+        moduleOrder.push(path.relative(projectRoot, homeManagerPath));
+      }
+
+      console.log('Actual module load order:', moduleOrder);
+      return moduleOrder;
+    } catch (error) {
+      console.error('Failed to determine actual module order:', error);
+      return [];
+    }
+  };
+
+  const buildImportTreeFromModuleOrder = async (): Promise<ImportNode | null> => {
+    const projectRoot = findProjectRoot();
+    const moduleOrder = await getActualModuleOrder();
+
+    if (moduleOrder.length === 0) {
+      console.error('No modules found in load order');
+      return null;
+    }
+
+    // Build tree starting with the first module (hosts/shared)
+    const rootPath = path.join(projectRoot, moduleOrder[0]);
+    const rootNode = await buildImportTree(rootPath, 0, new Set());
+
+    if (!rootNode) {
+      return null;
+    }
+
+    // Now we need to inject the other top-level modules into the tree
+    // They should appear as siblings to the modules/darwin import
+    const visited = new Set<string>();
+    visited.add(path.join(projectRoot, moduleOrder[0]));
+
+    for (let i = 1; i < moduleOrder.length; i++) {
+      const modulePath = path.join(projectRoot, moduleOrder[i]);
+
+      if (visited.has(modulePath)) {
+        continue;
+      }
+      visited.add(modulePath);
+
+      const moduleNode = await buildImportTree(modulePath, 1, visited);
+      if (moduleNode && rootNode.imports) {
+        // Insert at the appropriate position
+        rootNode.imports.push(moduleNode);
+      }
+    }
+
+    return rootNode;
+  };
+
   const buildImportTree = async (filePath: string, depth: number = 0, visited: Set<string> = new Set()): Promise<ImportNode | null> => {
     try {
       const projectRoot = findProjectRoot();
@@ -599,13 +695,10 @@ export function ConfigInspector({ onBack }: ConfigInspectorProps) {
   };
 
   const buildHostImportTree = async () => {
-    if (!hostConfigPath) return;
+    console.log(`Building complete import tree with actual module load order`);
 
-    console.log(`Building import tree for: ${hostConfigPath}`);
-    const projectRoot = findProjectRoot();
-    const fullPath = path.join(projectRoot, hostConfigPath);
-
-    const tree = await buildImportTree(fullPath, 0, new Set());
+    // Use the new function that respects flake.nix module order
+    const tree = await buildImportTreeFromModuleOrder();
     setImportTree(tree);
     console.log('Import tree built:', tree);
   };
