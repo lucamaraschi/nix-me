@@ -13,12 +13,14 @@ nix-me is a comprehensive macOS system configuration that lets you manage your e
 **Key Features:**
 
 - Interactive setup wizard - no Nix knowledge required
+- TUI Configuration Inspector - visualize your system configuration
 - CLI tool for ongoing customization (`nix-me`)
 - Multi-machine support (MacBooks, Mac Minis, VMs)
 - Reproducible environments across machines
 - Fish shell with custom functions and integrations
 - 1Password SSH integration
-- Modular architecture for easy customization
+- Modular architecture with inheritance system
+- Unified package management (Nix + Homebrew)
 
 ## Quick Start
 
@@ -69,6 +71,9 @@ After installation, the `nix-me` command is available for managing your system:
 # Interactive customization menu
 nix-me customize
 
+# Configuration inspector (view packages, files, dependencies)
+nix-me inspect
+
 # Search and add a GUI application
 nix-me add app spotify
 
@@ -113,33 +118,82 @@ nix-me/
 ├── lib/                           # Wizard & CLI libraries
 │   ├── ui.sh                      # Terminal UI components
 │   ├── wizard.sh                  # Interactive setup wizard
-│   └── config-builder.sh          # Configuration generator
+│   ├── config-builder.sh          # Configuration generator
+│   └── vm-manager.sh              # VM management
 │
 ├── bin/
 │   └── nix-me                     # CLI tool
 │
+├── tui/                           # Interactive TUI (React Ink)
+│   ├── src/
+│   │   └── components/
+│   │       └── ConfigInspector.tsx # Configuration inspector
+│   └── package.json
+│
 ├── hosts/                         # Machine-specific configs
-│   ├── shared/                    # Common settings
+│   ├── shared/                    # Common settings for all machines
 │   ├── macbook/                   # MacBook optimizations
+│   ├── macbook-pro/               # MacBook Pro optimizations
 │   ├── macmini/                   # Mac Mini optimizations
 │   ├── vm/                        # VM optimizations
-│   └── [hostname]/                # Your machines
+│   ├── profiles/                  # Work/Personal profiles
+│   └── [hostname]/                # Your specific machines
 │
 └── modules/
     ├── darwin/                    # System-level configs
     │   ├── apps/
-    │   │   ├── installations.nix  # Package lists
+    │   │   ├── installations.nix  # Unified package management
     │   │   ├── nix-me.nix         # nix-me CLI
+    │   │   ├── vm-manager.nix     # VM management tools
     │   │   └── ...
-    │   ├── homebrew.nix           # Homebrew config
+    │   ├── core.nix               # Core system settings
     │   ├── system.nix             # macOS preferences
+    │   ├── fonts.nix              # Font configuration
     │   └── ...
-    └── home-manager/              # User configs
-        ├── fish.nix               # Shell config
-        ├── git.nix                # Git settings
-        ├── ssh.nix                # SSH + 1Password
-        └── ...
+    │
+    ├── home-manager/              # User-level configs
+    │   ├── apps/                  # User applications
+    │   ├── shell/                 # Shell configurations
+    │   │   └── fish.nix           # Fish shell setup
+    │   ├── rectangle.nix          # Window manager
+    │   ├── git.nix                # Git settings
+    │   ├── ssh.nix                # SSH + 1Password
+    │   └── ...
+    │
+    └── shared/                    # Shared between Darwin & NixOS
+        ├── fish-base.nix          # Base Fish configuration
+        └── packages.nix           # Common package definitions
 ```
+
+## Configuration Inspector
+
+The TUI Configuration Inspector helps you understand your system setup:
+
+```bash
+# Launch the inspector
+nix-me inspect
+
+# Or from the project directory
+npm --prefix tui run dev
+```
+
+**Features:**
+
+- **Package Browser** - View all installed packages organized by source:
+  - Homebrew Formulas (CLI tools)
+  - Homebrew Casks (GUI applications)
+  - Nix packages
+
+- **File Browser** - Navigate your configuration file hierarchy with visual tree structure
+
+- **Dependency Graph** - Understand which files import which, sorted by complexity
+
+**Navigation:**
+
+- Use numbered menus (1, 2, 3) to select views
+- Arrow keys for navigation in dependency graph
+- Press `0` to go back
+- Press `q` to quit
 
 ## Configuration Guide
 
@@ -217,7 +271,7 @@ Use the inheritance system in `hosts/[hostname]/default.nix`:
 { ... }:
 {
   apps = {
-    useBaseLists = true;
+    useBaseLists = true;  # Inherit from base lists
 
     # Remove apps you don't need
     casksToRemove = [
@@ -230,9 +284,31 @@ Use the inheritance system in `hosts/[hostname]/default.nix`:
       "amphetamine"
       "coconutbattery"
     ];
+
+    # CLI tools via Homebrew
+    brewsToAdd = ["wget" "tree"];
+    brewsToRemove = ["gcc"];
+
+    # System packages via Nix
+    systemPackagesToAdd = ["htop" "ncdu"];
+    systemPackagesToRemove = ["nodejs_22"];
+
+    # Mac App Store apps
+    masAppsToAdd = {
+      "Bear" = 1091189122;
+      "Things" = 904280696;
+    };
+    masAppsToRemove = ["Xcode"];
   };
 }
 ```
+
+**Inheritance Benefits:**
+
+- Start with a complete base configuration
+- Add/remove packages per machine
+- No duplication across machines
+- Easy to maintain and update
 
 ### Fish Shell Configuration
 
@@ -324,6 +400,9 @@ make help
 ### Using nix-me
 
 ```bash
+# Configuration inspector (interactive TUI)
+nix-me inspect
+
 # Diagnostics
 nix-me doctor
 
@@ -335,6 +414,11 @@ nix-me list
 
 # Full customization menu
 nix-me customize
+
+# VM management
+nix-me vm create    # Create new test VM
+nix-me vm list      # List all VMs
+nix-me vm start     # Start a VM
 ```
 
 ## Troubleshooting
@@ -449,11 +533,14 @@ Select an existing machine, then choose what to modify:
 {
   apps = {
     useBaseLists = true;
-    casksToRemove = ["docker" "visual-studio-code"];
+    casksToRemove = ["docker" "visual-studio-code" "slack"];
     casksToAdd = [
       "adobe-lightroom"
       "capture-one"
+      "pixelmator-pro"
     ];
+    brewsToRemove = ["terraform" "k3d" "helm"];
+    systemPackagesToRemove = ["nodejs_22" "go"];
   };
 }
 ```
@@ -466,12 +553,39 @@ Select an existing machine, then choose what to modify:
 {
   apps = {
     useBaseLists = true;
-    casksToRemove = ["adobe-creative-cloud" "obs"];
+    casksToRemove = ["adobe-creative-cloud" "obs" "spotify"];
     casksToAdd = ["postman" "dash"];
-    systemPackagesToAdd = ["jq" "httpie"];
+    brewsToAdd = ["httpie" "wget"];
+    systemPackagesToAdd = ["jq" "yq"];
   };
 
   system.defaults.dock.tilesize = 32;
+}
+```
+
+### Work Profile with Extra Tools
+
+```nix
+# hosts/work-laptop/default.nix
+{ ... }:
+{
+  imports = [
+    ../profiles/work.nix  # Import work profile
+  ];
+
+  apps = {
+    useBaseLists = true;
+    casksToAdd = [
+      "microsoft-teams"
+      "slack"
+      "zoom"
+    ];
+    brewsToAdd = [
+      "kubectl"
+      "helm"
+      "terraform"
+    ];
+  };
 }
 ```
 
