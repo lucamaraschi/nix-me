@@ -8,5 +8,6 @@
     ./git.nix
     ./tmux.nix
     ./ssh.nix
+    ../rectangle.nix  # Rectangle window manager config
   ];
 }

@@ -17,13 +17,11 @@ UTMCTL="$UTM_APP/Contents/MacOS/utmctl"
 # VM Types
 declare -A VM_TYPES=(
     ["test-macos"]="Test macOS VM (Test nix-me installation)"
-    ["omarchy"]="Omarchy (Arch Linux + Hyprland by DHH)"
 )
 
 # VM Type Descriptions
 declare -A VM_DESCRIPTIONS=(
     ["test-macos"]="Clone your base macOS VM to test nix-me installation. Useful for validating changes before applying to your main system."
-    ["omarchy"]="Create a VM with Omarchy - Arch Linux + Hyprland tiling WM by DHH. Optionally layer your nix-me configs on top."
 )
 
 # Initialize directories
@@ -87,29 +85,13 @@ vm_create_wizard() {
 
     local vm_type
     if command -v fzf &>/dev/null; then
-        vm_type=$(printf "%s\n" test-macos omarchy | \
+        vm_type=$(printf "%s\n" test-macos | \
             fzf --height=60% \
                 --border=rounded \
                 --prompt="Select VM type > " \
                 --header="↑↓ Navigate | Enter: Select | ESC: Cancel" \
                 --preview='case {} in
                     test-macos) echo "🧪 Test macOS VM"; echo ""; echo "Clone your base macOS VM to test nix-me installation."; echo "Perfect for validating changes before applying to your main system."; echo ""; echo "✨ Features:"; echo "  • Full installation testing"; echo "  • Auto-delete on success"; echo "  • Test from local or GitHub"; echo "  • Complete automation" ;;
-                    omarchy) echo "🎨 Omarchy VM"; echo ""; echo "Arch Linux + Hyprland tiling WM by DHH."; echo "Beautiful, minimal, keyboard-driven environment."; echo ""; echo "✨ Features:"; echo "  • Hyprland tiling WM"; echo "  • Neovim, Alacritty"; echo "  • Optional nix-me layer"; echo "  • Modern dev setup"; echo ""; echo "📦 Automatic ISO download included!" ;;
-                esac' \
-                --preview-window=right:60%:wrap)
-    else
-        echo -e "  ${GREEN}[1]${NC} test-macos"
-        echo -e "      Test your nix-me installation in a VM"
-        echo ""
-        echo -e "  ${GREEN}[2]${NC} omarchy"
-        echo -e "      Arch Linux + Hyprland by DHH"
-        echo ""
-        echo -e "  ${GREEN}[0]${NC} Cancel"
-        echo ""
-        read -p "  Select type [0]: " type_choice
-        case "${type_choice}" in
-            1) vm_type="test-macos" ;;
-            2) vm_type="omarchy" ;;
             0|"") return 0 ;;
         esac
     fi
@@ -190,25 +172,6 @@ vm_create_wizard() {
     # Check for ISO (Omarchy only)
     local iso_path
     case "$vm_type" in
-        omarchy)
-            iso_path="$VM_DATA_DIR/isos/omarchy-${OMARCHY_VERSION}.iso"
-            if [[ ! -f "$iso_path" ]]; then
-                echo ""
-                print_info "📦 Downloading Omarchy ISO..."
-                echo ""
-                print_info "The ISO will be cached at:"
-                echo -e "  ${CYAN}$iso_path${NC}"
-                echo ""
-
-                if ! vm_download_omarchy_iso; then
-                    print_error "Failed to download ISO"
-                    sleep 2
-                    return 1
-                fi
-            else
-                print_success "Using cached ISO: $(basename "$iso_path")"
-            fi
-            ;;
     esac
 
     # Create VM via UTM
@@ -422,9 +385,6 @@ generate_vm_instructions() {
     local config_dir="$7"
 
     case "$vm_type" in
-        omarchy)
-            generate_omarchy_instructions "$vm_name" "$memory" "$cpus" "$disk_size" "$iso_path" "$config_dir"
-            ;;
         nixos)
             generate_nixos_instructions "$vm_name" "$memory" "$cpus" "$disk_size" "$iso_path" "$config_dir"
             ;;
@@ -435,70 +395,6 @@ generate_vm_instructions() {
 }
 
 # Generate Omarchy-specific instructions
-generate_omarchy_instructions() {
-    local vm_name="$1" memory="$2" cpus="$3" disk_size="$4" iso_path="$5" config_dir="$6"
-
-    cat > "$config_dir/README.md" << EOF
-# Omarchy VM: $vm_name
-
-**Arch Linux + Hyprland by DHH**
-
-## VM Specs
-- Memory: ${memory}MB
-- CPUs: $cpus
-- Disk: $disk_size
-- ISO: $iso_path
-
-## Installation Steps
-
-### 1. Create VM in UTM
-Already done if you selected "Create VM in UTM now".
-
-### 2. Boot and Install Omarchy
-1. Start the VM in UTM
-2. Boot from the ISO
-3. Follow the Omarchy installer (automated, 2-10 min)
-4. Create your user account
-5. Reboot into the installed system
-
-### 3. First Boot
-- **Desktop**: Hyprland tiling WM
-- **Terminal**: Super + Enter
-- **App Launcher**: Super + D
-- **Close Window**: Super + Q
-
-### 4. Apply nix-me Configuration (Optional)
-
-Layer your Fish shell, kubectl, k3d configs on top:
-
-\`\`\`bash
-# Install Nix package manager
-curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
-
-# Source Nix
-. /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
-
-# Clone nix-me
-git clone https://github.com/lucamaraschi/nix-me.git ~/.config/nixpkgs
-
-# Apply home-manager config
-nix run home-manager/master -- switch --flake ~/.config/nixpkgs#omarchy-aarch64
-
-# Optional: Switch to Fish shell
-sudo pacman -S fish
-chsh -s \$(which fish)
-\`\`\`
-
-### What nix-me Adds
-- Fish shell with starship prompt
-- kubectl, k3d, helm
-- gh CLI, lazygit, delta
-- bat, eza, ripgrep, fd, fzf
-- Git, tmux, direnv configs
-
-Enjoy your Omarchy VM!
-EOF
-}
 
 # Generate NixOS instructions
 generate_nixos_instructions() {
@@ -548,8 +444,6 @@ sudo reboot
 
 \`\`\`bash
 git clone https://github.com/lucamaraschi/nix-me.git ~/.config/nixpkgs
-sudo cp /etc/nixos/hardware-configuration.nix ~/.config/nixpkgs/hosts/omarchy-vm/
-sudo nixos-rebuild switch --flake ~/.config/nixpkgs#omarchy-vm
 sudo reboot
 \`\`\`
 
@@ -584,7 +478,6 @@ Follow the Ubuntu installer prompts.
 \`\`\`bash
 curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
 git clone https://github.com/lucamaraschi/nix-me.git ~/.config/nixpkgs
-nix run home-manager/master -- switch --flake ~/.config/nixpkgs#omarchy-aarch64
 \`\`\`
 
 Enjoy your Ubuntu VM!
@@ -795,7 +688,6 @@ vm_download_iso_menu() {
     choice=${choice:-0}
 
     case "$choice" in
-        1) vm_download_omarchy_iso ;;
         2) vm_download_nixos_iso ;;
         3) vm_download_ubuntu_iso ;;
         0) return 0 ;;
@@ -805,8 +697,6 @@ vm_download_iso_menu() {
 }
 
 # Download Omarchy ISO
-vm_download_omarchy_iso() {
-    local iso_path="$VM_DATA_DIR/isos/omarchy-${OMARCHY_VERSION}.iso"
 
     if [[ -f "$iso_path" ]]; then
         print_success "✓ Omarchy ISO already cached"
@@ -816,15 +706,12 @@ vm_download_omarchy_iso() {
     print_info "Opening browser to download Omarchy ISO..."
     echo ""
     echo -e "  ${YELLOW}Manual download required${NC}"
-    echo -e "  ${BULLET} Browser will open: ${CYAN}https://omarchy.org/${NC}"
     echo -e "  ${BULLET} Click: ${GREEN}'Download the ISO'${NC}"
-    echo -e "  ${BULLET} Save as: ${CYAN}omarchy-${OMARCHY_VERSION}.iso${NC}"
     echo -e "  ${BULLET} Move to: ${CYAN}$(dirname "$iso_path")/${NC}"
     echo ""
 
     # Open browser
     if command -v open &>/dev/null; then
-        open "https://omarchy.org/"
     fi
 
     echo -e "  ${YELLOW}Waiting for ISO download...${NC}"
@@ -978,7 +865,6 @@ fi
 
 echo "Applying home-manager configuration..."
 cd ~/.config/nixpkgs
-nix run home-manager/master -- switch --flake .#omarchy-aarch64
 
 echo "Done!"
 REMOTE_SCRIPT
