@@ -22,6 +22,7 @@
       amend = "commit --amend";
       unstage = "reset HEAD --";
       last = "log -1 HEAD";
+      sync-branches = "!git fetch --prune && git branch -vv | grep ': gone]' | awk '{print $1}' | xargs git branch -D";
     };
     
     ignores = [
