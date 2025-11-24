@@ -205,53 +205,10 @@
             }
           ];
         };
-
-        # Omarchy-style development VM with GNOME and modern CLI tools
-        omarchy-vm = nixpkgs.lib.nixosSystem {
-          system = "aarch64-linux";
-          specialArgs = { inherit inputs username; };
-          modules = [
-            ./hosts/omarchy-vm/default.nix
-            home-manager.nixosModules.home-manager
-            {
-              home-manager = {
-                useGlobalPkgs = true;
-                useUserPackages = true;
-                users.dev = import ./hosts/omarchy-vm/home.nix;
-                extraSpecialArgs = { inherit inputs username; };
-              };
-            }
-          ];
-        };
       };
 
       # Standalone home-manager configurations (for non-NixOS systems)
       homeConfigurations = {
-        # Omarchy (Arch Linux + Hyprland) with nix-me configs layered on top
-        "omarchy" = home-manager.lib.homeManagerConfiguration {
-          pkgs = nixpkgs.legacyPackages.x86_64-linux;
-          modules = [
-            ./home-configurations/omarchy.nix
-            {
-              home.username = "dev";
-              home.homeDirectory = "/home/dev";
-            }
-          ];
-          extraSpecialArgs = { inherit inputs username; };
-        };
-
-        # Omarchy for aarch64 (Apple Silicon VMs)
-        "omarchy-aarch64" = home-manager.lib.homeManagerConfiguration {
-          pkgs = nixpkgs.legacyPackages.aarch64-linux;
-          modules = [
-            ./home-configurations/omarchy.nix
-            {
-              home.username = "dev";
-              home.homeDirectory = "/home/dev";
-            }
-          ];
-          extraSpecialArgs = { inherit inputs username; };
-        };
       };
 
       # packages = {
