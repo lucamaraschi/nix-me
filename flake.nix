@@ -117,6 +117,14 @@
           machineName = "MacBook Air";
         };
 
+        # MacBook Pro configurations
+        "bellerofonte" = mkDarwinSystem {
+          hostname = "bellerofonte";
+          machineType = "macbook-pro";
+          machineName = "Bellerofonte";
+          username = "batman";
+        };
+
         # Mac Mini configurations
         "mac-mini" = mkDarwinSystem {
           hostname = "mac-mini";
