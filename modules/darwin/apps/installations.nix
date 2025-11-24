@@ -246,7 +246,7 @@ in
         else config.apps.baseCasks  # Use base list as default
       );
       
-      brews = lib.mkDefault (
+      brews = (
         if config.apps.useBaseLists
         then (lib.subtractLists config.apps.brewsToRemove config.apps.baseBrews) ++ config.apps.brewsToAdd
         else config.apps.baseBrews  # Use base list as default

@@ -164,7 +164,7 @@ export function Dashboard({ systemInfo }: DashboardProps) {
               <Box marginTop={1}>
                 <Text bold color="blue">[i]</Text>
                 <Text> Inspector        </Text>
-                <Text dimColor>- View detailed package and config info</Text>
+                <Text dimColor>- File tree, dependencies, packages</Text>
               </Box>
               <Box marginTop={1}>
                 <Text bold color="red">[q]</Text>

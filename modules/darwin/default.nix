@@ -2,10 +2,10 @@
 
 {
   imports = [
+    ./apps  # Uses apps/default.nix which imports all app modules
     ./core.nix
     ./display.nix
     ./fonts.nix
-    ./homebrew.nix
     ./keyboard.nix
     ./shell.nix
     ./system.nix
