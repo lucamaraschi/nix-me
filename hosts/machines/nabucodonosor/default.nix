@@ -6,7 +6,7 @@
 
   imports = [
     # Import MacBook base configuration
-    ../macbook/default.nix
+    ../../types/macbook/default.nix
   ];
 
   # Nabucodonosor-specific customizations

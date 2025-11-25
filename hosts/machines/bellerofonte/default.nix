@@ -6,7 +6,7 @@
 
   imports = [
     # Import MacBook Pro base configuration
-    ../macbook-pro/default.nix
+    ../../types/macbook-pro/default.nix
   ];
 
   # Bellerofonte-specific customizations
