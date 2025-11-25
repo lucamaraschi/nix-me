@@ -1,0 +1,32 @@
+{
+  // Nix configuration for VS Code
+  // Ensures VS Code can find Nix binaries (nix-instantiate, etc.)
+
+  // Set PATH for integrated terminal and tasks
+  "terminal.integrated.env.osx": {
+    "PATH": "/nix/var/nix/profiles/default/bin:${env:HOME}/.nix-profile/bin:/etc/profiles/per-user/${env:USER}/bin:/run/current-system/sw/bin:/opt/homebrew/bin:${env:PATH}"
+  },
+
+  // Nix IDE extension settings (if installed)
+  "nix.enableLanguageServer": true,
+  "nix.serverPath": "nil",
+  "nix.serverSettings": {
+    "nil": {
+      "formatting": {
+        "command": ["nixpkgs-fmt"]
+      }
+    }
+  },
+
+  // File associations
+  "files.associations": {
+    "*.nix": "nix",
+    "flake.lock": "json"
+  },
+
+  // Format on save for Nix files
+  "[nix]": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "jnoortheen.nix-ide"
+  }
+}
