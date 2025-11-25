@@ -60,13 +60,17 @@ Check that the PATH is set correctly:
 
 ## Language Server
 
-The configuration uses `nil` as the Nix language server. To install it:
+The configuration uses `nil` as the Nix language server.
 
-```bash
-# Already included in base configuration via systemPackages
-# or install via:
-nix-env -iA nixpkgs.nil
-```
+**On Fresh Install:**
+- `nil` is automatically installed via `modules/darwin/apps/installations.nix`
+- VS Code is configured to use the absolute path: `/run/current-system/sw/bin/nil`
+- No additional configuration needed - it just works!
+
+**Path Configuration:**
+- Uses absolute path to avoid PATH issues
+- `/run/current-system/sw/bin/` is where nix-darwin places system packages
+- Works immediately after `make switch` without VS Code restart
 
 ## Formatting
 
