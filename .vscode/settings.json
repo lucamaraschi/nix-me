@@ -8,8 +8,10 @@
   },
 
   // Nix IDE extension settings (if installed)
+  // Note: Run 'make switch' to install nil language server
   "nix.enableLanguageServer": true,
   "nix.serverPath": "nil",
+  "nix.formatterPath": "nixpkgs-fmt",
   "nix.serverSettings": {
     "nil": {
       "formatting": {
