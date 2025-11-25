@@ -123,6 +123,9 @@
           machineType = "macbook-pro";
           machineName = "Bellerofonte";
           username = "batman";
+          extraModules = [
+            ./hosts/profiles/work.nix
+          ];
         };
 
         # Mac Mini configurations
