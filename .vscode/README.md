@@ -80,6 +80,52 @@ To manually format:
 - `Shift+Alt+F` (Format Document)
 - Or save the file (auto-formats)
 
+## GitHub Pull Requests Extension
+
+### "Access Denied" Error
+
+If you get an "access denied" error from the GitHub Pull Requests extension:
+
+**Solution 1: Re-authenticate in VS Code**
+
+1. Open Command Palette: `Cmd+Shift+P`
+2. Type: `GitHub: Sign Out`
+3. Sign out if prompted
+4. Then type: `GitHub: Sign In`
+5. Choose "Sign in with GitHub"
+6. Complete authentication in browser
+7. Authorize "Visual Studio Code" application
+
+**Solution 2: Use GitHub CLI Authentication**
+
+The GitHub CLI (`gh`) is already authenticated on your system. To use it with VS Code:
+
+1. Make sure you're logged in: `gh auth status`
+2. VS Code should automatically detect and use `gh` credentials
+3. If not, try: `gh auth refresh -s repo,workflow,read:org`
+
+**Solution 3: Check Token Scopes**
+
+The extension needs these scopes:
+- `repo` (full control of private repositories)
+- `read:org` (read organization data)
+- `workflow` (update GitHub Actions workflows)
+
+To refresh with correct scopes:
+```bash
+gh auth refresh -s repo,workflow,read:org,gist
+```
+
+**Solution 4: SSH Configuration**
+
+The project uses SSH for Git operations. Ensure:
+
+1. SSH keys are added to GitHub account
+2. If using 1Password SSH agent, it's configured correctly
+3. Test SSH: `ssh -T git@github.com`
+
+See `modules/home-manager/ssh.nix` for SSH configuration.
+
 ## Troubleshooting
 
 ### Extension still can't find nix-instantiate
