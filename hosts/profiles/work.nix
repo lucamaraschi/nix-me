@@ -9,25 +9,25 @@
 
     # Add work-specific applications
     casksToAdd = [
-      # Communication
+      # Communication & Collaboration
+      "linear-linear"
+      "loom"
       "microsoft-teams"
+      "miro"
       "slack"
       "zoom"
 
       # Productivity
       "microsoft-office"
-      "linear-linear"
+      "notion"
 
-      # Development (work tools)
-      "docker-desktop"
-      "visual-studio-code"
-      "postman"
+      # Creative tools
+      "figma"
     ];
 
     # Remove personal apps
     casksToRemove = [
-      "spotify"
-      "obs"
+
     ];
 
     # Add work CLI tools
@@ -36,6 +36,7 @@
       "kubectl"
       "helm"
       "awscli2"
+      "k3d"
     ];
   };
 

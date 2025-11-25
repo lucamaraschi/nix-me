@@ -12,7 +12,7 @@
   system.defaults = {
     # MacBook Pro typically has larger display
     dock = {
-      tilesize = lib.mkForce 36; # Slightly larger than regular MacBook
+      tilesize = lib.mkForce 32; # Slightly larger than regular MacBook
     };
 
     # More performance-oriented settings
