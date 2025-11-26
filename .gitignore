@@ -19,6 +19,7 @@ result-*
 .vscode/.history/
 .idea/
 .claude/
+!.claude/settings.json
 
 # Temporary files
 *.tmp

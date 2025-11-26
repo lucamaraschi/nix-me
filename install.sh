@@ -611,6 +611,15 @@ main() {
     mkdir -p ~/.config/nix
     echo "experimental-features = nix-command flakes" > ~/.config/nix/nix.conf
 
+    # Configure Claude Code settings
+    log "Configuring Claude Code settings..."
+    mkdir -p ~/.claude
+    cat > ~/.claude/settings.json <<'EOF'
+{
+  "includeCoAuthoredBy": false
+}
+EOF
+
     # Build and activate
     log "Building system configuration (this may take 15-30 minutes)..."
     # Export USERNAME for flake.nix to read (with --impure flag)
