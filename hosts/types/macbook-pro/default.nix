@@ -12,7 +12,7 @@
   system.defaults = {
     # MacBook Pro typically has larger display
     dock = {
-      tilesize = lib.mkForce 36; # Slightly larger than regular MacBook
+      tilesize = lib.mkForce 32; # Slightly larger than regular MacBook
     };
 
     # More performance-oriented settings
@@ -45,10 +45,12 @@
 
   # MacBook Pro typically has more resources, can handle more dev tools
   apps = {
+    # Add development packages via Nix
     systemPackagesToAdd = [
-      # Pro development tools
-      "docker"
-      "kubernetes-helm"
+      "kubernetes-helm"  # Helm CLI via Nix
     ];
+
+    # Note: docker-desktop is already in base installations.nix
+    # Additional Pro-specific tools can be added here as needed
   };
 }

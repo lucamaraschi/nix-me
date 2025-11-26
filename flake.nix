@@ -37,14 +37,14 @@
           inherit system;
           modules = [
             # Base shared configuration
-            ./hosts/shared
+            ./hosts/types/shared
 
             # Machine-type specific configuration (if specified)
-            (if machineType != null then ./hosts/${machineType} else {})
+            (if machineType != null then ./hosts/types/${machineType} else {})
 
             # Host-specific configuration (if it exists)
-            (if builtins.pathExists ./hosts/${hostname}
-            then ./hosts/${hostname}
+            (if builtins.pathExists ./hosts/machines/${hostname}
+            then ./hosts/machines/${hostname}
             else {})
 
             # Set hostname, machine name, and primary user
@@ -109,12 +109,26 @@
           machineType = "macbook";
           machineName = "Nabucodonosor";
           username = "batman";
+          extraModules = [
+            ./hosts/profiles/work.nix
+          ];
         };
 
         "macbook-air" = mkDarwinSystem {
           hostname = "macbook-air";
           machineType = "macbook";
           machineName = "MacBook Air";
+        };
+
+        # MacBook Pro configurations
+        "bellerofonte" = mkDarwinSystem {
+          hostname = "bellerofonte";
+          machineType = "macbook-pro";
+          machineName = "Bellerofonte";
+          username = "batman";
+          extraModules = [
+            ./hosts/profiles/work.nix
+          ];
         };
 
         # Mac Mini configurations
@@ -193,13 +207,13 @@
           system = "aarch64-linux";
           specialArgs = { inherit inputs username; };
           modules = [
-            ./hosts/nixos-vm/default.nix
+            ./hosts/machines/nixos-vm/default.nix
             home-manager.nixosModules.home-manager
             {
               home-manager = {
                 useGlobalPkgs = true;
                 useUserPackages = true;
-                users.dev = import ./hosts/nixos-vm/home.nix;
+                users.dev = import ./hosts/machines/nixos-vm/home.nix;
                 extraSpecialArgs = { inherit inputs username; };
               };
             }

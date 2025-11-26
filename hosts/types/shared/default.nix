@@ -3,7 +3,7 @@
 {
   # Import common modules
   imports = [
-    ../../modules/darwin/default.nix
+    ../../../modules/darwin/default.nix
   ];
 
   # Base system configuration

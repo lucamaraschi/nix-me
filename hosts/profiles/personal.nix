@@ -12,11 +12,6 @@
       # Entertainment
       "spotify"
       "obs"
-      "steam"
-
-      # Creative tools
-      "adobe-creative-cloud"
-      "figma"
 
       # Personal productivity
       "notion"
@@ -25,9 +20,6 @@
 
     # Remove work-specific apps
     casksToRemove = [
-      "microsoft-teams"
-      "microsoft-office"
-      "linear-linear"
     ];
 
     # Add personal tools
