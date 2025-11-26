@@ -109,6 +109,9 @@
           machineType = "macbook";
           machineName = "Nabucodonosor";
           username = "batman";
+          extraModules = [
+            ./hosts/profiles/work.nix
+          ];
         };
 
         "macbook-air" = mkDarwinSystem {
