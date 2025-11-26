@@ -15,7 +15,8 @@ result-*
 *.swp
 *.swo
 *~
-.vscode/
+.vscode/*.code-workspace
+.vscode/.history/
 .idea/
 .claude/
 

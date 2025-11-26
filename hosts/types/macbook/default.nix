@@ -34,7 +34,7 @@
 
   # Import the HiddenBar module
   imports = [
-    ../../modules/darwin/apps/hiddenbar.nix
+    ../../../modules/darwin/apps/hiddenbar.nix
   ];
 
   # MacBook-specific HiddenBar overrides
