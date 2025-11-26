@@ -1,0 +1,7 @@
+{
+  "recommendations": [
+    "jnoortheen.nix-ide",
+    "github.vscode-pull-request-github",
+    "editorconfig.editorconfig"
+  ]
+}

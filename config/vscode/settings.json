@@ -1,0 +1,13 @@
+{
+  "terminal.integrated.env.osx": {
+    "PATH": "/nix/var/nix/profiles/default/bin:${env:HOME}/.nix-profile/bin:/etc/profiles/per-user/${env:USER}/bin:/run/current-system/sw/bin:/opt/homebrew/bin:${env:PATH}"
+  },
+  "nix.enableLanguageServer": true,
+  "nix.serverPath": "/run/current-system/sw/bin/nil",
+  "nix.formatterPath": ["/run/current-system/sw/bin/nixpkgs-fmt"],
+  "github.gitProtocol": "ssh",
+  "[nix]": {
+    "editor.defaultFormatter": "jnoortheen.nix-ide",
+    "editor.formatOnSave": true
+  }
+}

@@ -620,6 +620,14 @@ main() {
 }
 EOF
 
+    # Configure VS Code workspace settings
+    if [ -d "${REPO_DIR}/config/vscode" ]; then
+        log "Configuring VS Code workspace settings..."
+        mkdir -p "${REPO_DIR}/.vscode"
+        cp -r "${REPO_DIR}/config/vscode/"* "${REPO_DIR}/.vscode/"
+        print_success "VS Code configuration installed"
+    fi
+
     # Build and activate
     log "Building system configuration (this may take 15-30 minutes)..."
     # Export USERNAME for flake.nix to read (with --impure flag)
