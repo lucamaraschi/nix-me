@@ -30,17 +30,21 @@ get_hostname() {
 
 # Get currently installed Homebrew formulas (CLI tools)
 get_current_brews() {
-    brew list --formula 2>/dev/null | sort || echo ""
+    /opt/homebrew/bin/brew list --formula 2>/dev/null | sort || echo ""
 }
 
 # Get currently installed Homebrew casks (GUI apps)
 get_current_casks() {
-    brew list --cask 2>/dev/null | sort || echo ""
+    /opt/homebrew/bin/brew list --cask 2>/dev/null | sort || echo ""
 }
 
-# Get currently installed Nix packages
+# Get currently installed Nix packages from system profile
 get_current_nix_packages() {
-    nix-env -q 2>/dev/null | sort || echo ""
+    # Query the actual darwin system profile, not user nix-env
+    nix-store --query --references /run/current-system/sw 2>/dev/null | \
+        while read path; do basename "$path"; done | \
+        sed 's/^[^-]*-//' | \
+        sort -u || echo ""
 }
 
 # Build Nix expression to query actual packages
@@ -69,16 +73,16 @@ get_nix_evaluated_packages() {
 
     case "$package_type" in
         "brews"|"casks")
-            # Homebrew packages have .name field
+            # Homebrew packages have .name field, deduplicate
             nix eval --impure --json -f /tmp/nix-me-query.nix "$package_type" 2>/dev/null | \
                 jq -r '.[].name' 2>/dev/null | \
-                sort || echo ""
+                sort -u || echo ""
             ;;
         "systemPackages")
-            # System packages are already strings
+            # System packages are already strings, deduplicate
             nix eval --impure --json -f /tmp/nix-me-query.nix "$package_type" 2>/dev/null | \
                 jq -r '.[]' 2>/dev/null | \
-                sort || echo ""
+                sort -u || echo ""
             ;;
     esac
 }
