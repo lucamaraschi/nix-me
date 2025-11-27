@@ -183,9 +183,8 @@ get_pkg_version() {
     echo "$1" | awk '{print $2}'
 }
 
-# Check and prompt for flake input updates (returns 0 if updated, 1 if not)
-check_and_update_flake() {
-    echo -e "${YELLOW}→${NC} Checking for flake input updates..."
+# Check for flake input updates (returns 0 if updates available, 1 if not)
+check_flake_updates() {
     cd "$REPO_DIR"
 
     # Get current nixpkgs revision
@@ -203,28 +202,21 @@ check_and_update_flake() {
         echo -e "    ${DIM}Current: $current_rev${NC}"
         echo -e "    ${DIM}Latest:  $latest_rev${NC}"
         echo ""
-        echo -e "${BOLD}${YELLOW}Update flake inputs now?${NC} ${DIM}(y/N)${NC} "
-        read -r response
-
-        if [[ "$response" =~ ^[Yy]$ ]]; then
-            echo ""
-            echo -e "${GREEN}→${NC} Updating flake inputs..."
-            nix flake update
-            echo -e "${GREEN}✓${NC} ${DIM}Flake inputs updated${NC}"
-            echo ""
-            return 0
-        else
-            echo -e "${YELLOW}→${NC} ${DIM}Skipping flake update${NC}"
-            echo ""
-        fi
+        return 0
     fi
     return 1
 }
 
-# Check and prompt for Homebrew package upgrades (returns 0 if upgraded, 1 if not)
-check_and_upgrade_brew() {
-    echo -e "${YELLOW}→${NC} Checking for Homebrew upgrades..."
+# Apply flake updates
+apply_flake_updates() {
+    echo -e "${GREEN}→${NC} Updating flake inputs..."
+    cd "$REPO_DIR"
+    nix flake update
+    echo -e "${GREEN}✓${NC} ${DIM}Flake inputs updated${NC}"
+}
 
+# Check for Homebrew package upgrades (returns 0 if upgrades available, 1 if not)
+check_brew_upgrades() {
     # Get outdated formulas
     local outdated_brews=$(/opt/homebrew/bin/brew outdated --formula --quiet 2>/dev/null | sort)
     local outdated_casks=$(/opt/homebrew/bin/brew outdated --cask --greedy --quiet 2>/dev/null | sort)
@@ -258,22 +250,16 @@ check_and_upgrade_brew() {
             echo ""
         fi
 
-        echo -e "${BOLD}${YELLOW}Upgrade Homebrew packages now?${NC} ${DIM}(y/N)${NC} "
-        read -r response
-
-        if [[ "$response" =~ ^[Yy]$ ]]; then
-            echo ""
-            echo -e "${GREEN}→${NC} Upgrading Homebrew packages..."
-            /opt/homebrew/bin/brew upgrade
-            echo -e "${GREEN}✓${NC} ${DIM}Homebrew packages upgraded${NC}"
-            echo ""
-            return 0
-        else
-            echo -e "${YELLOW}→${NC} ${DIM}Skipping Homebrew upgrade${NC}"
-            echo ""
-        fi
+        return 0
     fi
     return 1
+}
+
+# Apply Homebrew upgrades
+apply_brew_upgrades() {
+    echo -e "${GREEN}→${NC} Upgrading Homebrew packages..."
+    /opt/homebrew/bin/brew upgrade
+    echo -e "${GREEN}✓${NC} ${DIM}Homebrew packages upgraded${NC}"
 }
 
 # Compare versions and detect upgrades
@@ -464,15 +450,24 @@ interactive_diff() {
     echo -e "${BOLD}${BLUE}╚═══════════════════════════════════════════════════════════╝${NC}"
     echo ""
 
-    # Step 1: Check and offer to update flake inputs
-    check_and_update_flake
-    local flake_updated=$?
+    # Track what needs to be done
+    local has_flake_updates=false
+    local has_brew_upgrades=false
+    local has_config_changes=false
 
-    # Step 2: Check and offer to upgrade Homebrew packages
-    check_and_upgrade_brew
-    local brew_upgraded=$?
+    # Step 1: Check for flake updates (show only)
+    echo -e "${YELLOW}→${NC} Checking for flake input updates..."
+    if check_flake_updates; then
+        has_flake_updates=true
+    fi
 
-    # Step 3: Show the diff (now reflects updated state)
+    # Step 2: Check for Homebrew upgrades (show only)
+    echo -e "${YELLOW}→${NC} Checking for Homebrew upgrades..."
+    if check_brew_upgrades; then
+        has_brew_upgrades=true
+    fi
+
+    # Step 3: Show config diff
     echo -e "${YELLOW}→${NC} Fetching latest from GitHub..."
     cd "$REPO_DIR"
     git fetch origin main --quiet 2>/dev/null || true
@@ -516,32 +511,91 @@ interactive_diff() {
     # Build package source map for faster lookups
     build_package_source_map "$hostname" "nix"
 
-    # Show diffs
-    compare_packages "$current_brews" "$new_brews" "🍺 Homebrew Formulas (CLI Tools)" "true" "$hostname" "brews"
-    compare_packages "$current_casks" "$new_casks" "📦 Homebrew Casks (GUI Apps)" "true" "$hostname" "casks"
-    compare_packages "$current_nix" "$new_nix" "❄️  Nix System Packages" "false" "$hostname" "nix"
+    # Show diffs and check if there are config changes
+    local config_output=$(mktemp)
+    compare_packages "$current_brews" "$new_brews" "🍺 Homebrew Formulas (CLI Tools)" "true" "$hostname" "brews" | tee "$config_output"
+    if grep -q "Will Install\|Will Remove\|Will Upgrade" "$config_output"; then
+        has_config_changes=true
+    fi
 
-    # Summary footer
+    compare_packages "$current_casks" "$new_casks" "📦 Homebrew Casks (GUI Apps)" "true" "$hostname" "casks" | tee "$config_output"
+    if grep -q "Will Install\|Will Remove\|Will Upgrade" "$config_output"; then
+        has_config_changes=true
+    fi
+
+    compare_packages "$current_nix" "$new_nix" "❄️  Nix System Packages" "false" "$hostname" "nix" | tee "$config_output"
+    if grep -q "Will Install\|Will Remove\|Will Upgrade" "$config_output"; then
+        has_config_changes=true
+    fi
+    rm -f "$config_output"
+
+    # Step 4: Show summary of all actions
     echo ""
-    echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════${NC}"
+    echo -e "${BOLD}${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${BOLD}${CYAN}║  📋 Summary of Changes                                    ║${NC}"
+    echo -e "${BOLD}${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
     echo ""
 
-    # Step 4: Prompt to apply configuration changes
-    echo -e "${BOLD}${YELLOW}Apply these configuration changes?${NC} ${DIM}(y/N)${NC} "
+    local action_count=0
+
+    if [[ "$has_flake_updates" = true ]]; then
+        ((action_count++))
+        echo -e "  ${YELLOW}[$action_count]${NC} Update flake inputs (nixpkgs)"
+    fi
+
+    if [[ "$has_brew_upgrades" = true ]]; then
+        ((action_count++))
+        echo -e "  ${YELLOW}[$action_count]${NC} Upgrade Homebrew packages"
+    fi
+
+    if [[ "$has_config_changes" = true ]]; then
+        ((action_count++))
+        echo -e "  ${YELLOW}[$action_count]${NC} Apply nix-darwin configuration changes"
+    fi
+
+    if [[ $action_count -eq 0 ]]; then
+        echo -e "  ${GREEN}✓${NC} ${DIM}System is up to date - no changes needed${NC}"
+        echo ""
+        rm -f /tmp/nix-me-query.nix
+        return 0
+    fi
+
+    echo ""
+    echo -e "${BOLD}${YELLOW}Apply all changes above?${NC} ${DIM}(y/N)${NC} "
     read -r response
 
     if [[ "$response" =~ ^[Yy]$ ]]; then
         echo ""
-        echo -e "${GREEN}→${NC} Pulling latest changes..."
-        cd "$REPO_DIR"
-        git pull origin main --quiet
+        echo -e "${BOLD}${BLUE}Applying changes...${NC}"
+        echo ""
 
-        echo -e "${GREEN}→${NC} Applying configuration..."
-        if [[ -f "$REPO_DIR/Makefile" ]]; then
-            make switch
-        else
-            darwin-rebuild switch --flake ".#$(get_hostname)"
+        # Apply in order
+        if [[ "$has_flake_updates" = true ]]; then
+            apply_flake_updates
+            echo ""
         fi
+
+        if [[ "$has_brew_upgrades" = true ]]; then
+            apply_brew_upgrades
+            echo ""
+        fi
+
+        if [[ "$has_config_changes" = true ]]; then
+            echo -e "${GREEN}→${NC} Pulling latest changes..."
+            cd "$REPO_DIR"
+            git pull origin main --quiet
+            echo -e "${GREEN}✓${NC} ${DIM}Pulled latest${NC}"
+
+            echo -e "${GREEN}→${NC} Applying nix-darwin configuration..."
+            if [[ -f "$REPO_DIR/Makefile" ]]; then
+                make switch
+            else
+                darwin-rebuild switch --flake ".#$(get_hostname)"
+            fi
+        fi
+
+        echo ""
+        echo -e "${GREEN}✓${NC} ${BOLD}All changes applied successfully!${NC}"
     else
         echo -e "${YELLOW}✗${NC} ${DIM}Cancelled - no changes applied${NC}"
     fi
