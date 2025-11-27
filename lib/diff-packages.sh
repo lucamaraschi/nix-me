@@ -90,6 +90,88 @@ get_pkg_version() {
     echo "$1" | awk '{print $2}'
 }
 
+# Check for flake input updates
+check_flake_updates() {
+    echo -e "${YELLOW}→${NC} Checking for flake input updates..."
+    cd "$REPO_DIR"
+
+    # Get current flake lock info
+    local current_inputs=$(nix flake metadata --json 2>/dev/null | jq -r '.locks.nodes.root.inputs | keys[]' 2>/dev/null)
+
+    # Check for updates without actually updating
+    local update_output=$(nix flake lock --update-input nixpkgs --dry-run 2>&1 || echo "")
+
+    # Check if there are updates by comparing lock file
+    if git diff --quiet flake.lock 2>/dev/null; then
+        # Try a different approach - compare current and latest revisions
+        local has_updates=false
+
+        # Get current nixpkgs revision
+        local current_rev=$(nix flake metadata --json 2>/dev/null | jq -r '.locks.nodes.nixpkgs.locked.rev' 2>/dev/null | cut -c1-7)
+
+        # Get latest nixpkgs revision
+        local latest_rev=$(nix flake metadata github:NixOS/nixpkgs/nixpkgs-unstable --json 2>/dev/null | jq -r '.revision' 2>/dev/null | cut -c1-7)
+
+        if [[ -n "$current_rev" && -n "$latest_rev" && "$current_rev" != "$latest_rev" ]]; then
+            has_updates=true
+            echo -e "${BOLD}${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${BOLD}${MAGENTA}║  📦 Flake Input Updates Available                         ║${NC}"
+            echo -e "${BOLD}${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+            echo ""
+            echo -e "  ${YELLOW}${BOLD}↑ nixpkgs${NC}"
+            echo -e "    ${DIM}Current: $current_rev${NC}"
+            echo -e "    ${DIM}Latest:  $latest_rev${NC}"
+            echo ""
+            echo -e "  ${DIM}Run 'nix flake update' to update inputs${NC}"
+            echo ""
+        fi
+
+        return 0
+    fi
+}
+
+# Check for Homebrew package upgrades
+check_brew_upgrades() {
+    echo -e "${YELLOW}→${NC} Checking for Homebrew upgrades..."
+
+    # Get outdated formulas
+    local outdated_brews=$(/opt/homebrew/bin/brew outdated --formula --quiet 2>/dev/null | sort)
+    local outdated_casks=$(/opt/homebrew/bin/brew outdated --cask --greedy --quiet 2>/dev/null | sort)
+
+    local brew_count=$(echo "$outdated_brews" | grep -v '^$' | wc -l | tr -d ' ')
+    local cask_count=$(echo "$outdated_casks" | grep -v '^$' | wc -l | tr -d ' ')
+
+    if [[ "$brew_count" -gt 0 || "$cask_count" -gt 0 ]]; then
+        echo -e "${BOLD}${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${BOLD}${MAGENTA}║  ⚡ Homebrew Upgrades Available                           ║${NC}"
+        echo -e "${BOLD}${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+        echo ""
+
+        if [[ "$brew_count" -gt 0 ]]; then
+            echo -e "  ${YELLOW}${BOLD}↑ Formulas ($brew_count):${NC}"
+            echo "$outdated_brews" | grep -v '^$' | while read pkg; do
+                local current_ver=$(/opt/homebrew/bin/brew list --versions "$pkg" 2>/dev/null | awk '{print $2}')
+                local latest_ver=$(/opt/homebrew/bin/brew info --json=v2 "$pkg" 2>/dev/null | jq -r '.formulae[0].versions.stable' 2>/dev/null)
+                echo -e "    ${YELLOW}↑${NC} $pkg ${DIM}($current_ver → $latest_ver)${NC}"
+            done
+            echo ""
+        fi
+
+        if [[ "$cask_count" -gt 0 ]]; then
+            echo -e "  ${YELLOW}${BOLD}↑ Casks ($cask_count):${NC}"
+            echo "$outdated_casks" | grep -v '^$' | while read pkg; do
+                local current_ver=$(/opt/homebrew/bin/brew list --cask --versions "$pkg" 2>/dev/null | awk '{print $2}')
+                local latest_ver=$(/opt/homebrew/bin/brew info --cask --json=v2 "$pkg" 2>/dev/null | jq -r '.casks[0].version' 2>/dev/null)
+                echo -e "    ${YELLOW}↑${NC} $pkg ${DIM}($current_ver → $latest_ver)${NC}"
+            done
+            echo ""
+        fi
+
+        echo -e "  ${DIM}Run 'brew upgrade' to upgrade packages${NC}"
+        echo ""
+    fi
+}
+
 # Compare versions and detect upgrades
 compare_packages() {
     local current_list="$1"
@@ -237,6 +319,10 @@ show_diff() {
     compare_packages "$current_brews" "$new_brews" "🍺 Homebrew Formulas (CLI Tools)" "true"
     compare_packages "$current_casks" "$new_casks" "📦 Homebrew Casks (GUI Apps)" "true"
     compare_packages "$current_nix" "$new_nix" "❄️  Nix System Packages" "false"
+
+    # Check for available upgrades
+    check_flake_updates
+    check_brew_upgrades
 
     # Summary footer
     echo ""
