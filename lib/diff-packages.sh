@@ -539,17 +539,17 @@ interactive_diff() {
     local action_count=0
 
     if [[ "$has_flake_updates" = true ]]; then
-        ((action_count++))
+        action_count=$((action_count + 1))
         echo -e "  ${YELLOW}[$action_count]${NC} Update flake inputs (nixpkgs)"
     fi
 
     if [[ "$has_brew_upgrades" = true ]]; then
-        ((action_count++))
+        action_count=$((action_count + 1))
         echo -e "  ${YELLOW}[$action_count]${NC} Upgrade Homebrew packages"
     fi
 
     if [[ "$has_config_changes" = true ]]; then
-        ((action_count++))
+        action_count=$((action_count + 1))
         echo -e "  ${YELLOW}[$action_count]${NC} Apply nix-darwin configuration changes"
     fi
 
