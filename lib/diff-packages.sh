@@ -131,7 +131,36 @@ EOF
     rm -f /tmp/nix-me-module-query.nix
 }
 
-# Detect which config layers contribute packages
+# Build package source map (pre-compute for performance)
+build_package_source_map() {
+    local hostname="$1"
+    local package_type="$2"
+
+    declare -gA PACKAGE_SOURCE_MAP
+
+    local shared_packages_path="$REPO_DIR/modules/shared/packages.nix"
+    local darwin_modules_path="$REPO_DIR/modules/darwin"
+    local host_path="$REPO_DIR/hosts/$hostname/default.nix"
+
+    # Build map based on package type (only for nix packages)
+    if [[ "$package_type" == "nix" ]]; then
+        # Extract packages from shared
+        if [[ -f "$shared_packages_path" ]]; then
+            while IFS= read -r pkg; do
+                [[ -n "$pkg" ]] && PACKAGE_SOURCE_MAP["$pkg"]="${PACKAGE_SOURCE_MAP[$pkg]:+${PACKAGE_SOURCE_MAP[$pkg]},}shared"
+            done < <(grep "pkgs\." "$shared_packages_path" 2>/dev/null | sed -n 's/.*pkgs\.\([a-zA-Z0-9_-]*\).*/\1/p')
+        fi
+
+        # Extract packages from darwin modules
+        if [[ -d "$darwin_modules_path" ]]; then
+            while IFS= read -r pkg; do
+                [[ -n "$pkg" ]] && PACKAGE_SOURCE_MAP["$pkg"]="${PACKAGE_SOURCE_MAP[$pkg]:+${PACKAGE_SOURCE_MAP[$pkg]},}darwin"
+            done < <(grep -r "pkgs\." "$darwin_modules_path" 2>/dev/null | sed -n 's/.*pkgs\.\([a-zA-Z0-9_-]*\).*/\1/p' | sort -u)
+        fi
+    fi
+}
+
+# Detect which config layers contribute a package
 detect_package_sources() {
     local hostname="$1"
     local package="$2"
@@ -140,47 +169,8 @@ detect_package_sources() {
     # Strip version from package name (e.g., "jq-1.8.1" -> "jq")
     local package_name=$(echo "$package" | sed 's/-[0-9].*//')
 
-    local sources=()
-
-    # Check common locations
-    local shared_packages_path="$REPO_DIR/modules/shared/packages.nix"
-    local darwin_modules_path="$REPO_DIR/modules/darwin"
-    local host_path="$REPO_DIR/hosts/$hostname/default.nix"
-
-    # Try to detect profile from host config
-    local profile=$(grep -r "hosts/profiles" "$host_path" 2>/dev/null | sed -n 's/.*profiles\/\([^/]*\)\.nix.*/\1/p' | head -1)
-    local profile_path=""
-    if [[ -n "$profile" ]]; then
-        profile_path="$REPO_DIR/hosts/profiles/$profile.nix"
-    fi
-
-    # Check each layer (search for package name in files)
-    if [[ "$package_type" == "nix" ]]; then
-        # Search in shared packages
-        [[ -f "$shared_packages_path" ]] && grep -q "pkgs\.$package_name" "$shared_packages_path" 2>/dev/null && sources+=("shared")
-
-        # Search in darwin modules
-        [[ -d "$darwin_modules_path" ]] && grep -r -q "pkgs\.$package_name" "$darwin_modules_path" 2>/dev/null && sources+=("darwin")
-
-        # Search in profile
-        [[ -n "$profile_path" && -f "$profile_path" ]] && grep -q "pkgs\.$package_name" "$profile_path" 2>/dev/null && sources+=("$profile")
-
-        # Search in host-specific config
-        grep -q "pkgs\.$package_name" "$host_path" 2>/dev/null && sources+=("$hostname")
-    else
-        # For brew/casks, search more specifically
-        [[ -f "$shared_packages_path" ]] && grep -q "\"$package_name\"" "$shared_packages_path" 2>/dev/null && sources+=("shared")
-        [[ -d "$darwin_modules_path" ]] && grep -r -q "\"$package_name\"" "$darwin_modules_path" 2>/dev/null && sources+=("darwin")
-        [[ -n "$profile_path" && -f "$profile_path" ]] && grep -q "\"$package_name\"" "$profile_path" 2>/dev/null && sources+=("$profile")
-        grep -q "\"$package_name\"" "$host_path" 2>/dev/null && sources+=("$hostname")
-    fi
-
-    # Return comma-separated sources
-    if [[ ${#sources[@]} -gt 0 ]]; then
-        echo "${sources[*]}" | tr ' ' ','
-    else
-        echo ""
-    fi
+    # Look up in pre-built map
+    echo "${PACKAGE_SOURCE_MAP[$package_name]}"
 }
 
 # Extract package name without version
@@ -431,6 +421,9 @@ show_diff() {
     [[ "$had_changes" = true ]] && git stash pop --quiet 2>/dev/null
 
     echo -e "${GREEN}✓${NC} ${DIM}Analysis complete${NC}"
+
+    # Build package source map for faster lookups
+    build_package_source_map "$hostname" "nix"
 
     # Show diffs
     compare_packages "$current_brews" "$new_brews" "🍺 Homebrew Formulas (CLI Tools)" "true" "$hostname" "brews"
