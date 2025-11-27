@@ -30,6 +30,17 @@ get_hostname() {
     echo "$name" | tr '[:upper:]' '[:lower:]'
 }
 
+# Get current nix-darwin generation
+get_current_generation() {
+    if [ -L /run/current-system ]; then
+        local system_path=$(readlink /run/current-system)
+        local generation=$(basename "$system_path" | sed 's/system-//')
+        echo "$generation"
+    else
+        echo "unknown"
+    fi
+}
+
 # Get currently installed packages with versions
 get_current_brews() {
     /opt/homebrew/bin/brew list --formula --versions 2>/dev/null | sort || echo ""
@@ -78,6 +89,98 @@ get_nix_evaluated_packages() {
                 jq -r '.[]' 2>/dev/null | sort -u || echo ""
             ;;
     esac
+}
+
+# Query packages from a specific module/file
+get_packages_from_module() {
+    local hostname="$1"
+    local module_path="$2"
+    local package_type="$3"
+
+    # Create a Nix expression to evaluate just this module's packages
+    cat > /tmp/nix-me-module-query.nix <<EOF
+let
+  flake = builtins.getFlake "git+file://$REPO_DIR";
+  pkgs = flake.inputs.nixpkgs.legacyPackages.aarch64-darwin;
+
+  # Import the module
+  moduleImport = import $module_path;
+
+  # Evaluate the module
+  module = if builtins.isFunction moduleImport
+           then moduleImport { inherit pkgs; }
+           else moduleImport;
+
+  # Extract packages based on type
+  result =
+    if "$package_type" == "brews" then
+      (module.homebrew.brews or [])
+    else if "$package_type" == "casks" then
+      (module.homebrew.casks or [])
+    else if "$package_type" == "nix" then
+      (module.environment.systemPackages or [])
+    else [];
+in
+  if "$package_type" == "nix" then
+    map (pkg: pkg.name or pkg.pname or "unknown") result
+  else
+    map (item: item.name or item) result
+EOF
+
+    nix eval --impure --json -f /tmp/nix-me-module-query.nix 2>/dev/null | jq -r '.[]' 2>/dev/null | sort -u || echo ""
+    rm -f /tmp/nix-me-module-query.nix
+}
+
+# Detect which config layers contribute packages
+detect_package_sources() {
+    local hostname="$1"
+    local package="$2"
+    local package_type="$3"
+
+    # Strip version from package name (e.g., "jq-1.8.1" -> "jq")
+    local package_name=$(echo "$package" | sed 's/-[0-9].*//')
+
+    local sources=()
+
+    # Check common locations
+    local shared_packages_path="$REPO_DIR/modules/shared/packages.nix"
+    local darwin_modules_path="$REPO_DIR/modules/darwin"
+    local host_path="$REPO_DIR/hosts/$hostname/default.nix"
+
+    # Try to detect profile from host config
+    local profile=$(grep -r "hosts/profiles" "$host_path" 2>/dev/null | sed -n 's/.*profiles\/\([^/]*\)\.nix.*/\1/p' | head -1)
+    local profile_path=""
+    if [[ -n "$profile" ]]; then
+        profile_path="$REPO_DIR/hosts/profiles/$profile.nix"
+    fi
+
+    # Check each layer (search for package name in files)
+    if [[ "$package_type" == "nix" ]]; then
+        # Search in shared packages
+        [[ -f "$shared_packages_path" ]] && grep -q "pkgs\.$package_name" "$shared_packages_path" 2>/dev/null && sources+=("shared")
+
+        # Search in darwin modules
+        [[ -d "$darwin_modules_path" ]] && grep -r -q "pkgs\.$package_name" "$darwin_modules_path" 2>/dev/null && sources+=("darwin")
+
+        # Search in profile
+        [[ -n "$profile_path" && -f "$profile_path" ]] && grep -q "pkgs\.$package_name" "$profile_path" 2>/dev/null && sources+=("$profile")
+
+        # Search in host-specific config
+        grep -q "pkgs\.$package_name" "$host_path" 2>/dev/null && sources+=("$hostname")
+    else
+        # For brew/casks, search more specifically
+        [[ -f "$shared_packages_path" ]] && grep -q "\"$package_name\"" "$shared_packages_path" 2>/dev/null && sources+=("shared")
+        [[ -d "$darwin_modules_path" ]] && grep -r -q "\"$package_name\"" "$darwin_modules_path" 2>/dev/null && sources+=("darwin")
+        [[ -n "$profile_path" && -f "$profile_path" ]] && grep -q "\"$package_name\"" "$profile_path" 2>/dev/null && sources+=("$profile")
+        grep -q "\"$package_name\"" "$host_path" 2>/dev/null && sources+=("$hostname")
+    fi
+
+    # Return comma-separated sources
+    if [[ ${#sources[@]} -gt 0 ]]; then
+        echo "${sources[*]}" | tr ' ' ','
+    else
+        echo ""
+    fi
 }
 
 # Extract package name without version
@@ -178,6 +281,8 @@ compare_packages() {
     local new_list="$2"
     local label="$3"
     local show_versions="$4"  # true/false
+    local hostname="$5"
+    local package_type="$6"  # "brews", "casks", or "nix"
 
     declare -A current_packages new_packages
 
@@ -236,7 +341,12 @@ compare_packages() {
     if [[ ${#additions[@]} -gt 0 ]]; then
         echo -e "\n  ${GREEN}${BOLD}✓ Will Install (${#additions[@]}):${NC}"
         for pkg in "${additions[@]}"; do
-            echo -e "    ${GREEN}+${NC} $pkg"
+            local source=$(detect_package_sources "$hostname" "$pkg" "$package_type")
+            if [[ -n "$source" ]]; then
+                echo -e "    ${GREEN}+${NC} $pkg ${DIM}[$source]${NC}"
+            else
+                echo -e "    ${GREEN}+${NC} $pkg"
+            fi
         done
     fi
 
@@ -252,7 +362,12 @@ compare_packages() {
     if [[ ${#removals[@]} -gt 0 ]]; then
         echo -e "\n  ${RED}${BOLD}✗ Will Remove (${#removals[@]}):${NC}"
         for pkg in "${removals[@]}"; do
-            echo -e "    ${RED}-${NC} $pkg"
+            local source=$(detect_package_sources "$hostname" "$pkg" "$package_type")
+            if [[ -n "$source" ]]; then
+                echo -e "    ${RED}-${NC} $pkg ${DIM}[$source]${NC}"
+            else
+                echo -e "    ${RED}-${NC} $pkg"
+            fi
         done
     fi
 
@@ -265,12 +380,14 @@ compare_packages() {
 # Main diff function
 show_diff() {
     local hostname=$(get_hostname)
+    local generation=$(get_current_generation)
 
     # Header
     clear
     echo -e "${BOLD}${BLUE}╔═══════════════════════════════════════════════════════════╗${NC}"
     echo -e "${BOLD}${BLUE}║                  nix-me Package Diff                      ║${NC}"
     echo -e "${BOLD}${BLUE}║                  $hostname${NC}"
+    echo -e "${BOLD}${BLUE}║                  ${DIM}Generation: $generation${NC}"
     echo -e "${BOLD}${BLUE}╚═══════════════════════════════════════════════════════════╝${NC}"
     echo ""
 
@@ -316,9 +433,9 @@ show_diff() {
     echo -e "${GREEN}✓${NC} ${DIM}Analysis complete${NC}"
 
     # Show diffs
-    compare_packages "$current_brews" "$new_brews" "🍺 Homebrew Formulas (CLI Tools)" "true"
-    compare_packages "$current_casks" "$new_casks" "📦 Homebrew Casks (GUI Apps)" "true"
-    compare_packages "$current_nix" "$new_nix" "❄️  Nix System Packages" "false"
+    compare_packages "$current_brews" "$new_brews" "🍺 Homebrew Formulas (CLI Tools)" "true" "$hostname" "brews"
+    compare_packages "$current_casks" "$new_casks" "📦 Homebrew Casks (GUI Apps)" "true" "$hostname" "casks"
+    compare_packages "$current_nix" "$new_nix" "❄️  Nix System Packages" "false" "$hostname" "nix"
 
     # Check for available upgrades
     check_flake_updates
