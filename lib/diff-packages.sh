@@ -16,13 +16,16 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
-# Get current hostname for flake
+# Get current hostname for flake (lowercase to match flake.nix keys)
 get_hostname() {
+    local name
     if [ -f "$HOME/.config/nixpkgs/.current-hostname" ]; then
-        cat "$HOME/.config/nixpkgs/.current-hostname"
+        name=$(cat "$HOME/.config/nixpkgs/.current-hostname")
     else
-        scutil --get LocalHostName
+        name=$(scutil --get LocalHostName 2>/dev/null || hostname -s)
     fi
+    # Convert to lowercase to match flake.nix convention
+    echo "$name" | tr '[:upper:]' '[:lower:]'
 }
 
 # Get currently installed Homebrew formulas (CLI tools)
@@ -40,36 +43,41 @@ get_current_nix_packages() {
     nix-env -q 2>/dev/null | sort || echo ""
 }
 
-# Get packages from configuration file
-get_config_packages() {
-    local config_file="$1"
-    local package_type="$2"  # "brews", "casks", or "systemPackages"
+# Build Nix expression to query actual packages
+build_nix_query() {
+    local hostname="$1"
 
-    if [ ! -f "$config_file" ]; then
-        echo ""
-        return
-    fi
+    cat > /tmp/nix-me-query.nix <<EOF
+let
+  flake = builtins.getFlake "git+file://$REPO_DIR";
+  config = flake.darwinConfigurations."$hostname".config;
+in
+{
+  brews = config.homebrew.brews or [];
+  casks = config.homebrew.casks or [];
+  systemPackages = map (pkg: pkg.name or pkg.pname or "unknown") config.environment.systemPackages;
+}
+EOF
+}
+
+# Query packages using Nix evaluation
+get_nix_evaluated_packages() {
+    local hostname="$1"
+    local package_type="$2"
+
+    build_nix_query "$hostname"
 
     case "$package_type" in
-        "brews")
-            grep -A 100 'brewsToAdd = \[' "$config_file" 2>/dev/null | \
-                grep -v '^\s*#' | \
-                grep -o '"[^"]*"' | \
-                tr -d '"' | \
-                sort || echo ""
-            ;;
-        "casks")
-            grep -A 100 'casksToAdd = \[' "$config_file" 2>/dev/null | \
-                grep -v '^\s*#' | \
-                grep -o '"[^"]*"' | \
-                tr -d '"' | \
+        "brews"|"casks")
+            # Homebrew packages have .name field
+            nix eval --impure --json -f /tmp/nix-me-query.nix "$package_type" 2>/dev/null | \
+                jq -r '.[].name' 2>/dev/null | \
                 sort || echo ""
             ;;
         "systemPackages")
-            grep -A 100 'systemPackagesToAdd = \[' "$config_file" 2>/dev/null | \
-                grep -v '^\s*#' | \
-                grep -o '"[^"]*"' | \
-                tr -d '"' | \
+            # System packages are already strings
+            nix eval --impure --json -f /tmp/nix-me-query.nix "$package_type" 2>/dev/null | \
+                jq -r '.[]' 2>/dev/null | \
                 sort || echo ""
             ;;
     esac
@@ -137,39 +145,33 @@ show_diff() {
     local current_casks=$(get_current_casks)
     local current_nix=$(get_current_nix_packages)
 
-    # Determine configuration file location
-    local config_file=""
-    if [ -f "$REPO_DIR/hosts/machines/$hostname/default.nix" ]; then
-        config_file="$REPO_DIR/hosts/machines/$hostname/default.nix"
-    else
-        # Try to determine from flake
-        local machine_type=$(grep -A 10 "\"$hostname\"" "$REPO_DIR/flake.nix" | grep "machineType" | cut -d'"' -f2)
-        if [ -n "$machine_type" ] && [ -f "$REPO_DIR/hosts/types/$machine_type/default.nix" ]; then
-            config_file="$REPO_DIR/hosts/types/$machine_type/default.nix"
-        fi
+    # Evaluate what packages WOULD be installed with the new config
+    echo -e "${YELLOW}Evaluating new configuration from origin/main...${NC}"
+
+    # Stash any local changes temporarily
+    local had_changes=false
+    if ! git diff-index --quiet HEAD --; then
+        had_changes=true
+        git stash push -m "nix-me-diff-temp" --quiet 2>/dev/null || true
     fi
 
-    if [ -z "$config_file" ]; then
-        echo -e "${RED}Error: Could not find configuration for $hostname${NC}"
-        exit 1
-    fi
-
-    echo -e "${YELLOW}Reading configuration from: $config_file${NC}"
-
-    # Get new packages from config (using origin/main or current remote branch)
+    # Checkout origin/main temporarily to evaluate
+    git fetch origin main --quiet
     local current_branch=$(git rev-parse --abbrev-ref HEAD)
-    local remote_ref="origin/main"
+    git checkout origin/main --quiet 2>/dev/null || {
+        echo -e "${RED}Error: Could not checkout origin/main${NC}"
+        [ "$had_changes" = true ] && git stash pop --quiet 2>/dev/null
+        exit 1
+    }
 
-    # Try origin/main first, fall back to current branch
-    if ! git show origin/main:"${config_file#$REPO_DIR/}" > /tmp/nix-me-new-config.nix 2>/dev/null; then
-        echo -e "${YELLOW}Note: Configuration not found on origin/main, using current branch${NC}"
-        # Use current local version instead
-        cp "$config_file" /tmp/nix-me-new-config.nix
-    fi
+    # Evaluate packages using Nix
+    local new_brews=$(get_nix_evaluated_packages "$hostname" "brews")
+    local new_casks=$(get_nix_evaluated_packages "$hostname" "casks")
+    local new_nix=$(get_nix_evaluated_packages "$hostname" "systemPackages")
 
-    local new_brews=$(get_config_packages "/tmp/nix-me-new-config.nix" "brews")
-    local new_casks=$(get_config_packages "/tmp/nix-me-new-config.nix" "casks")
-    local new_nix=$(get_config_packages "/tmp/nix-me-new-config.nix" "systemPackages")
+    # Return to original branch
+    git checkout "$current_branch" --quiet 2>/dev/null
+    [ "$had_changes" = true ] && git stash pop --quiet 2>/dev/null
 
     # Show diffs
     compare_lists "$current_brews" "$new_brews" "Homebrew Formulas (CLI Tools)"
@@ -180,7 +182,7 @@ show_diff() {
     echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
     # Cleanup
-    rm -f /tmp/nix-me-new-config.nix
+    rm -f /tmp/nix-me-query.nix
 }
 
 # Interactive mode - ask to apply changes
