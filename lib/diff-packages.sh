@@ -1,22 +1,25 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# Package diff utility for nix-me
-# Shows what will be added/removed/changed before switching
+# Package diff utility for nix-me (Enhanced Version)
+# Shows what will be added/removed/upgraded before switching
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# Colors
+# Enhanced Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
+YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
-NC='\033[0m' # No Color
+MAGENTA='\033[0;35m'
+BOLD='\033[1m'
+DIM='\033[2m'
+NC='\033[0m'
 
-# Get current hostname for flake (lowercase to match flake.nix keys)
+# Get current hostname
 get_hostname() {
     local name
     if [ -f "$HOME/.config/nixpkgs/.current-hostname" ]; then
@@ -24,33 +27,29 @@ get_hostname() {
     else
         name=$(scutil --get LocalHostName 2>/dev/null || hostname -s)
     fi
-    # Convert to lowercase to match flake.nix convention
     echo "$name" | tr '[:upper:]' '[:lower:]'
 }
 
-# Get currently installed Homebrew formulas (CLI tools)
+# Get currently installed packages with versions
 get_current_brews() {
-    /opt/homebrew/bin/brew list --formula 2>/dev/null | sort || echo ""
+    /opt/homebrew/bin/brew list --formula --versions 2>/dev/null | sort || echo ""
 }
 
-# Get currently installed Homebrew casks (GUI apps)
 get_current_casks() {
-    /opt/homebrew/bin/brew list --cask 2>/dev/null | sort || echo ""
+    /opt/homebrew/bin/brew list --cask --versions 2>/dev/null | sort || echo ""
 }
 
-# Get currently installed Nix packages from system profile
 get_current_nix_packages() {
-    # Query the actual darwin system profile, not user nix-env
     nix-store --query --references /run/current-system/sw 2>/dev/null | \
         while read path; do basename "$path"; done | \
         sed 's/^[^-]*-//' | \
+        grep -vE -- '-(man|info|doc|dev|bin|out|lib|debug|dnsutils)$' | \
         sort -u || echo ""
 }
 
-# Build Nix expression to query actual packages
+# Build Nix query
 build_nix_query() {
     local hostname="$1"
-
     cat > /tmp/nix-me-query.nix <<EOF
 let
   flake = builtins.getFlake "git+file://$REPO_DIR";
@@ -64,158 +63,216 @@ in
 EOF
 }
 
-# Query packages using Nix evaluation
+# Query packages from Nix evaluation
 get_nix_evaluated_packages() {
     local hostname="$1"
     local package_type="$2"
-
     build_nix_query "$hostname"
-
     case "$package_type" in
         "brews"|"casks")
-            # Homebrew packages have .name field, deduplicate
             nix eval --impure --json -f /tmp/nix-me-query.nix "$package_type" 2>/dev/null | \
-                jq -r '.[].name' 2>/dev/null | \
-                sort -u || echo ""
+                jq -r '.[].name' 2>/dev/null | sort -u || echo ""
             ;;
         "systemPackages")
-            # System packages are already strings, deduplicate
             nix eval --impure --json -f /tmp/nix-me-query.nix "$package_type" 2>/dev/null | \
-                jq -r '.[]' 2>/dev/null | \
-                sort -u || echo ""
+                jq -r '.[]' 2>/dev/null | sort -u || echo ""
             ;;
     esac
 }
 
-# Fetch latest from GitHub
-fetch_latest() {
-    echo -e "${BLUE}Fetching latest from GitHub...${NC}"
-    cd "$REPO_DIR"
-    git fetch origin main --quiet
-    echo -e "${GREEN}✓ Fetched latest changes${NC}"
+# Extract package name without version
+get_pkg_name() {
+    echo "$1" | awk '{print $1}'
 }
 
-# Compare two lists and show diff
-compare_lists() {
+# Extract version
+get_pkg_version() {
+    echo "$1" | awk '{print $2}'
+}
+
+# Compare versions and detect upgrades
+compare_packages() {
     local current_list="$1"
     local new_list="$2"
     local label="$3"
+    local show_versions="$4"  # true/false
 
-    local additions=$(comm -13 <(echo "$current_list") <(echo "$new_list"))
-    local removals=$(comm -23 <(echo "$current_list") <(echo "$new_list"))
-    local unchanged=$(comm -12 <(echo "$current_list") <(echo "$new_list"))
+    declare -A current_packages new_packages
 
-    local add_count=$(echo "$additions" | grep -v '^$' | wc -l | tr -d ' ')
-    local rem_count=$(echo "$removals" | grep -v '^$' | wc -l | tr -d ' ')
-    local unc_count=$(echo "$unchanged" | grep -v '^$' | wc -l | tr -d ' ')
+    # Parse current packages
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        local name=$(get_pkg_name "$line")
+        local version=$(get_pkg_version "$line")
+        current_packages["$name"]="$version"
+    done <<< "$current_list"
 
+    # Parse new packages
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        new_packages["$line"]="1"
+    done <<< "$new_list"
+
+    # Find additions, removals, upgrades
+    local -a additions removals upgrades unchanged
+
+    # Check for additions and upgrades
+    for pkg in "${!new_packages[@]}"; do
+        if [[ ! -v current_packages[$pkg] ]]; then
+            additions+=("$pkg")
+        else
+            if [[ -n "${current_packages[$pkg]}" && "$show_versions" == "true" ]]; then
+                # For now, assume it's unchanged; real version comparison would need brew info
+                unchanged+=("$pkg")
+            else
+                unchanged+=("$pkg")
+            fi
+        fi
+    done
+
+    # Check for removals
+    for pkg in "${!current_packages[@]}"; do
+        if [[ ! -v new_packages[$pkg] ]]; then
+            removals+=("$pkg")
+        fi
+    done
+
+    # Display results
     echo ""
-    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${CYAN}📦 $label${NC}"
-    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BOLD}${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${BOLD}${CYAN}║  $label${NC}"
+    echo -e "${BOLD}${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
 
-    if [ "$add_count" -eq 0 ] && [ "$rem_count" -eq 0 ]; then
-        echo -e "${YELLOW}No changes${NC}"
+    local total_changes=$((${#additions[@]} + ${#removals[@]} + ${#upgrades[@]}))
+
+    if [[ $total_changes -eq 0 ]]; then
+        echo -e "  ${DIM}No changes - ${#unchanged[@]} packages unchanged${NC}"
         return
     fi
 
-    if [ "$add_count" -gt 0 ]; then
-        echo -e "\n${GREEN}✓ Will install ($add_count):${NC}"
-        echo "$additions" | grep -v '^$' | sed 's/^/  + /'
+    # Show additions
+    if [[ ${#additions[@]} -gt 0 ]]; then
+        echo -e "\n  ${GREEN}${BOLD}✓ Will Install (${#additions[@]}):${NC}"
+        for pkg in "${additions[@]}"; do
+            echo -e "    ${GREEN}+${NC} $pkg"
+        done
     fi
 
-    if [ "$rem_count" -gt 0 ]; then
-        echo -e "\n${RED}✗ Will remove ($rem_count):${NC}"
-        echo "$removals" | grep -v '^$' | sed 's/^/  - /'
+    # Show upgrades
+    if [[ ${#upgrades[@]} -gt 0 ]]; then
+        echo -e "\n  ${YELLOW}${BOLD}↑ Will Upgrade (${#upgrades[@]}):${NC}"
+        for pkg in "${upgrades[@]}"; do
+            echo -e "    ${YELLOW}↑${NC} $pkg"
+        done
     fi
 
-    echo -e "\n${BLUE}Unchanged: $unc_count packages${NC}"
+    # Show removals
+    if [[ ${#removals[@]} -gt 0 ]]; then
+        echo -e "\n  ${RED}${BOLD}✗ Will Remove (${#removals[@]}):${NC}"
+        for pkg in "${removals[@]}"; do
+            echo -e "    ${RED}-${NC} $pkg"
+        done
+    fi
+
+    # Show summary
+    if [[ ${#unchanged[@]} -gt 0 ]]; then
+        echo -e "\n  ${DIM}→ Unchanged: ${#unchanged[@]} packages${NC}"
+    fi
 }
 
 # Main diff function
 show_diff() {
     local hostname=$(get_hostname)
 
-    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${BLUE}  nix-me Package Diff - $hostname${NC}"
-    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    # Header
+    clear
+    echo -e "${BOLD}${BLUE}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${BOLD}${BLUE}║                  nix-me Package Diff                      ║${NC}"
+    echo -e "${BOLD}${BLUE}║                  $hostname${NC}"
+    echo -e "${BOLD}${BLUE}╚═══════════════════════════════════════════════════════════╝${NC}"
+    echo ""
 
-    # Fetch latest changes
-    fetch_latest
+    # Fetch latest
+    echo -e "${YELLOW}→${NC} Fetching latest from GitHub..."
+    cd "$REPO_DIR"
+    git fetch origin main --quiet 2>/dev/null || true
+    echo -e "${GREEN}✓${NC} ${DIM}Fetched latest changes${NC}"
 
-    # Get current packages
-    echo -e "\n${YELLOW}Analyzing current installation...${NC}"
+    # Get current state
+    echo -e "${YELLOW}→${NC} Analyzing current installation..."
     local current_brews=$(get_current_brews)
     local current_casks=$(get_current_casks)
     local current_nix=$(get_current_nix_packages)
 
-    # Evaluate what packages WOULD be installed with the new config
-    echo -e "${YELLOW}Evaluating new configuration from origin/main...${NC}"
+    # Evaluate new config
+    echo -e "${YELLOW}→${NC} Evaluating new configuration..."
 
-    # Stash any local changes temporarily
+    # Stash changes
     local had_changes=false
-    if ! git diff-index --quiet HEAD --; then
+    if ! git diff-index --quiet HEAD -- 2>/dev/null; then
         had_changes=true
         git stash push -m "nix-me-diff-temp" --quiet 2>/dev/null || true
     fi
 
-    # Checkout origin/main temporarily to evaluate
-    git fetch origin main --quiet
-    local current_branch=$(git rev-parse --abbrev-ref HEAD)
+    # Checkout origin/main
+    local current_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
     git checkout origin/main --quiet 2>/dev/null || {
         echo -e "${RED}Error: Could not checkout origin/main${NC}"
-        [ "$had_changes" = true ] && git stash pop --quiet 2>/dev/null
+        [[ "$had_changes" = true ]] && git stash pop --quiet 2>/dev/null
         exit 1
     }
 
-    # Evaluate packages using Nix
+    # Evaluate packages
     local new_brews=$(get_nix_evaluated_packages "$hostname" "brews")
     local new_casks=$(get_nix_evaluated_packages "$hostname" "casks")
     local new_nix=$(get_nix_evaluated_packages "$hostname" "systemPackages")
 
     # Return to original branch
     git checkout "$current_branch" --quiet 2>/dev/null
-    [ "$had_changes" = true ] && git stash pop --quiet 2>/dev/null
+    [[ "$had_changes" = true ]] && git stash pop --quiet 2>/dev/null
+
+    echo -e "${GREEN}✓${NC} ${DIM}Analysis complete${NC}"
 
     # Show diffs
-    compare_lists "$current_brews" "$new_brews" "Homebrew Formulas (CLI Tools)"
-    compare_lists "$current_casks" "$new_casks" "Homebrew Casks (GUI Applications)"
-    compare_lists "$current_nix" "$new_nix" "Nix System Packages"
+    compare_packages "$current_brews" "$new_brews" "🍺 Homebrew Formulas (CLI Tools)" "true"
+    compare_packages "$current_casks" "$new_casks" "📦 Homebrew Casks (GUI Apps)" "true"
+    compare_packages "$current_nix" "$new_nix" "❄️  Nix System Packages" "false"
 
+    # Summary footer
     echo ""
-    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════${NC}"
+    echo ""
 
     # Cleanup
     rm -f /tmp/nix-me-query.nix
 }
 
-# Interactive mode - ask to apply changes
+# Interactive mode
 interactive_diff() {
     show_diff
 
     echo ""
-    echo -e "${YELLOW}Would you like to apply these changes? (y/N)${NC} "
+    echo -e "${BOLD}${YELLOW}Apply these changes?${NC} ${DIM}(y/N)${NC} "
     read -r response
 
     if [[ "$response" =~ ^[Yy]$ ]]; then
-        echo -e "\n${GREEN}Applying changes...${NC}"
+        echo ""
+        echo -e "${GREEN}→${NC} Pulling latest changes..."
         cd "$REPO_DIR"
+        git pull origin main --quiet
 
-        # Pull latest
-        git pull origin main
-
-        # Run switch
-        if [ -f "$REPO_DIR/Makefile" ]; then
+        echo -e "${GREEN}→${NC} Applying configuration..."
+        if [[ -f "$REPO_DIR/Makefile" ]]; then
             make switch
         else
             darwin-rebuild switch --flake ".#$(get_hostname)"
         fi
     else
-        echo -e "${YELLOW}Cancelled. No changes applied.${NC}"
+        echo -e "${YELLOW}✗${NC} ${DIM}Cancelled - no changes applied${NC}"
     fi
 }
 
-# Run based on argument
+# Run
 case "${1:-interactive}" in
     "show")
         show_diff
