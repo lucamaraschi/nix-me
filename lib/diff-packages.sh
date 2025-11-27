@@ -183,48 +183,46 @@ get_pkg_version() {
     echo "$1" | awk '{print $2}'
 }
 
-# Check for flake input updates
-check_flake_updates() {
+# Check and prompt for flake input updates (returns 0 if updated, 1 if not)
+check_and_update_flake() {
     echo -e "${YELLOW}→${NC} Checking for flake input updates..."
     cd "$REPO_DIR"
 
-    # Get current flake lock info
-    local current_inputs=$(nix flake metadata --json 2>/dev/null | jq -r '.locks.nodes.root.inputs | keys[]' 2>/dev/null)
+    # Get current nixpkgs revision
+    local current_rev=$(nix flake metadata --json 2>/dev/null | jq -r '.locks.nodes.nixpkgs.locked.rev' 2>/dev/null | cut -c1-7)
 
-    # Check for updates without actually updating
-    local update_output=$(nix flake lock --update-input nixpkgs --dry-run 2>&1 || echo "")
+    # Get latest nixpkgs revision
+    local latest_rev=$(nix flake metadata github:NixOS/nixpkgs/nixpkgs-unstable --json 2>/dev/null | jq -r '.revision' 2>/dev/null | cut -c1-7)
 
-    # Check if there are updates by comparing lock file
-    if git diff --quiet flake.lock 2>/dev/null; then
-        # Try a different approach - compare current and latest revisions
-        local has_updates=false
+    if [[ -n "$current_rev" && -n "$latest_rev" && "$current_rev" != "$latest_rev" ]]; then
+        echo -e "${BOLD}${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${BOLD}${MAGENTA}║  📦 Flake Input Updates Available                         ║${NC}"
+        echo -e "${BOLD}${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+        echo ""
+        echo -e "  ${YELLOW}${BOLD}↑ nixpkgs${NC}"
+        echo -e "    ${DIM}Current: $current_rev${NC}"
+        echo -e "    ${DIM}Latest:  $latest_rev${NC}"
+        echo ""
+        echo -e "${BOLD}${YELLOW}Update flake inputs now?${NC} ${DIM}(y/N)${NC} "
+        read -r response
 
-        # Get current nixpkgs revision
-        local current_rev=$(nix flake metadata --json 2>/dev/null | jq -r '.locks.nodes.nixpkgs.locked.rev' 2>/dev/null | cut -c1-7)
-
-        # Get latest nixpkgs revision
-        local latest_rev=$(nix flake metadata github:NixOS/nixpkgs/nixpkgs-unstable --json 2>/dev/null | jq -r '.revision' 2>/dev/null | cut -c1-7)
-
-        if [[ -n "$current_rev" && -n "$latest_rev" && "$current_rev" != "$latest_rev" ]]; then
-            has_updates=true
-            echo -e "${BOLD}${MAGENTA}╔═══════════════════════════════════════════════════════════╗${NC}"
-            echo -e "${BOLD}${MAGENTA}║  📦 Flake Input Updates Available                         ║${NC}"
-            echo -e "${BOLD}${MAGENTA}╚═══════════════════════════════════════════════════════════╝${NC}"
+        if [[ "$response" =~ ^[Yy]$ ]]; then
             echo ""
-            echo -e "  ${YELLOW}${BOLD}↑ nixpkgs${NC}"
-            echo -e "    ${DIM}Current: $current_rev${NC}"
-            echo -e "    ${DIM}Latest:  $latest_rev${NC}"
+            echo -e "${GREEN}→${NC} Updating flake inputs..."
+            nix flake update
+            echo -e "${GREEN}✓${NC} ${DIM}Flake inputs updated${NC}"
             echo ""
-            echo -e "  ${DIM}Run 'nix flake update' to update inputs${NC}"
+            return 0
+        else
+            echo -e "${YELLOW}→${NC} ${DIM}Skipping flake update${NC}"
             echo ""
         fi
-
-        return 0
     fi
+    return 1
 }
 
-# Check for Homebrew package upgrades
-check_brew_upgrades() {
+# Check and prompt for Homebrew package upgrades (returns 0 if upgraded, 1 if not)
+check_and_upgrade_brew() {
     echo -e "${YELLOW}→${NC} Checking for Homebrew upgrades..."
 
     # Get outdated formulas
@@ -260,9 +258,22 @@ check_brew_upgrades() {
             echo ""
         fi
 
-        echo -e "  ${DIM}Run 'brew upgrade' to upgrade packages${NC}"
-        echo ""
+        echo -e "${BOLD}${YELLOW}Upgrade Homebrew packages now?${NC} ${DIM}(y/N)${NC} "
+        read -r response
+
+        if [[ "$response" =~ ^[Yy]$ ]]; then
+            echo ""
+            echo -e "${GREEN}→${NC} Upgrading Homebrew packages..."
+            /opt/homebrew/bin/brew upgrade
+            echo -e "${GREEN}✓${NC} ${DIM}Homebrew packages upgraded${NC}"
+            echo ""
+            return 0
+        else
+            echo -e "${YELLOW}→${NC} ${DIM}Skipping Homebrew upgrade${NC}"
+            echo ""
+        fi
     fi
+    return 1
 }
 
 # Compare versions and detect upgrades
@@ -430,10 +441,6 @@ show_diff() {
     compare_packages "$current_casks" "$new_casks" "📦 Homebrew Casks (GUI Apps)" "true" "$hostname" "casks"
     compare_packages "$current_nix" "$new_nix" "❄️  Nix System Packages" "false" "$hostname" "nix"
 
-    # Check for available upgrades
-    check_flake_updates
-    check_brew_upgrades
-
     # Summary footer
     echo ""
     echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════${NC}"
@@ -445,10 +452,82 @@ show_diff() {
 
 # Interactive mode
 interactive_diff() {
-    show_diff
+    local hostname=$(get_hostname)
+    local generation=$(get_current_generation)
 
+    # Header
+    clear
+    echo -e "${BOLD}${BLUE}╔═══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${BOLD}${BLUE}║                  nix-me Package Diff                      ║${NC}"
+    echo -e "${BOLD}${BLUE}║                  $hostname${NC}"
+    echo -e "${BOLD}${BLUE}║                  ${DIM}Generation: $generation${NC}"
+    echo -e "${BOLD}${BLUE}╚═══════════════════════════════════════════════════════════╝${NC}"
     echo ""
-    echo -e "${BOLD}${YELLOW}Apply these changes?${NC} ${DIM}(y/N)${NC} "
+
+    # Step 1: Check and offer to update flake inputs
+    check_and_update_flake
+    local flake_updated=$?
+
+    # Step 2: Check and offer to upgrade Homebrew packages
+    check_and_upgrade_brew
+    local brew_upgraded=$?
+
+    # Step 3: Show the diff (now reflects updated state)
+    echo -e "${YELLOW}→${NC} Fetching latest from GitHub..."
+    cd "$REPO_DIR"
+    git fetch origin main --quiet 2>/dev/null || true
+    echo -e "${GREEN}✓${NC} ${DIM}Fetched latest changes${NC}"
+
+    # Get current state
+    echo -e "${YELLOW}→${NC} Analyzing current installation..."
+    local current_brews=$(get_current_brews)
+    local current_casks=$(get_current_casks)
+    local current_nix=$(get_current_nix_packages)
+
+    # Evaluate new config
+    echo -e "${YELLOW}→${NC} Evaluating new configuration..."
+
+    # Stash changes
+    local had_changes=false
+    if ! git diff-index --quiet HEAD -- 2>/dev/null; then
+        had_changes=true
+        git stash push -m "nix-me-diff-temp" --quiet 2>/dev/null || true
+    fi
+
+    # Checkout origin/main
+    local current_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+    git checkout origin/main --quiet 2>/dev/null || {
+        echo -e "${RED}Error: Could not checkout origin/main${NC}"
+        [[ "$had_changes" = true ]] && git stash pop --quiet 2>/dev/null
+        exit 1
+    }
+
+    # Evaluate packages
+    local new_brews=$(get_nix_evaluated_packages "$hostname" "brews")
+    local new_casks=$(get_nix_evaluated_packages "$hostname" "casks")
+    local new_nix=$(get_nix_evaluated_packages "$hostname" "systemPackages")
+
+    # Return to original branch
+    git checkout "$current_branch" --quiet 2>/dev/null
+    [[ "$had_changes" = true ]] && git stash pop --quiet 2>/dev/null
+
+    echo -e "${GREEN}✓${NC} ${DIM}Analysis complete${NC}"
+
+    # Build package source map for faster lookups
+    build_package_source_map "$hostname" "nix"
+
+    # Show diffs
+    compare_packages "$current_brews" "$new_brews" "🍺 Homebrew Formulas (CLI Tools)" "true" "$hostname" "brews"
+    compare_packages "$current_casks" "$new_casks" "📦 Homebrew Casks (GUI Apps)" "true" "$hostname" "casks"
+    compare_packages "$current_nix" "$new_nix" "❄️  Nix System Packages" "false" "$hostname" "nix"
+
+    # Summary footer
+    echo ""
+    echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════${NC}"
+    echo ""
+
+    # Step 4: Prompt to apply configuration changes
+    echo -e "${BOLD}${YELLOW}Apply these configuration changes?${NC} ${DIM}(y/N)${NC} "
     read -r response
 
     if [[ "$response" =~ ^[Yy]$ ]]; then
@@ -466,6 +545,9 @@ interactive_diff() {
     else
         echo -e "${YELLOW}✗${NC} ${DIM}Cancelled - no changes applied${NC}"
     fi
+
+    # Cleanup
+    rm -f /tmp/nix-me-query.nix
 }
 
 # Run
