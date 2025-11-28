@@ -49,8 +49,7 @@
       "microsoft-teams"
     ];
   };
-  homebrew.casks = 
-  
+
   # Mac Mini specific activation scripts
   system.activationScripts.macminiOptimization.text = ''
     # Set energy settings for desktop use
