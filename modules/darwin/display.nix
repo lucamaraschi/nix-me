@@ -1,16 +1,32 @@
 # modules/darwin/display.nix
+# Display configuration module - sets displays to maximum resolution ("More Space")
+#
+# This module is DISABLED by default. To enable it, set:
+#   display.autoConfigureResolution = true;
+#
+# Requires displayplacer which is installed via Homebrew when enabled.
 { config, lib, pkgs, machineType ? null, ... }:
 
 {
-  # Display configuration - only run on physical machines, not VMs
-  
-  # Add resolution setting script to activation
-  system.activationScripts.extraActivation.text = lib.mkIf (machineType != "vm") (lib.mkAfter ''
-    echo "Setting display resolution to maximum (More Space)..." >&2
-    
-    # Create a script to handle display configuration
-    mkdir -p "$HOME"/.config/nixpkgs/scripts
-    cat > "$HOME"/.config/nixpkgs/scripts/configure-displays.sh << 'EOF'
+  options.display = {
+    autoConfigureResolution = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Automatically configure displays to maximum resolution (More Space)";
+    };
+  };
+
+  config = lib.mkIf (config.display.autoConfigureResolution && machineType != "vm") {
+    # Install displayplacer via Homebrew (runs before activation scripts)
+    homebrew.brews = [ "jakehilborn/jakehilborn/displayplacer" ];
+
+    # Add resolution setting script to activation
+    system.activationScripts.extraActivation.text = lib.mkAfter ''
+      echo "Setting display resolution to maximum (More Space)..." >&2
+
+      # Create a script to handle display configuration
+      mkdir -p "$HOME"/.config/nixpkgs/scripts
+      cat > "$HOME"/.config/nixpkgs/scripts/configure-displays.sh << 'EOF'
 #!/bin/bash
 
 # Script to configure all displays to their maximum resolution
@@ -25,35 +41,10 @@ log() {
 
 log "Starting display configuration"
 
-# Check if displayplacer is available, try to install if not
+# Check if displayplacer is available
 if ! command -v displayplacer >/dev/null 2>&1; then
-  log "Installing displayplacer..."
-  
-  # Try to install displayplacer with error handling
-  if curl -s https://raw.githubusercontent.com/jakehilborn/displayplacer/master/install.sh | bash 2>/dev/null; then
-    log "displayplacer installed successfully"
-  else
-    log "Warning: Could not install displayplacer from GitHub, trying Homebrew..."
-    if command -v brew >/dev/null 2>&1; then
-      if brew install jakehilborn/jakehilborn/displayplacer 2>/dev/null; then
-        log "displayplacer installed via Homebrew"
-      else
-        log "Warning: Could not install displayplacer via Homebrew either"
-        log "Skipping display configuration - you can manually install displayplacer later"
-        exit 0
-      fi
-    else
-      log "Warning: Neither direct install nor Homebrew available"
-      log "Skipping display configuration - you can manually install displayplacer later"
-      exit 0
-    fi
-  fi
-fi
-
-# Verify displayplacer is now available
-if ! command -v displayplacer >/dev/null 2>&1; then
-  log "Warning: displayplacer still not available after installation attempts"
-  log "Skipping display configuration"
+  log "Warning: displayplacer not found - skipping display configuration"
+  log "You can enable it by setting: display.autoConfigureResolution = true;"
   exit 0
 fi
 
@@ -77,31 +68,31 @@ log "Found displays: $DISPLAYS"
 # Process each display
 for DISPLAY_ID in $DISPLAYS; do
   log "Processing display $DISPLAY_ID"
-  
+
   # Extract all available resolutions for this display
   RESOLUTIONS=$(echo "$CURRENT_CONFIG" | grep -A 50 "Display $DISPLAY_ID" | grep -E "Resolution.*Hz" | sed -E 's/.*Resolution (.*) @.*/\1/' | sort -t x -k1,1nr -k2,2nr)
-  
+
   if [ -z "$RESOLUTIONS" ]; then
     log "No resolutions found for display $DISPLAY_ID, skipping"
     continue
   fi
-  
+
   # Get the highest resolution
   HIGHEST_RES=$(echo "$RESOLUTIONS" | head -1)
   log "Highest resolution for display $DISPLAY_ID: $HIGHEST_RES"
-  
+
   # Get the current origin for this display (to maintain position)
   ORIGIN=$(echo "$CURRENT_CONFIG" | grep -A 2 "Display $DISPLAY_ID" | grep "Origin" | sed -E 's/.*Origin (.*) -.*/\1/')
-  
+
   if [ -z "$ORIGIN" ]; then
     log "No origin found for display $DISPLAY_ID, using 0,0"
     ORIGIN="0,0"
   fi
-  
+
   # Build the command for this display
   DISPLAY_CMD="id:$DISPLAY_ID mode:$HIGHEST_RES origin:$ORIGIN degree:0 hz:60 scaling:on"
   log "Display command: $DISPLAY_CMD"
-  
+
   # Store this display's command for later
   DISPLAY_CMDS="$DISPLAY_CMDS $DISPLAY_CMD"
 done
@@ -120,14 +111,15 @@ else
 fi
 EOF
 
-    # Make the script executable
-    chmod +x "$HOME"/.config/nixpkgs/scripts/configure-displays.sh
-    
-    # Run the display configuration script (with error handling)
-    if "$HOME"/.config/nixpkgs/scripts/configure-displays.sh 2>/dev/null; then
-      echo "Display configuration completed" >&2
-    else
-      echo "Warning: Display configuration failed, but system activation continues" >&2
-    fi
-  '');
+      # Make the script executable
+      chmod +x "$HOME"/.config/nixpkgs/scripts/configure-displays.sh
+
+      # Run the display configuration script (with error handling)
+      if "$HOME"/.config/nixpkgs/scripts/configure-displays.sh 2>/dev/null; then
+        echo "Display configuration completed" >&2
+      else
+        echo "Warning: Display configuration failed, but system activation continues" >&2
+      fi
+    '';
+  };
 }

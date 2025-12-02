@@ -63,7 +63,7 @@ ${CYAN}Information:${NC}
   ${GREEN}status${NC}              Show system status
   ${GREEN}doctor${NC}              Diagnose configuration issues
   ${GREEN}list${NC}                List installed packages
-  ${GREEN}diff${NC}                Show configuration changes
+  ${GREEN}diff${NC}                Show package changes (what will be added/removed)
 
 ${CYAN}Package Types:${NC}
   ${GREEN}app${NC} <name>          GUI application (Homebrew cask)
@@ -584,22 +584,8 @@ cmd_list() {
 }
 
 cmd_diff() {
-    print_header "Configuration Changes"
-
-    if [ ! -d "$CONFIG_DIR/.git" ]; then
-        print_error "Configuration is not a git repository"
-        return 1
-    fi
-
-    cd "$CONFIG_DIR"
-
-    print_info "Uncommitted changes:"
-    echo ""
-    git diff --stat HEAD
-
-    echo ""
-    print_info "Recent commits:"
-    git log --oneline -10
+    # Run the package diff tool in interactive mode
+    "$LIB_DIR/diff-packages.sh" interactive
 }
 
 # ============================================================================
