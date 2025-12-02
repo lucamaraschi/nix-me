@@ -42,15 +42,14 @@
       # Extended development environment
       "docker"
       "orbstack"
-      "vmware-fusion"
-      
+      # "vmware-fusion" # Disabled in Homebrew - requires manual install from VMware
+
       # Office and productivity for a desktop workstation
       "microsoft-office"
       "microsoft-teams"
     ];
   };
-  homebrew.casks = 
-  
+
   # Mac Mini specific activation scripts
   system.activationScripts.macminiOptimization.text = ''
     # Set energy settings for desktop use
