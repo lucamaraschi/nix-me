@@ -1,686 +1,448 @@
-# nix-me
+<p align="center">
+  <img src="https://nixos.org/logo/nixos-hires.png" width="120" alt="Nix Logo">
+</p>
 
-Declarative macOS configuration with nix-darwin, home-manager, and an interactive setup experience.
+<h1 align="center">nix-me</h1>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Nix](https://img.shields.io/badge/Built%20with-Nix-5277C3.svg?logo=nixos&logoColor=white)](https://nixos.org)
-[![macOS](https://img.shields.io/badge/macOS-10.15+-000000?logo=apple&logoColor=white)](https://www.apple.com/macos/)
+<p align="center">
+  <strong>Declarative macOS configuration made simple</strong>
+</p>
 
-## What is nix-me?
+<p align="center">
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
+  <a href="https://nixos.org"><img src="https://img.shields.io/badge/Built%20with-Nix-5277C3.svg?logo=nixos&logoColor=white" alt="Built with Nix"></a>
+  <a href="https://www.apple.com/macos/"><img src="https://img.shields.io/badge/macOS-Sequoia+-000000?logo=apple&logoColor=white" alt="macOS"></a>
+  <a href="https://github.com/lucamaraschi/nix-me/stargazers"><img src="https://img.shields.io/github/stars/lucamaraschi/nix-me?style=social" alt="Stars"></a>
+</p>
 
-nix-me is a comprehensive macOS system configuration that lets you manage your entire development environment as code. It features an interactive setup wizard and CLI tool that makes Nix approachable for everyone.
+<p align="center">
+  <em>Manage your entire Mac development environment as code.<br>No Nix knowledge required.</em>
+</p>
 
-**Key Features:**
+---
 
-- Interactive setup wizard - no Nix knowledge required
-- TUI Configuration Inspector - visualize your system configuration
-- CLI tool for ongoing customization (`nix-me`)
-- Multi-machine support (MacBooks, Mac Minis, VMs)
-- Reproducible environments across machines
-- Fish shell with custom functions and integrations
-- 1Password SSH integration
-- Modular architecture with inheritance system
-- Unified package management (Nix + Homebrew)
+## Overview
+
+**nix-me** transforms macOS system configuration into a reproducible, version-controlled experience. Whether you're setting up a new machine or keeping multiple Macs in sync, nix-me makes it effortless.
+
+<table>
+<tr>
+<td width="50%">
+
+### What You Get
+
+- **Interactive Setup Wizard** - No Nix knowledge needed
+- **Powerful CLI** - `nix-me` command for all operations
+- **TUI Inspector** - Visualize your configuration
+- **Multi-Machine Support** - MacBooks, Mac Minis, VMs
+- **Reproducible Builds** - Same config = same result
+- **Rollback Safety** - Undo any change instantly
+
+</td>
+<td width="50%">
+
+### How It Works
+
+```
+┌─────────────────────────────────────┐
+│           Your Config               │
+│  (flake.nix + modules/*.nix)        │
+└─────────────┬───────────────────────┘
+              │
+              ▼
+┌─────────────────────────────────────┐
+│         nix-darwin                  │
+│   (System-level configuration)      │
+└─────────────┬───────────────────────┘
+              │
+              ▼
+┌─────────────────────────────────────┐
+│  Nix Packages │ Homebrew │ App Store│
+└─────────────────────────────────────┘
+```
+
+</td>
+</tr>
+</table>
+
+---
 
 ## Quick Start
 
-### Interactive Installation (Recommended)
-
-The interactive wizard walks you through setup step-by-step:
+### One-Line Install
 
 ```bash
 curl -L https://raw.githubusercontent.com/lucamaraschi/nix-me/main/install.sh | bash
 ```
 
-The wizard will:
+The wizard will guide you through:
+1. Detecting your machine
+2. Choosing a configuration template
+3. Selecting packages interactively
+4. Building your system
 
-1. Detect existing machine configurations (if any)
-2. Let you create a new machine or modify an existing one
-3. Guide you through configuration options
-4. Optionally let you search and add packages interactively
-
-**Time required:** 30-60 minutes (depending on internet speed)
+> **Time:** 30-60 minutes (mostly package downloads)
 
 ### Prerequisites
 
-Before starting:
+| Requirement | Details |
+|-------------|---------|
+| macOS | 10.15 Catalina or later |
+| Architecture | Intel or Apple Silicon |
+| Disk Space | ~5GB free |
+| Privileges | Admin access required |
 
-- macOS 10.15+ with admin privileges
-- At least 5GB free disk space
-- Stable internet connection
-- Your macOS username (run `whoami` to check)
+---
 
-### What Gets Installed
+## The `nix-me` CLI
 
-The configuration will install:
+After installation, manage your system with the `nix-me` command:
 
-- **Nix package manager** (~5-10 minutes)
-- **nix-darwin** for system management
-- **Fish shell** with custom configurations
-- **CLI tools** via Nix
-- **GUI apps** via Homebrew (~15-30 minutes)
-- **macOS system preferences**
-
-## Post-Install: Using nix-me
-
-After installation, the `nix-me` command is available for managing your system:
-
-### Common Commands
+### Essential Commands
 
 ```bash
-# Interactive customization menu
-nix-me customize
-
-# Configuration inspector (view packages, files, dependencies)
-nix-me inspect
-
-# Search and add a GUI application
-nix-me add app spotify
-
-# Add a CLI tool
-nix-me add tool jq
-
-# Check system health
-nix-me doctor
-
-# View installed packages
-nix-me list
-
-# Apply configuration changes
-nix-me switch
-
-# Update all packages
-nix-me update
+nix-me status          # System overview
+nix-me switch          # Apply configuration changes
+nix-me update          # Update all packages
+nix-me diff            # Preview changes before applying
 ```
 
-### Interactive Wizard
-
-Run the wizard again to:
-
-- Modify existing machine configurations
-- Change username, machine type, or name
-- Add/remove packages interactively
+### Package Management
 
 ```bash
-nix-me setup
+nix-me add app slack   # Add a GUI application
+nix-me add tool jq     # Add a CLI tool
+nix-me list            # View installed packages
+nix-me browse          # Interactive package browser
 ```
 
-The wizard will detect existing machines and let you choose what to modify.
+### Configuration
 
-## Repository Structure
+```bash
+nix-me setup           # Run setup wizard
+nix-me customize       # Interactive customization menu
+nix-me inspect         # TUI configuration explorer
+nix-me doctor          # Diagnose issues
+```
+
+---
+
+## Architecture
 
 ```
 nix-me/
-├── flake.nix                      # Machine definitions
-├── Makefile                       # Build commands
-├── install.sh                     # Interactive installer
-│
-├── lib/                           # Wizard & CLI libraries
-│   ├── ui.sh                      # Terminal UI components
-│   ├── wizard.sh                  # Interactive setup wizard
-│   ├── config-builder.sh          # Configuration generator
-│   └── vm-manager.sh              # VM management
+├── flake.nix                 # Machine definitions & inputs
+├── install.sh                # Interactive installer
 │
 ├── bin/
-│   └── nix-me                     # CLI tool
+│   └── nix-me                # CLI tool
 │
-├── tui/                           # Interactive TUI (React Ink)
-│   ├── src/
-│   │   └── components/
-│   │       └── ConfigInspector.tsx # Configuration inspector
-│   └── package.json
+├── hosts/
+│   ├── types/
+│   │   ├── shared/           # Common settings (all machines)
+│   │   ├── macbook/          # MacBook optimizations
+│   │   ├── macbook-pro/      # MacBook Pro optimizations
+│   │   ├── macmini/          # Mac Mini optimizations
+│   │   └── vm/               # VM optimizations
+│   │
+│   ├── profiles/
+│   │   ├── work.nix          # Work profile (Teams, Slack, etc)
+│   │   └── personal.nix      # Personal profile (Spotify, etc)
+│   │
+│   └── machines/
+│       └── [hostname]/       # Machine-specific overrides
 │
-├── hosts/                         # Machine-specific configs
-│   ├── shared/                    # Common settings for all machines
-│   ├── macbook/                   # MacBook optimizations
-│   ├── macbook-pro/               # MacBook Pro optimizations
-│   ├── macmini/                   # Mac Mini optimizations
-│   ├── vm/                        # VM optimizations
-│   ├── profiles/                  # Work/Personal profiles
-│   └── [hostname]/                # Your specific machines
+├── modules/
+│   ├── darwin/               # System-level (nix-darwin)
+│   │   ├── apps/
+│   │   │   └── installations.nix  # Package lists
+│   │   ├── core.nix
+│   │   ├── system.nix
+│   │   └── ...
+│   │
+│   └── home-manager/         # User-level (home-manager)
+│       ├── shell/
+│       │   └── fish.nix
+│       ├── git.nix
+│       ├── ssh.nix
+│       └── ...
 │
-└── modules/
-    ├── darwin/                    # System-level configs
-    │   ├── apps/
-    │   │   ├── installations.nix  # Unified package management
-    │   │   ├── nix-me.nix         # nix-me CLI
-    │   │   ├── vm-manager.nix     # VM management tools
-    │   │   └── ...
-    │   ├── core.nix               # Core system settings
-    │   ├── system.nix             # macOS preferences
-    │   ├── fonts.nix              # Font configuration
-    │   └── ...
-    │
-    ├── home-manager/              # User-level configs
-    │   ├── apps/                  # User applications
-    │   ├── shell/                 # Shell configurations
-    │   │   └── fish.nix           # Fish shell setup
-    │   ├── rectangle.nix          # Window manager
-    │   ├── git.nix                # Git settings
-    │   ├── ssh.nix                # SSH + 1Password
-    │   └── ...
-    │
-    └── shared/                    # Shared between Darwin & NixOS
-        ├── fish-base.nix          # Base Fish configuration
-        └── packages.nix           # Common package definitions
+├── lib/                      # Shell libraries
+│   ├── ui.sh
+│   ├── wizard.sh
+│   └── ...
+│
+└── tui/                      # React TUI (Configuration Inspector)
+    └── src/
 ```
 
-## Configuration Inspector
+---
 
-The TUI Configuration Inspector helps you understand your system setup:
+## Machine Types
 
-```bash
-# Launch the inspector
-nix-me inspect
+<table>
+<tr>
+<th>MacBook</th>
+<th>Mac Mini</th>
+<th>VM</th>
+</tr>
+<tr>
+<td>
 
-# Or from the project directory
-npm --prefix tui run dev
-```
+Optimized for mobility:
+- Battery preservation
+- Trackpad gestures
+- Smaller dock icons
+- Power management
 
-**Features:**
+</td>
+<td>
 
-- **Package Browser** - View all installed packages organized by source:
-  - Homebrew Formulas (CLI tools)
-  - Homebrew Casks (GUI applications)
-  - Nix packages
+Optimized for desktop:
+- Multi-display support
+- Larger UI elements
+- Performance mode
+- Professional tools
 
-- **File Browser** - Navigate your configuration file hierarchy with visual tree structure
+</td>
+<td>
 
-- **Dependency Graph** - Understand which files import which, sorted by complexity
+Optimized for testing:
+- Minimal packages
+- Reduced resources
+- Fast boot times
+- No App Store apps
 
-**Navigation:**
+</td>
+</tr>
+</table>
 
-- Use numbered menus (1, 2, 3) to select views
-- Arrow keys for navigation in dependency graph
-- Press `0` to go back
-- Press `q` to quit
+---
 
-## Configuration Guide
+## Configuration
 
-### Adding a New Machine
+### Adding a Machine
 
-The wizard makes this easy, but you can also do it manually:
-
-**1. Run the wizard:**
-
+**Option 1: Interactive Wizard**
 ```bash
 nix-me setup
 ```
 
-**2. Or add manually to `flake.nix`:**
+**Option 2: Manual Configuration**
 
+Add to `flake.nix`:
 ```nix
-darwinConfigurations = {
-  "my-machine" = mkDarwinSystem {
-    hostname = "my-machine";
-    machineType = "macbook";       # or "macmini" or "vm"
-    machineName = "My MacBook Pro";
-    username = "yourusername";     # From whoami
-  };
+"my-machine" = mkDarwinSystem {
+  hostname = "my-machine";
+  machineType = "macbook";     # or "macmini", "vm"
+  machineName = "My MacBook";
+  username = "yourusername";
+  extraModules = [
+    ./hosts/profiles/work.nix  # Optional profile
+  ];
 };
-```
-
-**3. Build:**
-
-```bash
-make switch
 ```
 
 ### Customizing Packages
 
-#### Using the CLI (Easiest)
-
-```bash
-# Search and add apps interactively
-nix-me add app docker
-
-# Add CLI tools
-nix-me add tool ripgrep
-
-# Interactive customization menu
-nix-me customize
-```
-
-#### Manual Configuration
-
-**CLI tools** - Edit `modules/darwin/apps/installations.nix`:
-
-```nix
-systemPackages = [
-  "ripgrep"
-  "fd"
-  "jq"        # Add your tools here
-];
-```
-
-**GUI applications** - Edit the same file:
-
-```nix
-casks = [
-  "visual-studio-code"
-  "docker"
-  "spotify"   # Add your apps here
-];
-```
-
-#### Per-Machine Customization
-
-Use the inheritance system in `hosts/[hostname]/default.nix`:
+**Per-machine customization** in `hosts/machines/[hostname]/default.nix`:
 
 ```nix
 { ... }:
 {
   apps = {
-    useBaseLists = true;  # Inherit from base lists
+    useBaseLists = true;           # Inherit base packages
 
-    # Remove apps you don't need
-    casksToRemove = [
-      "adobe-creative-cloud"
-      "vmware-fusion"
+    casksToAdd = [                 # Add GUI apps
+      "figma"
+      "notion"
     ];
 
-    # Add machine-specific apps
-    casksToAdd = [
-      "amphetamine"
-      "coconutbattery"
+    casksToRemove = [              # Remove unwanted apps
+      "spotify"
     ];
 
-    # CLI tools via Homebrew
-    brewsToAdd = ["wget" "tree"];
-    brewsToRemove = ["gcc"];
-
-    # System packages via Nix
-    systemPackagesToAdd = ["htop" "ncdu"];
-    systemPackagesToRemove = ["nodejs_22"];
-
-    # Mac App Store apps
-    masAppsToAdd = {
-      "Bear" = 1091189122;
-      "Things" = 904280696;
-    };
-    masAppsToRemove = ["Xcode"];
+    brewsToAdd = [ "wget" ];       # Add CLI tools (Homebrew)
+    systemPackagesToAdd = [ "jq" ]; # Add CLI tools (Nix)
   };
 }
 ```
 
-**Inheritance Benefits:**
+### Display Configuration
 
-- Start with a complete base configuration
-- Add/remove packages per machine
-- No duplication across machines
-- Easy to maintain and update
+Display auto-configuration is opt-in. To enable:
 
-### Fish Shell Configuration
-
-**Built-in functions:**
-
-- `mknode <name>` - Create Node.js project with Nix environment
-- `nixify` - Add Nix support to existing Node.js projects
-- `mkcd <dir>` - Create and cd into directory
-- `gst`, `gd`, `gcm` - Git shortcuts
-
-**Keyboard shortcuts:**
-
-- `Ctrl+T` - Fuzzy file search
-- `Ctrl+R` - Command history search
-- `Ctrl+E` - Directory navigation
-
-**Autopair:**
-
-- Auto-closes `()`, `[]`, `{}`, `""`, `''`
-- Smart backspace removes matching pairs
-
-Edit configuration: `modules/home-manager/fish.nix`
-
-### SSH with 1Password
-
-**Setup:**
-
-1. Open 1Password 8
-2. Settings → Developer → Enable "Use the SSH agent"
-3. Add your SSH keys to 1Password
-4. Configure keys to allow access to `github.com`
-
-**Test:**
-
-```bash
-ssh-add -l              # List keys
-ssh -T git@github.com   # Test GitHub
+```nix
+display.autoConfigureResolution = true;
 ```
 
-**Configuration:** `modules/home-manager/ssh.nix`
+This sets all displays to maximum resolution ("More Space") using `displayplacer`.
 
-## Machine Types
+---
 
-### MacBook
+## Fish Shell
 
-Optimized for portability and battery life:
+nix-me configures Fish shell with powerful defaults:
 
-- Battery preservation settings
-- Trackpad optimization
-- Power management
-- Smaller UI elements
+### Custom Functions
 
-### Mac Mini
+| Function | Description |
+|----------|-------------|
+| `mknode <name>` | Create Node.js project with Nix environment |
+| `nixify` | Add Nix support to existing project |
+| `mkcd <dir>` | Create directory and cd into it |
+| `gst`, `gd`, `gcm` | Git shortcuts |
 
-Optimized for desktop performance:
+### Keyboard Shortcuts
 
-- Multi-display support
-- Performance optimization
-- Professional tools
-- Larger UI elements
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+T` | Fuzzy file search |
+| `Ctrl+R` | Command history |
+| `Ctrl+E` | Directory navigation |
 
-### VM
+### Auto-Pair
 
-Optimized for virtual environments:
+Automatically closes brackets and quotes: `()` `[]` `{}` `""` `''`
 
-- Minimal packages
-- Reduced resource usage
-- Disabled problematic features
-- Fast boot
+---
 
-## System Management
+## 1Password SSH Integration
 
-### Daily Operations
+nix-me configures SSH to use 1Password as your SSH agent.
 
-```bash
-# Apply configuration changes
-make switch
+### Setup
 
-# Update packages and apply
-make update switch
+1. Open **1Password 8** → Settings → Developer
+2. Enable **"Use the SSH agent"**
+3. Add SSH keys to 1Password
+4. Configure keys for `github.com` access
 
-# Check configuration validity
-make check
-
-# See all commands
-make help
-```
-
-### Using nix-me
+### Verify
 
 ```bash
-# Configuration inspector (interactive TUI)
-nix-me inspect
-
-# Diagnostics
-nix-me doctor
-
-# Current status
-nix-me status
-
-# List packages
-nix-me list
-
-# Full customization menu
-nix-me customize
-
-# VM management
-nix-me vm create    # Create new test VM
-nix-me vm list      # List all VMs
-nix-me vm start     # Start a VM
+ssh-add -l              # List available keys
+ssh -T git@github.com   # Test GitHub connection
 ```
+
+---
 
 ## Troubleshooting
 
-### Common Issues
+<details>
+<summary><strong>"primary username does not exist"</strong></summary>
 
-**"primary username does not exist"**
-
-Set username explicitly in your machine config in `flake.nix`:
-
+Set username explicitly in `flake.nix`:
 ```nix
-username = "yourusername";  # Use output from whoami
+username = "yourusername";  # Output of: whoami
 ```
+</details>
 
-**Nix installation broken**
+<details>
+<summary><strong>Nix installation issues</strong></summary>
 
 Force reinstall:
-
 ```bash
 FORCE_NIX_REINSTALL=1 ./install.sh
 ```
+</details>
 
-**1Password SSH not working**
+<details>
+<summary><strong>1Password SSH not working</strong></summary>
 
+Check the socket exists:
 ```bash
-# Check socket exists
 ls -la ~/Library/Group\ Containers/2BUA8C4S2C.com.1password/t/agent.sock
+```
 
-# Set agent manually
+Set manually if needed:
+```bash
 export SSH_AUTH_SOCK="$HOME/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"
-ssh-add -l
 ```
+</details>
 
-**Git divergence**
+<details>
+<summary><strong>Configuration errors</strong></summary>
 
 ```bash
-cd ~/.config/nixpkgs
-git pull origin main
+make check                              # Validate config
+darwin-rebuild switch --show-trace      # Detailed errors
+sudo darwin-rebuild switch --rollback   # Rollback changes
 ```
+</details>
 
-**Configuration errors**
+### Diagnostics
 
 ```bash
-# Validate config
-make check
-
-# Rollback to previous version
-sudo darwin-rebuild switch --rollback
+nix-me doctor    # Run full diagnostics
+nix-me status    # Quick system overview
 ```
 
-### Getting Help
-
-```bash
-# System diagnostics
-nix-me doctor
-
-# Check logs
-darwin-rebuild switch --show-trace
-
-# Validate configuration
-make check
-```
-
-## Advanced Usage
-
-### Command-Line Installation
-
-For automation or CI/CD:
-
-```bash
-# With all parameters
-./install.sh hostname macbook "My MacBook" yourusername
-
-# Non-interactive mode
-NON_INTERACTIVE=1 ./install.sh
-
-# Different branch
-REPO_BRANCH=refactoring ./install.sh
-```
-
-### Environment Variables
-
-```bash
-FORCE_NIX_REINSTALL=1    # Force complete Nix reinstall
-NON_INTERACTIVE=1        # Skip all prompts
-SKIP_BREW_ON_VM=1        # Skip Homebrew in VMs
-REPO_BRANCH=branch       # Use specific git branch
-```
-
-### Modifying Existing Machines
-
-Run the wizard to modify existing configurations:
-
-```bash
-nix-me setup
-```
-
-Select an existing machine, then choose what to modify:
-
-- Username
-- Machine type
-- Machine name
-- Add/remove packages
-
-## Examples
-
-### Photography Workstation
-
-```nix
-# hosts/photo-station/default.nix
-{ ... }:
-{
-  apps = {
-    useBaseLists = true;
-    casksToRemove = ["docker" "visual-studio-code" "slack"];
-    casksToAdd = [
-      "adobe-lightroom"
-      "capture-one"
-      "pixelmator-pro"
-    ];
-    brewsToRemove = ["terraform" "k3d" "helm"];
-    systemPackagesToRemove = ["nodejs_22" "go"];
-  };
-}
-```
-
-### Minimal Development Laptop
-
-```nix
-# hosts/dev-laptop/default.nix
-{ ... }:
-{
-  apps = {
-    useBaseLists = true;
-    casksToRemove = ["adobe-creative-cloud" "obs" "spotify"];
-    casksToAdd = ["postman" "dash"];
-    brewsToAdd = ["httpie" "wget"];
-    systemPackagesToAdd = ["jq" "yq"];
-  };
-
-  system.defaults.dock.tilesize = 32;
-}
-```
-
-### Work Profile with Extra Tools
-
-```nix
-# hosts/work-laptop/default.nix
-{ ... }:
-{
-  imports = [
-    ../profiles/work.nix  # Import work profile
-  ];
-
-  apps = {
-    useBaseLists = true;
-    casksToAdd = [
-      "microsoft-teams"
-      "slack"
-      "zoom"
-    ];
-    brewsToAdd = [
-      "kubectl"
-      "helm"
-      "terraform"
-    ];
-  };
-}
-```
-
-## Updating
-
-### Update Packages
-
-```bash
-# Via nix-me
-nix-me update
-
-# Or manually
-make update switch
-```
-
-### Update Configuration
-
-```bash
-cd ~/.config/nixpkgs
-git pull
-make switch
-```
-
-## Uninstalling
-
-### Remove nix-darwin
-
-```bash
-sudo /nix/var/nix/profiles/system/sw/bin/darwin-uninstaller
-```
-
-### Complete Nix Removal
-
-```bash
-sudo /nix/uninstall
-rm -rf ~/.config/nixpkgs
-```
+---
 
 ## FAQ
 
-**Do I need to know Nix?**
+<details>
+<summary><strong>Do I need to know Nix?</strong></summary>
 
-No! The interactive wizard and `nix-me` CLI tool handle everything. You can customize your system without touching Nix code.
+No! The wizard and CLI handle everything. You can customize without touching Nix code.
+</details>
 
-**Will this break my existing setup?**
+<details>
+<summary><strong>Will this break my existing setup?</strong></summary>
 
-No. The installer:
+No. The installer backs up configurations, preserves existing apps, supports rollbacks, and can be completely removed.
+</details>
 
-- Backs up existing configurations
-- Preserves manually installed apps
-- Can be completely removed
-- Supports rollbacks
+<details>
+<summary><strong>How much disk space?</strong></summary>
 
-**How much disk space does this use?**
+~1-5GB for the Nix store, shared between all packages.
+</details>
 
-~1-5GB for the Nix store (shared between all packages).
+<details>
+<summary><strong>Can I use this at work?</strong></summary>
 
-**Can I use this on my work machine?**
+Yes, but check company policies. Requires admin privileges; all packages come from official repositories.
+</details>
 
-Yes, with considerations:
+<details>
+<summary><strong>How do I backup my config?</strong></summary>
 
-- Requires admin privileges for setup
-- Check company policies on package managers
-- All packages from official repositories
-
-**How do I backup my configuration?**
-
-Your entire configuration is in git:
-
+It's all in git:
 ```bash
 cd ~/.config/nixpkgs
-git add .
-git commit -m "My customizations"
-git push
+git add . && git commit -m "My customizations" && git push
 ```
+</details>
 
-Restore anywhere:
+---
+
+## Advanced Usage
+
+### Non-Interactive Installation
 
 ```bash
-git clone your-fork.git ~/.config/nixpkgs
-cd ~/.config/nixpkgs
-./install.sh
+# Full automation
+NON_INTERACTIVE=1 ./install.sh hostname macbook "My Mac" username
+
+# Environment variables
+FORCE_NIX_REINSTALL=1    # Force Nix reinstall
+SKIP_BREW_ON_VM=1        # Skip Homebrew in VMs
+REPO_BRANCH=dev          # Use specific branch
 ```
 
-**Performance impact?**
+### Make Commands
 
-- Minimal runtime overhead
-- No additional RAM usage during normal operation
-- Network only during updates
+```bash
+make switch    # Apply configuration
+make update    # Update flake inputs
+make check     # Validate configuration
+make build     # Build without applying
+make help      # Show all commands
+```
 
-**Supported macOS versions?**
-
-- macOS 10.15 Catalina and later
-- Intel and Apple Silicon
-- VMs (UTM, VMware, Parallels)
+---
 
 ## Contributing
 
@@ -688,23 +450,26 @@ Contributions welcome!
 
 1. Fork the repository
 2. Create a feature branch
-3. Test with `make build`
+3. Test with `make check && make build`
 4. Submit a pull request
-
-## License
-
-MIT License
-
-## Acknowledgments
-
-Inspired by:
-
-- [Mitchell Hashimoto's nixos-config](https://github.com/mitchellh/nixos-config)
-- [nix-darwin](https://github.com/LnL7/nix-darwin)
-- [Home Manager](https://github.com/nix-community/home-manager)
 
 ---
 
-**Need help?** Run `nix-me doctor` for diagnostics or check the [troubleshooting section](#troubleshooting).
+## Acknowledgments
 
-**Want to customize?** Run `nix-me customize` for an interactive menu.
+Built on the shoulders of giants:
+
+- [nix-darwin](https://github.com/LnL7/nix-darwin) - macOS system management
+- [Home Manager](https://github.com/nix-community/home-manager) - User environment management
+- [Mitchell Hashimoto's config](https://github.com/mitchellh/nixos-config) - Inspiration
+
+---
+
+<p align="center">
+  <strong>Need help?</strong> Run <code>nix-me doctor</code><br>
+  <strong>Want to customize?</strong> Run <code>nix-me customize</code>
+</p>
+
+<p align="center">
+  <sub>MIT License • Made with Nix</sub>
+</p>
