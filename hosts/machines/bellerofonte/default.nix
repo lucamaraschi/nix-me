@@ -10,27 +10,25 @@
   ];
 
   # Bellerofonte-specific customizations
-  # Add any machine-specific apps or settings here
 
-  # Example customizations:
-  # apps = {
-  #   useBaseLists = true;
-  #
-  #   # Add machine-specific GUI apps
-  #   casksToAdd = [
-  #     # "your-app-here"
-  #   ];
-  #
-  #   # Add machine-specific CLI tools
-  #   brewsToAdd = [
-  #     # "your-tool-here"
-  #   ];
-  #
-  #   # Add machine-specific Nix packages
-  #   systemPackagesToAdd = [
-  #     # "your-package-here"
-  #   ];
-  # };
+  apps = {
+    useBaseLists = true;
+
+    # Add machine-specific GUI apps
+    casksToAdd = [
+      # "your-app-here"
+    ];
+
+    # Add machine-specific CLI tools
+    brewsToAdd = [
+      # "your-tool-here"
+    ];
+
+    # Add machine-specific Nix packages
+    systemPackagesToAdd = [
+      # "your-package-here"
+    ];
+  };
 
   # Machine-specific system settings
   # system.defaults = {
