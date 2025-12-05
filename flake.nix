@@ -104,13 +104,15 @@
           machineName = "Gotham";
         };
 
+        # Work laptop with dev + work profiles
         "nabucodonosor" = mkDarwinSystem {
           hostname = "nabucodonosor";
           machineType = "macbook";
           machineName = "Nabucodonosor";
           username = "batman";
           extraModules = [
-            ./hosts/profiles/work.nix
+            ./hosts/profiles/dev.nix   # Development tools
+            ./hosts/profiles/work.nix  # Work collaboration apps
           ];
         };
 
@@ -121,13 +123,15 @@
         };
 
         # MacBook Pro configurations
+        # Work laptop with dev + work profiles
         "bellerofonte" = mkDarwinSystem {
           hostname = "bellerofonte";
           machineType = "macbook-pro";
           machineName = "Bellerofonte";
           username = "batman";
           extraModules = [
-            ./hosts/profiles/work.nix
+            ./hosts/profiles/dev.nix   # Development tools
+            ./hosts/profiles/work.nix  # Work collaboration apps
           ];
         };
 
@@ -154,43 +158,51 @@
         };
 
         # ========================================
-        # Profile-based configurations examples
+        # Multi-profile configuration examples
         # ========================================
+        # Profiles are composable! Combine them as needed:
+        #   - dev.nix      → IDEs, languages, dev tools
+        #   - work.nix     → Slack, Teams, Zoom, etc.
+        #   - personal.nix → Spotify, OBS, media tools
 
-        # MacBook Pro with Work profile
+        # Work developer machine (dev + work)
         "work-macbook-pro" = mkDarwinSystem {
           hostname = "work-macbook-pro";
           machineType = "macbook-pro";
           machineName = "Work MacBook Pro";
           username = "batman";
           extraModules = [
+            ./hosts/profiles/dev.nix
             ./hosts/profiles/work.nix
           ];
         };
 
-        # MacBook Pro with Personal profile
+        # Personal dev machine (dev + personal)
         "personal-macbook-pro" = mkDarwinSystem {
           hostname = "personal-macbook-pro";
           machineType = "macbook-pro";
           machineName = "Personal MacBook Pro";
           username = "batman";
           extraModules = [
+            ./hosts/profiles/dev.nix
             ./hosts/profiles/personal.nix
           ];
         };
 
-        # Regular MacBook with Work profile
+        # Full-stack machine (all profiles)
         "work-macbook" = mkDarwinSystem {
           hostname = "work-macbook";
           machineType = "macbook";
           machineName = "Work MacBook";
           username = "batman";
           extraModules = [
+            ./hosts/profiles/dev.nix
             ./hosts/profiles/work.nix
+            ./hosts/profiles/personal.nix  # For after-hours
           ];
         };
 
-        # Mac Mini with Personal profile (home workstation)
+        # Home media/streaming station (personal only, no dev)
         "home-studio" = mkDarwinSystem {
           hostname = "home-studio";
           machineType = "macmini";
@@ -199,6 +211,15 @@
           extraModules = [
             ./hosts/profiles/personal.nix
           ];
+        };
+
+        # Minimal base (no profiles - just essentials)
+        "minimal-mac" = mkDarwinSystem {
+          hostname = "minimal-mac";
+          machineType = "macbook";
+          machineName = "Minimal Mac";
+          username = "batman";
+          # No extraModules = truly minimal base only
         };
       };
 
