@@ -12,10 +12,6 @@
       # Entertainment
       "spotify"
       "obs"
-
-      # Personal productivity
-      "notion"
-      "todoist"
     ];
 
     # Remove work-specific apps
