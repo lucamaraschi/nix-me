@@ -1,42 +1,41 @@
+# Personal profile
+# Adds entertainment, media, and personal productivity apps
+# Can be combined with other profiles (dev, work)
 { config, pkgs, lib, ... }:
 
 {
-  # Personal profile configuration
-  # This module configures the machine for personal use
-
   apps = {
     useBaseLists = true;
 
-    # Add personal applications
+    # Personal GUI applications
     casksToAdd = [
-      # Entertainment
+      # Entertainment & Media
       "spotify"
-      "obs"
+      "obs"               # Streaming/recording
+
+      # Creative
+      # "figma"
+      # "adobe-creative-cloud"
     ];
 
-    # Remove work-specific apps
-    casksToRemove = [
-    ];
-
-    # Add personal tools
+    # Personal CLI tools
     systemPackagesToAdd = [
-      "yt-dlp"
-      "ffmpeg"
-      "transmission-cli"
+      "yt-dlp"            # Video downloader
+      "ffmpeg"            # Media processing
     ];
+
+    # Personal MAS apps
+    masAppsToAdd = {
+      "iA-Writer" = 775737590;
+    };
   };
 
   # Personal system preferences
   system.defaults = {
-    # More relaxed security
+    # More relaxed security for personal use
     screensaver = {
       askForPassword = true;
-      askForPasswordDelay = 300; # 5 minutes
-    };
-
-    # Larger dock for easier access
-    dock = {
-      tilesize = lib.mkForce 48;
+      askForPasswordDelay = 300; # 5 minutes grace period
     };
   };
 

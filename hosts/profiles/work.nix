@@ -1,43 +1,42 @@
+# Work profile
+# Adds collaboration, communication, and enterprise tools
+# Typically combined with dev.nix for development work
 { config, pkgs, lib, ... }:
 
 {
-  # Work profile configuration
-  # This module configures the machine for work use
-
   apps = {
     useBaseLists = true;
 
-    # Add work-specific applications
+    # Work GUI applications
     casksToAdd = [
       # Communication & Collaboration
-      "linear-linear"
-      "loom"
-      "microsoft-teams"
-      "miro"
       "slack"
       "zoom"
+      "microsoft-teams"
+      "loom"              # Video messaging
+      "miro"              # Whiteboarding
+      "linear-linear"     # Project management
 
       # Productivity
       "microsoft-office"
       "notion"
 
-      # Creative tools
+      # Design collaboration
       "figma"
     ];
 
-    # Remove personal apps
-    casksToRemove = [
-
-    ];
-
-    # Add work CLI tools
+    # Work CLI tools (infrastructure/cloud)
     systemPackagesToAdd = [
       "terraform"
       "kubectl"
       "helm"
       "awscli2"
-      "k3d"
     ];
+
+    # Work MAS apps
+    # masAppsToAdd = {
+    #   "Keynote" = 409183694;
+    # };
   };
 
   # Work-specific system preferences
@@ -45,10 +44,10 @@
     # Stricter security for work
     screensaver = {
       askForPassword = true;
-      askForPasswordDelay = 5; # Lock after 5 seconds
+      askForPasswordDelay = 5; # Lock quickly (5 seconds)
     };
 
-    # Disable analytics/telemetry
+    # Disable potentially distracting features
     NSGlobalDomain = {
       NSAutomaticCapitalizationEnabled = false;
       NSAutomaticSpellingCorrectionEnabled = false;
@@ -58,6 +57,5 @@
   # Work-specific environment
   environment.variables = {
     WORK_ENV = "production";
-    # Add company-specific variables
   };
 }

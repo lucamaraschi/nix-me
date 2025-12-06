@@ -1,13 +1,15 @@
-# Centralized app installation management (moved from homebrew.nix)
+# Centralized app installation management
+# This defines the MINIMAL base - productivity essentials only
+# Development tools, work apps, and personal apps are in profiles
 { config, lib, pkgs, ... }:
 
 let
-  # Define base lists (these don't reference config, so no recursion)
+  # Define base lists - these are the MINIMAL essentials
+  # Development-specific tools are in hosts/profiles/dev.nix
   baseLists = {
-    # System packages via Nix
+    # System packages via Nix - minimal essentials
     systemPackages = [
-      # Development tools
-      "jq"
+      # Core utilities
       "ripgrep"
       "fd"
       "eza"
@@ -15,79 +17,47 @@ let
       "tree"
       "htop"
       "ncdu"
-      "nodejs_22"
-      "nodePackages.pnpm"
-      "nodePackages.npm"
-      "nodePackages.typescript"
-      "python3"
-      "rustup"
-      "go"
-      "gh"
-      "nmap"
-      "dnsutils"
-      "mtr"
+      "jq"
+
+      # Nix tooling
       "nixpkgs-fmt"
-      "nil"  # Nix language server for IDE support
+      "nil"  # Nix language server
       "comma"
-      "pandoc"
-      "imagemagick"
     ];
 
-    # GUI applications via Homebrew casks
+    # GUI applications via Homebrew casks - minimal essentials
     casks = [
+      # Password & Security
+      "1password"
 
       # Productivity & Utilities
-      "1password"
       "hiddenbar"
       "raycast"
       "rectangle"
       "hammerspoon"
+      "ghostty"           # Modern terminal
+
+      # Privacy
       "proton-mail"
       "protonvpn"
 
-      # Development
-      "claude-code"
-      "docker-desktop"
-      "ghostty"
-      "github"
-      "orbstack"
-      "orka-desktop"
-      "visual-studio-code"
-
       # Browsers
       "google-chrome"
-
-      # Microsoft Office
-      "microsoft-office"
-
-      # Virtualization
-      "utm"
-      "virtualbuddy"
-
-      # Media
-      "spotify"
     ];
 
-    # CLI tools via Homebrew
+    # CLI tools via Homebrew - minimal essentials
     brews = [
       "coreutils"
       "direnv"
-      "fd"
-      "gcc"
       "git"
       "grep"
-      "jq"
-      "k3d"
       "mas"
-      "ripgrep"
       "trash"
     ];
 
-    # Mac App Store applications
+    # Mac App Store applications - minimal essentials
     masApps = {
       Tailscale = 1475387142;
-      Xcode = 497799835;
-      "iA-Writer" = 775737590;
       "PDF-Expert" = 1055273043;
     };
   };
@@ -116,7 +86,7 @@ in
       description = "Additional system packages to install";
     };
 
-    # Homebrew options (moved from homebrew.nix)
+    # Homebrew options
     baseCasks = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = baseLists.casks;
@@ -183,14 +153,14 @@ in
   };
 
   config = {
-    # System packages configuration (replicating your core.nix systemPackages logic)
+    # System packages configuration
     environment.systemPackages = lib.mkDefault (
       let
         packageNames = if config.apps.useBaseLists
           then (lib.subtractLists config.apps.systemPackagesToRemove config.apps.baseSystemPackages) ++ config.apps.systemPackagesToAdd
           else config.apps.baseSystemPackages;
 
-        # Convert package name strings to actual packages (handling nodePackages.* correctly)
+        # Convert package name strings to actual packages
         resolvePackage = name:
           if lib.hasPrefix "nodePackages." name
           then lib.getAttrFromPath (lib.splitString "." name) pkgs
@@ -199,17 +169,17 @@ in
         map resolvePackage packageNames
     );
 
-    # Environment variables (replicating your core.nix environment setup)
+    # Environment variables
     environment.variables = lib.mkDefault {
       EDITOR = "vim";
       VISUAL = "vim";
     };
 
-    # System PATH (replicating your core.nix)
+    # System PATH
     environment.systemPath = lib.mkDefault [ "/opt/homebrew/bin" ];
     environment.pathsToLink = lib.mkDefault [ "/Applications" ];
 
-    # Homebrew configuration (exactly matching your homebrew.nix structure and logic)
+    # Homebrew configuration
     homebrew = {
       enable = lib.mkDefault true;
       onActivation = {
@@ -219,24 +189,21 @@ in
 
       taps = lib.mkDefault [];
 
-      # Global Homebrew settings to reduce sudo requirements (matching your settings)
       global = {
-        # Use /opt/homebrew on Apple Silicon, /usr/local on Intel
         brewfile = true;
-        lockfiles = false; # Reduce file locking that might need sudo
+        lockfiles = false;
       };
 
-      # Move calculations here to avoid recursion (exactly matching your logic)
       casks = lib.mkDefault (
         if config.apps.useBaseLists
         then (lib.subtractLists config.apps.casksToRemove config.apps.baseCasks) ++ config.apps.casksToAdd
-        else config.apps.baseCasks  # Use base list as default
+        else config.apps.baseCasks
       );
 
       brews = (
         if config.apps.useBaseLists
         then (lib.subtractLists config.apps.brewsToRemove config.apps.baseBrews) ++ config.apps.brewsToAdd
-        else config.apps.baseBrews  # Use base list as default
+        else config.apps.baseBrews
       );
 
       masApps = lib.mkDefault (
