@@ -11,7 +11,6 @@
     casksToAdd = [
       # IDEs & Editors
       "visual-studio-code"
-      "ghostty"           # Modern terminal
 
       # Development tools
       "docker-desktop"

@@ -27,7 +27,6 @@
     # Personal MAS apps
     masAppsToAdd = {
       "iA-Writer" = 775737590;
-      "PDF-Expert" = 1055273043;
     };
   };
 

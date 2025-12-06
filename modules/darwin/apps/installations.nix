@@ -35,6 +35,7 @@ let
       "raycast"
       "rectangle"
       "hammerspoon"
+      "ghostty"           # Modern terminal
 
       # Privacy
       "proton-mail"
@@ -57,6 +58,7 @@ let
     # Mac App Store applications - minimal essentials
     masApps = {
       Tailscale = 1475387142;
+      "PDF-Expert" = 1055273043;
     };
   };
 
