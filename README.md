@@ -31,9 +31,9 @@
 
 ### What You Get
 
-- **Interactive Setup Wizard** - No Nix knowledge needed
+- **Interactive Setup Wizard** - Clone from existing hosts or start fresh
+- **Composable Profiles** - Mix dev, work, and personal configs
 - **Powerful CLI** - `nix-me` command for all operations
-- **TUI Inspector** - Visualize your configuration
 - **Multi-Machine Support** - MacBooks, Mac Minis, VMs
 - **Reproducible Builds** - Same config = same result
 - **Rollback Safety** - Undo any change instantly
@@ -45,14 +45,14 @@
 
 ```
 ┌─────────────────────────────────────┐
-│           Your Config               │
-│  (flake.nix + modules/*.nix)        │
+│  Profiles (composable)              │
+│  dev + work + personal              │
 └─────────────┬───────────────────────┘
               │
               ▼
 ┌─────────────────────────────────────┐
-│         nix-darwin                  │
-│   (System-level configuration)      │
+│  Machine Type                       │
+│  macbook / macmini / vm             │
 └─────────────┬───────────────────────┘
               │
               ▼
@@ -76,10 +76,10 @@ curl -L https://raw.githubusercontent.com/lucamaraschi/nix-me/main/install.sh | 
 ```
 
 The wizard will guide you through:
-1. Detecting your machine
-2. Choosing a configuration template
-3. Selecting packages interactively
-4. Building your system
+1. **Clone or create** - Copy settings from an existing host or start fresh
+2. **Select profiles** - Choose dev, work, personal (or combine them)
+3. **Configure machine** - Set hostname, type, and username
+4. **Build system** - Apply your configuration
 
 > **Time:** 30-60 minutes (mostly package downloads)
 
@@ -91,6 +91,81 @@ The wizard will guide you through:
 | Architecture | Intel or Apple Silicon |
 | Disk Space | ~5GB free |
 | Privileges | Admin access required |
+
+---
+
+## Profiles
+
+Profiles are **composable** - combine them to match your needs:
+
+<table>
+<tr>
+<th>Profile</th>
+<th>What's Included</th>
+<th>Use Case</th>
+</tr>
+<tr>
+<td><code>dev</code></td>
+<td>
+
+- VS Code, Ghostty, Docker
+- Node.js, Python, Go, Rust
+- GitHub CLI, Xcode
+- k3d, OrbStack, UTM
+
+</td>
+<td>Software development</td>
+</tr>
+<tr>
+<td><code>work</code></td>
+<td>
+
+- Slack, Teams, Zoom
+- Notion, Linear, Miro
+- Microsoft Office, Figma
+- Terraform, kubectl, AWS CLI
+
+</td>
+<td>Work collaboration</td>
+</tr>
+<tr>
+<td><code>personal</code></td>
+<td>
+
+- Spotify, OBS
+- yt-dlp, ffmpeg
+- iA Writer, PDF Expert
+
+</td>
+<td>Entertainment & personal</td>
+</tr>
+</table>
+
+### Profile Combinations
+
+```nix
+# Work developer (most common)
+extraModules = [
+  ./hosts/profiles/dev.nix
+  ./hosts/profiles/work.nix
+];
+
+# Personal dev machine
+extraModules = [
+  ./hosts/profiles/dev.nix
+  ./hosts/profiles/personal.nix
+];
+
+# Full setup (everything)
+extraModules = [
+  ./hosts/profiles/dev.nix
+  ./hosts/profiles/work.nix
+  ./hosts/profiles/personal.nix
+];
+
+# Minimal (no profiles - just base essentials)
+# Simply omit extraModules
+```
 
 ---
 
@@ -119,7 +194,7 @@ nix-me browse          # Interactive package browser
 ### Configuration
 
 ```bash
-nix-me setup           # Run setup wizard
+nix-me setup           # Run setup wizard (with clone support)
 nix-me customize       # Interactive customization menu
 nix-me inspect         # TUI configuration explorer
 nix-me doctor          # Diagnose issues
@@ -145,9 +220,10 @@ nix-me/
 │   │   ├── macmini/          # Mac Mini optimizations
 │   │   └── vm/               # VM optimizations
 │   │
-│   ├── profiles/
-│   │   ├── work.nix          # Work profile (Teams, Slack, etc)
-│   │   └── personal.nix      # Personal profile (Spotify, etc)
+│   ├── profiles/             # Composable profiles
+│   │   ├── dev.nix           # Development tools
+│   │   ├── work.nix          # Work/collaboration apps
+│   │   └── personal.nix      # Entertainment/personal
 │   │
 │   └── machines/
 │       └── [hostname]/       # Machine-specific overrides
@@ -155,7 +231,7 @@ nix-me/
 ├── modules/
 │   ├── darwin/               # System-level (nix-darwin)
 │   │   ├── apps/
-│   │   │   └── installations.nix  # Package lists
+│   │   │   └── installations.nix  # Base package lists
 │   │   ├── core.nix
 │   │   ├── system.nix
 │   │   └── ...
@@ -169,7 +245,8 @@ nix-me/
 │
 ├── lib/                      # Shell libraries
 │   ├── ui.sh
-│   ├── wizard.sh
+│   ├── wizard.sh             # Setup wizard with clone support
+│   ├── config-builder.sh     # Config generation
 │   └── ...
 │
 └── tui/                      # React TUI (Configuration Inspector)
@@ -223,22 +300,34 @@ Optimized for testing:
 
 ### Adding a Machine
 
-**Option 1: Interactive Wizard**
+**Option 1: Clone from Existing Host**
+
 ```bash
 nix-me setup
+# Choose: [2] Clone settings from an existing host
+# Select the source host
+# The wizard copies machine type and profiles
 ```
 
-**Option 2: Manual Configuration**
+**Option 2: Interactive Wizard**
+```bash
+nix-me setup
+# Choose: [1] Create new configuration from scratch
+# Select machine type, profiles, etc.
+```
+
+**Option 3: Manual Configuration**
 
 Add to `flake.nix`:
 ```nix
 "my-machine" = mkDarwinSystem {
   hostname = "my-machine";
-  machineType = "macbook";     # or "macmini", "vm"
+  machineType = "macbook";     # or "macbook-pro", "macmini", "vm"
   machineName = "My MacBook";
   username = "yourusername";
   extraModules = [
-    ./hosts/profiles/work.nix  # Optional profile
+    ./hosts/profiles/dev.nix   # Development tools
+    ./hosts/profiles/work.nix  # Work apps
   ];
 };
 ```
@@ -253,17 +342,22 @@ Add to `flake.nix`:
   apps = {
     useBaseLists = true;           # Inherit base packages
 
-    casksToAdd = [                 # Add GUI apps
-      "figma"
-      "notion"
-    ];
+    # GUI apps (Homebrew Casks)
+    casksToAdd = [ "figma" "notion" ];
+    casksToRemove = [ "spotify" ];
 
-    casksToRemove = [              # Remove unwanted apps
-      "spotify"
-    ];
+    # CLI tools (Homebrew)
+    brewsToAdd = [ "wget" ];
 
-    brewsToAdd = [ "wget" ];       # Add CLI tools (Homebrew)
-    systemPackagesToAdd = [ "jq" ]; # Add CLI tools (Nix)
+    # CLI tools (Nix)
+    systemPackagesToAdd = [ "jq" ];
+
+    # Mac App Store apps
+    masAppsToAdd = {
+      "Keynote" = 409183694;
+      "Bear" = 1091189122;
+    };
+    masAppsToRemove = [ "Xcode" ];
   };
 }
 ```
@@ -414,6 +508,25 @@ It's all in git:
 cd ~/.config/nixpkgs
 git add . && git commit -m "My customizations" && git push
 ```
+</details>
+
+<details>
+<summary><strong>Can I have multiple profiles on one machine?</strong></summary>
+
+Yes! Profiles are composable. Combine dev + work, dev + personal, or all three:
+```nix
+extraModules = [
+  ./hosts/profiles/dev.nix
+  ./hosts/profiles/work.nix
+  ./hosts/profiles/personal.nix
+];
+```
+</details>
+
+<details>
+<summary><strong>Can I clone settings from another machine?</strong></summary>
+
+Yes! Run `nix-me setup` and choose "Clone settings from an existing host". The wizard will copy the machine type and profiles from your selected source host.
 </details>
 
 ---
