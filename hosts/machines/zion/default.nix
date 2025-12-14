@@ -22,6 +22,9 @@
       "autodesk-fusion"       # Fusion 360
       "openscad"              # Programmable CAD
 
+      # Streaming/Recording
+      "elgato-camera-hub"     # Elgato Prompter & camera controls
+
       # Note: Cricut Design Space is not available via Homebrew
       # Install manually from: https://design.cricut.com/
     ];
