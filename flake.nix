@@ -142,6 +142,19 @@
           machineName = "Mac Mini";
         };
 
+        # Zion - Maker/craft station (3D printing, CAD, design)
+        "zion" = mkDarwinSystem {
+          hostname = "zion";
+          machineType = "macmini";
+          machineName = "Zion";
+          username = "batman";
+          extraModules = [
+            ./hosts/profiles/dev.nix       # Development tools
+            ./hosts/profiles/work.nix      # Work collaboration apps
+            ./hosts/profiles/personal.nix  # Media tools for tutorials/streaming
+          ];
+        };
+
         # VM configurations
         "vm-test" = mkDarwinSystem {
           hostname = "vm-test";
