@@ -34,11 +34,11 @@
       # Media and entertainment apps that make sense on a stationary computer
       "spotify"
       "obs"
-      
+
       # Professional/production tools
       "adobe-creative-cloud"
       "figma"
-      
+
       # Extended development environment
       "docker"
       "orbstack"
@@ -48,6 +48,11 @@
       "microsoft-office"
       "microsoft-teams"
     ];
+
+    # Mac Mini networking essentials
+    masAppsToAdd = {
+      Tailscale = 1475387142;
+    };
   };
 
   # Mac Mini specific activation scripts
