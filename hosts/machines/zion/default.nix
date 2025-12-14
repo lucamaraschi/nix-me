@@ -25,8 +25,9 @@
       # Streaming/Recording
       "elgato-camera-hub"     # Elgato Prompter & camera controls
 
-      # Note: Cricut Design Space is not available via Homebrew
-      # Install manually from: https://design.cricut.com/
+      # Manual installs required (not in Homebrew):
+      # - Cricut Design Space: https://design.cricut.com/
+      # - Blackmagic ATEM Software Control: https://www.blackmagicdesign.com/support/family/atem-live-production-switchers
     ];
 
     # Design-related CLI tools
