@@ -465,8 +465,35 @@ main() {
     VM_TYPE=$(detect_vm_environment)
     log "Detected environment: ${VM_TYPE}"
 
-    # STEP 1: Clone/update repository FIRST so wizard can see existing hosts
-    print_step "1/7" "Setting up Configuration Repository"
+    # STEP 1: Request sudo privileges (keep alive throughout)
+    print_step "1/7" "Requesting Administrator Privileges"
+    if sudo -n true 2>/dev/null; then
+        log "Passwordless sudo is configured"
+    else
+        sudo -v || { error "Authentication failed"; exit 1; }
+    fi
+    # Keep sudo alive in background
+    ( while true; do sudo -n -v 2>/dev/null; sleep 30; done ) &
+    SUDO_REFRESH_PID=$!
+    trap "kill $SUDO_REFRESH_PID 2>/dev/null || true" EXIT
+    log "Sudo credentials will be kept alive during installation"
+    print_success "Administrator access granted"
+    echo ""
+
+    # STEP 2: Install Xcode CLI tools (needed for git)
+    print_step "2/7" "Installing Xcode Command Line Tools"
+    if ! command -v git &>/dev/null; then
+        log "Installing Xcode Command Line Tools..."
+        xcode-select --install 2>/dev/null || true
+        log "Waiting for installation to complete..."
+        echo "    Please complete the Xcode Command Line Tools installation dialog..."
+        until xcode-select --print-path &>/dev/null; do sleep 5; done
+    fi
+    print_success "Xcode Command Line Tools ready"
+    echo ""
+
+    # STEP 3: Clone/update repository so wizard can see existing hosts
+    print_step "3/7" "Setting up Configuration Repository"
     if [ "${SKIP_REPO_CLONE:-0}" = "1" ]; then
         log "Skipping git clone/update (SKIP_REPO_CLONE=1)"
         if [ ! -d "$REPO_DIR" ]; then
@@ -494,7 +521,8 @@ main() {
     print_success "Repository ready"
     echo ""
 
-    # STEP 2: Run wizard (now that repo is available with existing hosts)
+    # STEP 4: Run wizard (now that repo is available with existing hosts)
+    print_step "4/7" "Configuration Wizard"
     if [ $# -eq 0 ] && [ "$NON_INTERACTIVE" != "1" ] && [ "$USE_WIZARD" == "1" ]; then
         # Use full wizard if available (it can see existing hosts now)
         if [ -f "$REPO_DIR/lib/wizard.sh" ] && [ -f "$REPO_DIR/lib/ui.sh" ]; then
@@ -574,40 +602,8 @@ main() {
         fi
     fi
 
-    # STEP 3: Request sudo privileges
-    print_step "2/7" "Requesting Administrator Privileges"
-
-    # Check if passwordless sudo is configured
-    if sudo -n true 2>/dev/null; then
-        log "Passwordless sudo is configured"
-    else
-        # Request password for sudo
-        sudo -v || { error "Authentication failed"; exit 1; }
-
-        # Sudo refresh background process - refresh every 30 seconds to keep credentials alive
-        # This is critical for long nix builds that can take 20-30 minutes
-        ( while true; do sudo -n -v 2>/dev/null; sleep 30; done ) &
-        SUDO_REFRESH_PID=$!
-        trap "kill $SUDO_REFRESH_PID 2>/dev/null || true" EXIT
-        log "Sudo credentials will be kept alive during installation"
-    fi
-
-    print_success "Administrator access granted"
-    echo ""
-
-    # STEP 4: Install Xcode CLI tools
-    print_step "3/7" "Installing Xcode Command Line Tools"
-    if [[ -z "$(command -v git)" ]]; then
-        log "Installing Xcode Command Line Tools..."
-        xcode-select --install &> /dev/null
-        log "Waiting for installation to complete..."
-        until xcode-select --print-path &> /dev/null; do sleep 5; done
-    fi
-    print_success "Xcode Command Line Tools ready"
-    echo ""
-
     # STEP 5: Ensure Homebrew
-    print_step "4/7" "Setting up Homebrew"
+    print_step "5/7" "Setting up Homebrew"
     ensure_homebrew || {
         error "Failed to set up Homebrew"
         exit 1
@@ -616,7 +612,7 @@ main() {
     echo ""
 
     # STEP 6: Install or fix Nix
-    print_step "5/7" "Installing Nix Package Manager"
+    print_step "6/7" "Installing Nix Package Manager"
     install_or_fix_nix || {
         error "Failed to install or fix Nix"
         exit 1
@@ -626,11 +622,12 @@ main() {
     echo ""
 
     # STEP 7: Generate machine configuration and build
-    print_step "6/7" "Generating Machine Configuration"
+    print_step "7/7" "Building and Activating System"
     cd "$REPO_DIR"
 
     # Generate config if config-builder exists
     if [ -f "$REPO_DIR/lib/config-builder.sh" ]; then
+        log "Generating machine configuration..."
         source "$REPO_DIR/lib/config-builder.sh"
         generate_machine_config "$HOST_NAME" "$MACHINE_TYPE" "$MACHINE_NAME" "$NIXOS_USERNAME" "$REPO_DIR" "0"
     else
@@ -657,9 +654,6 @@ EOF
         cp -r "${REPO_DIR}/config/vscode/"* "${REPO_DIR}/.vscode/"
         print_success "VS Code configuration installed"
     fi
-
-    # STEP 8: Build and activate
-    print_step "7/7" "Building and Activating System"
     log "Building system configuration (this may take 15-30 minutes)..."
     # Export USERNAME for flake.nix to read (with --impure flag)
     export USERNAME="$NIXOS_USERNAME"
