@@ -482,12 +482,24 @@ main() {
 
     # STEP 2: Install Xcode CLI tools (needed for git)
     print_step "2/7" "Installing Xcode Command Line Tools"
-    if ! command -v git &>/dev/null; then
+    if ! xcode-select --print-path &>/dev/null; then
         log "Installing Xcode Command Line Tools..."
-        xcode-select --install 2>/dev/null || true
+        # Start installation - this opens a GUI dialog
+        xcode-select --install 2>/dev/null &
+        XCODE_PID=$!
+
+        echo ""
+        echo "    ╔════════════════════════════════════════════════════════════╗"
+        echo "    ║  A dialog will appear to install Command Line Tools.       ║"
+        echo "    ║  Please click 'Install' and wait for it to complete.       ║"
+        echo "    ╚════════════════════════════════════════════════════════════╝"
+        echo ""
+
+        # Wait for installation to complete
         log "Waiting for installation to complete..."
-        echo "    Please complete the Xcode Command Line Tools installation dialog..."
-        until xcode-select --print-path &>/dev/null; do sleep 5; done
+        while ! xcode-select --print-path &>/dev/null; do
+            sleep 5
+        done
     fi
     print_success "Xcode Command Line Tools ready"
     echo ""
