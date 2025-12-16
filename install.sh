@@ -12,6 +12,19 @@
 
 set -e
 
+# Bootstrap: If running via curl|bash, stdin is consumed by the script.
+# We need to download and run the script properly to allow interactive input.
+if [ ! -t 0 ] && [ -z "$NIX_ME_BOOTSTRAPPED" ]; then
+    echo "Downloading nix-me installer..."
+    REPO_BRANCH=${REPO_BRANCH:-main}
+    TEMP_SCRIPT=$(mktemp)
+    curl -fsSL "https://raw.githubusercontent.com/lucamaraschi/nix-me/${REPO_BRANCH}/install.sh" -o "$TEMP_SCRIPT"
+    chmod +x "$TEMP_SCRIPT"
+    echo "Starting interactive installer..."
+    # Re-run with stdin from terminal and mark as bootstrapped
+    NIX_ME_BOOTSTRAPPED=1 exec "$TEMP_SCRIPT" "$@" </dev/tty
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Colors for better output
