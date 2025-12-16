@@ -465,16 +465,60 @@ main() {
     VM_TYPE=$(detect_vm_environment)
     log "Detected environment: ${VM_TYPE}"
 
-    # STEP 1: Run wizard FIRST (if appropriate and no args provided)
-    if [ $# -eq 0 ] && [ "$NON_INTERACTIVE" != "1" ] && [ "$USE_WIZARD" == "1" ]; then
-        run_simple_wizard "$REPO_DIR"
+    # STEP 1: Clone/update repository FIRST so wizard can see existing hosts
+    print_step "1/7" "Setting up Configuration Repository"
+    if [ "${SKIP_REPO_CLONE:-0}" = "1" ]; then
+        log "Skipping git clone/update (SKIP_REPO_CLONE=1)"
+        if [ ! -d "$REPO_DIR" ]; then
+            error "SKIP_REPO_CLONE=1 but $REPO_DIR does not exist"
+            exit 1
+        fi
+        log "Using existing files in $REPO_DIR"
+    elif [ -d "$REPO_DIR" ]; then
+        log "Repository exists, safely updating..."
+        safe_git_update "$REPO_DIR" "$REPO_BRANCH" || {
+            error "Failed to update repository"
+            exit 1
+        }
+    else
+        log "Cloning configuration repository..."
+        mkdir -p "$(dirname "$REPO_DIR")"
+        git clone "$REPO_URL" "$REPO_DIR" || {
+            error "Failed to clone repository"
+            exit 1
+        }
+        cd "$REPO_DIR"
+        git checkout "$REPO_BRANCH"
+    fi
+    mkdir -p "$REPO_DIR/lib" "$REPO_DIR/bin"
+    print_success "Repository ready"
+    echo ""
 
-        # Use wizard values
-        HOST_NAME=${WIZARD_HOSTNAME}
-        MACHINE_TYPE=${WIZARD_MACHINE_TYPE}
-        MACHINE_NAME=${WIZARD_MACHINE_NAME}
-        NIXOS_USERNAME=${WIZARD_USERNAME}
-        CONFIG_PROFILE=${WIZARD_CONFIG_PROFILE:-standard}
+    # STEP 2: Run wizard (now that repo is available with existing hosts)
+    if [ $# -eq 0 ] && [ "$NON_INTERACTIVE" != "1" ] && [ "$USE_WIZARD" == "1" ]; then
+        # Use full wizard if available (it can see existing hosts now)
+        if [ -f "$REPO_DIR/lib/wizard.sh" ] && [ -f "$REPO_DIR/lib/ui.sh" ]; then
+            source "$REPO_DIR/lib/ui.sh"
+            source "$REPO_DIR/lib/wizard.sh"
+            if run_setup_wizard "$REPO_DIR"; then
+                HOST_NAME=${WIZARD_HOSTNAME}
+                MACHINE_TYPE=${WIZARD_MACHINE_TYPE}
+                MACHINE_NAME=${WIZARD_MACHINE_NAME}
+                NIXOS_USERNAME=${WIZARD_USERNAME}
+                CONFIG_PROFILE=${WIZARD_CONFIG_PROFILE:-standard}
+            else
+                error "Setup wizard cancelled"
+                exit 1
+            fi
+        else
+            # Fallback to simple wizard
+            run_simple_wizard "$REPO_DIR"
+            HOST_NAME=${WIZARD_HOSTNAME}
+            MACHINE_TYPE=${WIZARD_MACHINE_TYPE}
+            MACHINE_NAME=${WIZARD_MACHINE_NAME}
+            NIXOS_USERNAME=${WIZARD_USERNAME}
+            CONFIG_PROFILE=${WIZARD_CONFIG_PROFILE:-standard}
+        fi
     else
         # Command-line arguments or non-interactive mode
         if [ -z "$1" ]; then
@@ -530,8 +574,8 @@ main() {
         fi
     fi
 
-    # STEP 2: Request sudo privileges
-    print_step "1/6" "Requesting Administrator Privileges"
+    # STEP 3: Request sudo privileges
+    print_step "2/7" "Requesting Administrator Privileges"
 
     # Check if passwordless sudo is configured
     if sudo -n true 2>/dev/null; then
@@ -551,8 +595,8 @@ main() {
     print_success "Administrator access granted"
     echo ""
 
-    # STEP 3: Install Xcode CLI tools
-    print_step "2/6" "Installing Xcode Command Line Tools"
+    # STEP 4: Install Xcode CLI tools
+    print_step "3/7" "Installing Xcode Command Line Tools"
     if [[ -z "$(command -v git)" ]]; then
         log "Installing Xcode Command Line Tools..."
         xcode-select --install &> /dev/null
@@ -562,8 +606,8 @@ main() {
     print_success "Xcode Command Line Tools ready"
     echo ""
 
-    # STEP 4: Ensure Homebrew
-    print_step "3/6" "Setting up Homebrew"
+    # STEP 5: Ensure Homebrew
+    print_step "4/7" "Setting up Homebrew"
     ensure_homebrew || {
         error "Failed to set up Homebrew"
         exit 1
@@ -571,8 +615,8 @@ main() {
     print_success "Homebrew ready"
     echo ""
 
-    # STEP 5: Install or fix Nix
-    print_step "4/6" "Installing Nix Package Manager"
+    # STEP 6: Install or fix Nix
+    print_step "5/7" "Installing Nix Package Manager"
     install_or_fix_nix || {
         error "Failed to install or fix Nix"
         exit 1
@@ -581,40 +625,8 @@ main() {
     print_success "Nix installed and configured"
     echo ""
 
-    # STEP 6: Clone/update repository
-    print_step "5/6" "Setting up Configuration Repository"
-    if [ "${SKIP_REPO_CLONE:-0}" = "1" ]; then
-        log "Skipping git clone/update (SKIP_REPO_CLONE=1)"
-        if [ ! -d "$REPO_DIR" ]; then
-            error "SKIP_REPO_CLONE=1 but $REPO_DIR does not exist"
-            exit 1
-        fi
-        log "Using existing files in $REPO_DIR"
-    elif [ -d "$REPO_DIR" ]; then
-        log "Repository exists, safely updating..."
-        safe_git_update "$REPO_DIR" "$REPO_BRANCH" || {
-            error "Failed to update repository"
-            exit 1
-        }
-    else
-        log "Cloning configuration repository..."
-        mkdir -p "$(dirname "$REPO_DIR")"
-        git clone "$REPO_URL" "$REPO_DIR" || {
-            error "Failed to clone repository"
-            exit 1
-        }
-        cd "$REPO_DIR"
-        git checkout "$REPO_BRANCH"
-    fi
-
-    # Create lib and bin directories if they don't exist
-    mkdir -p "$REPO_DIR/lib" "$REPO_DIR/bin"
-
-    print_success "Repository ready"
-    echo ""
-
     # STEP 7: Generate machine configuration and build
-    print_step "6/6" "Building and Activating System"
+    print_step "6/7" "Generating Machine Configuration"
     cd "$REPO_DIR"
 
     # Generate config if config-builder exists
@@ -646,7 +658,8 @@ EOF
         print_success "VS Code configuration installed"
     fi
 
-    # Build and activate
+    # STEP 8: Build and activate
+    print_step "7/7" "Building and Activating System"
     log "Building system configuration (this may take 15-30 minutes)..."
     # Export USERNAME for flake.nix to read (with --impure flag)
     export USERNAME="$NIXOS_USERNAME"
