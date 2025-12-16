@@ -17,12 +17,17 @@ set -e
 if [ ! -t 0 ] && [ -z "$NIX_ME_BOOTSTRAPPED" ]; then
     echo "Downloading nix-me installer..."
     REPO_BRANCH=${REPO_BRANCH:-main}
-    TEMP_SCRIPT=$(mktemp)
+    TEMP_SCRIPT=$(mktemp -t nix-me-install.XXXXXX)
     curl -fsSL "https://raw.githubusercontent.com/lucamaraschi/nix-me/${REPO_BRANCH}/install.sh" -o "$TEMP_SCRIPT"
     chmod +x "$TEMP_SCRIPT"
     echo "Starting interactive installer..."
-    # Re-run with stdin from terminal and mark as bootstrapped
-    NIX_ME_BOOTSTRAPPED=1 exec "$TEMP_SCRIPT" "$@" </dev/tty
+    # Export all env vars and re-run with stdin from terminal
+    export NIX_ME_BOOTSTRAPPED=1
+    export REPO_BRANCH FORCE_NIX_REINSTALL NON_INTERACTIVE SKIP_BREW_ON_VM SKIP_MAS_APPS SKIP_REPO_CLONE USE_WIZARD
+    bash "$TEMP_SCRIPT" "$@" </dev/tty
+    EXIT_CODE=$?
+    rm -f "$TEMP_SCRIPT"
+    exit $EXIT_CODE
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
