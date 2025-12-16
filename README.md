@@ -69,10 +69,12 @@
 
 ## Quick Start
 
-### One-Line Install
+### One-Line Install (No Clone Required)
+
+Run directly from GitHub - no need to manually clone the repository:
 
 ```bash
-curl -L https://raw.githubusercontent.com/lucamaraschi/nix-me/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/lucamaraschi/nix-me/main/install.sh | bash
 ```
 
 The wizard will guide you through:
@@ -82,6 +84,45 @@ The wizard will guide you through:
 4. **Build system** - Apply your configuration
 
 > **Time:** 30-60 minutes (mostly package downloads)
+
+### Alternative Installation Methods
+
+<details>
+<summary><strong>Download and inspect before running</strong></summary>
+
+```bash
+# Download the installer
+curl -fsSL https://raw.githubusercontent.com/lucamaraschi/nix-me/main/install.sh -o install.sh
+
+# Review it
+less install.sh
+
+# Make executable and run
+chmod +x install.sh
+./install.sh
+```
+</details>
+
+<details>
+<summary><strong>Install from a specific branch</strong></summary>
+
+```bash
+# Use a different branch (e.g., dev, feature/xyz)
+curl -fsSL https://raw.githubusercontent.com/lucamaraschi/nix-me/dev/install.sh | REPO_BRANCH=dev bash
+```
+</details>
+
+<details>
+<summary><strong>Non-interactive installation</strong></summary>
+
+```bash
+# Fully automated setup
+curl -fsSL https://raw.githubusercontent.com/lucamaraschi/nix-me/main/install.sh | \
+  NON_INTERACTIVE=1 bash -s -- hostname macmini "My Mac Mini" username
+```
+
+Arguments: `hostname` `machine-type` `machine-name` `username`
+</details>
 
 ### Prerequisites
 
@@ -278,8 +319,10 @@ Optimized for mobility:
 Optimized for desktop:
 - Multi-display support
 - Larger UI elements
-- Performance mode
-- Professional tools
+- Always-on performance
+- Tailscale networking
+- Professional tools (Adobe, Figma)
+- Docker & OrbStack
 
 </td>
 <td>
@@ -361,6 +404,45 @@ Add to `flake.nix`:
   };
 }
 ```
+
+<details>
+<summary><strong>Example: Maker/Craft Station</strong></summary>
+
+A Mac Mini configured for 3D printing and creative work:
+
+```nix
+# hosts/machines/zion/default.nix
+{ ... }:
+{
+  imports = [ ../../types/macmini/default.nix ];
+
+  apps = {
+    useBaseLists = true;
+    casksToAdd = [
+      "bambu-studio"        # 3D printer slicer
+      "autodesk-fusion"     # Fusion 360 CAD
+      "openscad"            # Programmable CAD
+      "elgato-camera-hub"   # Streaming hardware
+    ];
+  };
+}
+```
+
+Then in `flake.nix`:
+```nix
+"zion" = mkDarwinSystem {
+  hostname = "zion";
+  machineType = "macmini";
+  machineName = "Zion";
+  username = "youruser";
+  extraModules = [
+    ./hosts/profiles/dev.nix
+    ./hosts/profiles/work.nix
+    ./hosts/profiles/personal.nix
+  ];
+};
+```
+</details>
 
 ### Display Configuration
 
