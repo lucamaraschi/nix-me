@@ -18,7 +18,160 @@ WIZARD_SELECTED_HOST=""
 
 # Colors
 CYAN='\033[0;36m'
+GREEN='\033[0;32m'
+DIM='\033[2m'
+BOLD='\033[1m'
 NC='\033[0m'
+
+# Arrow key selector function
+# Usage: select_option "Option 1" "Option 2" "Option 3"
+# Returns: selected index (0-based) in SELECTED_INDEX
+select_option() {
+    local options=("$@")
+    local count=${#options[@]}
+    local selected=0
+    local key=""
+
+    # Hide cursor
+    printf "\033[?25l"
+
+    # Trap to restore cursor on exit
+    trap 'printf "\033[?25h"' RETURN
+
+    while true; do
+        # Clear and redraw options
+        printf "\033[${count}A" 2>/dev/null || true  # Move up
+
+        for i in "${!options[@]}"; do
+            printf "\033[2K"  # Clear line
+            if [ $i -eq $selected ]; then
+                printf "  ${GREEN}❯${NC} ${BOLD}%s${NC}\n" "${options[$i]}"
+            else
+                printf "    ${DIM}%s${NC}\n" "${options[$i]}"
+            fi
+        done
+
+        # Read single keypress
+        IFS= read -rsn1 key
+
+        # Handle arrow keys (escape sequences)
+        if [ "$key" = $'\x1b' ]; then
+            read -rsn2 -t 0.1 key
+            case "$key" in
+                '[A') # Up arrow
+                    ((selected--))
+                    [ $selected -lt 0 ] && selected=$((count - 1))
+                    ;;
+                '[B') # Down arrow
+                    ((selected++))
+                    [ $selected -ge $count ] && selected=0
+                    ;;
+            esac
+        elif [ "$key" = "" ]; then
+            # Enter pressed
+            break
+        elif [ "$key" = "k" ] || [ "$key" = "K" ]; then
+            # Vim-style up
+            ((selected--))
+            [ $selected -lt 0 ] && selected=$((count - 1))
+        elif [ "$key" = "j" ] || [ "$key" = "J" ]; then
+            # Vim-style down
+            ((selected++))
+            [ $selected -ge $count ] && selected=0
+        fi
+    done
+
+    # Show cursor
+    printf "\033[?25h"
+
+    SELECTED_INDEX=$selected
+    return $selected
+}
+
+# Checkbox selector for multiple selection
+# Usage: select_multiple "Option 1" "Option 2" "Option 3"
+# Returns: space-separated indices in SELECTED_INDICES
+select_multiple() {
+    local options=("$@")
+    local count=${#options[@]}
+    local selected=0
+    local key=""
+    local checked=""
+
+    # Initialize all unchecked
+    for i in "${!options[@]}"; do
+        checked="$checked 0"
+    done
+    checked=$(echo "$checked" | sed 's/^ //')
+
+    # Hide cursor
+    printf "\033[?25l"
+    trap 'printf "\033[?25h"' RETURN
+
+    # Print initial options
+    for i in "${!options[@]}"; do
+        echo ""
+    done
+
+    while true; do
+        # Move up to redraw
+        printf "\033[${count}A"
+
+        for i in "${!options[@]}"; do
+            printf "\033[2K"  # Clear line
+            local is_checked=$(echo "$checked" | cut -d' ' -f$((i + 1)))
+            local checkbox="○"
+            [ "$is_checked" = "1" ] && checkbox="${GREEN}●${NC}"
+
+            if [ $i -eq $selected ]; then
+                printf "  ${GREEN}❯${NC} %b ${BOLD}%s${NC}\n" "$checkbox" "${options[$i]}"
+            else
+                printf "    %b ${DIM}%s${NC}\n" "$checkbox" "${options[$i]}"
+            fi
+        done
+
+        # Read keypress
+        IFS= read -rsn1 key
+
+        if [ "$key" = $'\x1b' ]; then
+            read -rsn2 -t 0.1 key
+            case "$key" in
+                '[A') ((selected--)); [ $selected -lt 0 ] && selected=$((count - 1)) ;;
+                '[B') ((selected++)); [ $selected -ge $count ] && selected=0 ;;
+            esac
+        elif [ "$key" = "" ]; then
+            # Enter - finish selection
+            break
+        elif [ "$key" = " " ]; then
+            # Space - toggle current option
+            local new_checked=""
+            for i in "${!options[@]}"; do
+                local is_checked=$(echo "$checked" | cut -d' ' -f$((i + 1)))
+                if [ $i -eq $selected ]; then
+                    [ "$is_checked" = "1" ] && is_checked="0" || is_checked="1"
+                fi
+                new_checked="$new_checked $is_checked"
+            done
+            checked=$(echo "$new_checked" | sed 's/^ //')
+        elif [ "$key" = "k" ]; then
+            ((selected--)); [ $selected -lt 0 ] && selected=$((count - 1))
+        elif [ "$key" = "j" ]; then
+            ((selected++)); [ $selected -ge $count ] && selected=0
+        fi
+    done
+
+    printf "\033[?25h"
+
+    # Build result
+    SELECTED_INDICES=""
+    for i in "${!options[@]}"; do
+        local is_checked=$(echo "$checked" | cut -d' ' -f$((i + 1)))
+        if [ "$is_checked" = "1" ]; then
+            SELECTED_INDICES="$SELECTED_INDICES $i"
+        fi
+    done
+    SELECTED_INDICES=$(echo "$SELECTED_INDICES" | sed 's/^ //')
+}
 
 # Function to get existing hosts from flake.nix
 get_existing_hosts() {
@@ -77,51 +230,48 @@ run_setup_wizard() {
 
     print_header "nix-me Setup Wizard"
     echo ""
-
-    # Step 1: Select existing config or create new
-    print_info "Choose a configuration:"
+    print_info "Use ↑↓ arrows to navigate, Enter to select"
     echo ""
 
+    # Build options list
     local hosts_list=$(get_existing_hosts "$repo_dir")
-    local i=1
+    local options=""
     local host_array=""
+    local i=0
 
-    # Show existing hosts
     for host in $hosts_list; do
         local info=$(get_host_info "$repo_dir" "$host")
         local mtype=$(echo "$info" | cut -d'|' -f1)
         local profs=$(echo "$info" | cut -d'|' -f2)
+        [ -z "$profs" ] && profs="minimal"
 
-        if [ -z "$profs" ]; then
-            profs="minimal"
-        fi
-
-        printf "  ${CYAN}%d${NC}) %-20s [%s] %s\n" "$i" "$host" "$mtype" "$profs"
+        # Build display string
+        local display=$(printf "%-18s  [%-11s]  %s" "$host" "$mtype" "$profs")
+        options="$options|$display"
         host_array="$host_array $host"
         i=$((i + 1))
     done
+    options="$options|➕ Create new configuration..."
+    options=$(echo "$options" | sed 's/^|//')
     host_array=$(echo "$host_array" | sed 's/^ //')
 
-    local host_count=$((i - 1))
-    local new_option=$i
+    local host_count=$i
 
-    echo ""
-    echo "  ${CYAN}${new_option}${NC}) Create new configuration..."
-    echo ""
+    # Print placeholder lines for selector
+    local opt_count=$((host_count + 1))
+    for j in $(seq 1 $opt_count); do echo ""; done
 
-    read -p "$(echo -e ${CYAN}Select [1]: ${NC})" choice
-    choice=${choice:-1}
+    # Convert to array and select
+    IFS='|' read -ra opt_array <<< "$options"
+    select_option "${opt_array[@]}"
 
-    if [ "$choice" = "$new_option" ]; then
+    if [ $SELECTED_INDEX -eq $host_count ]; then
         # Create new configuration
         create_new_configuration "$repo_dir"
-    elif [ -n "$choice" ] && [ "$choice" -ge 1 ] 2>/dev/null && [ "$choice" -le "$host_count" ] 2>/dev/null; then
-        # Selected existing host
-        WIZARD_SELECTED_HOST=$(echo "$host_array" | cut -d' ' -f"$choice")
-        select_existing_host "$repo_dir" "$WIZARD_SELECTED_HOST"
     else
-        print_warn "Invalid selection, using first option"
-        WIZARD_SELECTED_HOST=$(echo "$host_array" | cut -d' ' -f1)
+        # Selected existing host
+        local idx=$((SELECTED_INDEX + 1))
+        WIZARD_SELECTED_HOST=$(echo "$host_array" | cut -d' ' -f$idx)
         select_existing_host "$repo_dir" "$WIZARD_SELECTED_HOST"
     fi
 
@@ -178,49 +328,58 @@ create_new_configuration() {
     # Machine type
     echo ""
     print_header "Machine Type"
+    print_info "Use ↑↓ to navigate, Enter to select"
     echo ""
-    echo "  ${CYAN}1${NC}) macbook     - MacBook Air/Pro (battery optimized)"
-    echo "  ${CYAN}2${NC}) macbook-pro - MacBook Pro (performance focused)"
-    echo "  ${CYAN}3${NC}) macmini     - Mac Mini (desktop, multi-display)"
-    echo "  ${CYAN}4${NC}) vm          - Virtual Machine (minimal)"
+    echo ""
+    echo ""
+    echo ""
     echo ""
 
-    read -p "$(echo -e ${CYAN}Select [1]: ${NC})" type_choice
-    type_choice=${type_choice:-1}
+    local machine_types=(
+        "macbook      MacBook Air/Pro (battery optimized)"
+        "macbook-pro  MacBook Pro (performance focused)"
+        "macmini      Mac Mini (desktop, multi-display)"
+        "vm           Virtual Machine (minimal)"
+    )
+    select_option "${machine_types[@]}"
 
-    case "$type_choice" in
-        1) WIZARD_MACHINE_TYPE="macbook" ;;
-        2) WIZARD_MACHINE_TYPE="macbook-pro" ;;
-        3) WIZARD_MACHINE_TYPE="macmini" ;;
-        4) WIZARD_MACHINE_TYPE="vm" ;;
-        *) WIZARD_MACHINE_TYPE="macbook" ;;
+    case $SELECTED_INDEX in
+        0) WIZARD_MACHINE_TYPE="macbook" ;;
+        1) WIZARD_MACHINE_TYPE="macbook-pro" ;;
+        2) WIZARD_MACHINE_TYPE="macmini" ;;
+        3) WIZARD_MACHINE_TYPE="vm" ;;
     esac
     print_success "Selected: $WIZARD_MACHINE_TYPE"
 
     # Profiles
     echo ""
     print_header "Profiles"
+    print_info "Use ↑↓ to navigate, Space to toggle, Enter to confirm"
     echo ""
-    print_info "Select which profiles to include:"
     echo ""
+    echo ""
+    echo ""
+
+    local profile_options=(
+        "dev       Development tools (VS Code, Node, Python, Docker...)"
+        "work      Work apps (Slack, Teams, Zoom, Office...)"
+        "personal  Personal apps (Spotify, OBS, media tools...)"
+    )
+    select_multiple "${profile_options[@]}"
 
     WIZARD_PROFILES=""
+    for idx in $SELECTED_INDICES; do
+        case $idx in
+            0) [ -n "$WIZARD_PROFILES" ] && WIZARD_PROFILES="$WIZARD_PROFILES dev" || WIZARD_PROFILES="dev" ;;
+            1) [ -n "$WIZARD_PROFILES" ] && WIZARD_PROFILES="$WIZARD_PROFILES work" || WIZARD_PROFILES="work" ;;
+            2) [ -n "$WIZARD_PROFILES" ] && WIZARD_PROFILES="$WIZARD_PROFILES personal" || WIZARD_PROFILES="personal" ;;
+        esac
+    done
 
-    echo "  ${CYAN}dev${NC} - Development tools (VS Code, Node, Python, Go, Docker...)"
-    if ask_yes_no "  Include?" "y"; then
-        WIZARD_PROFILES="dev"
-    fi
-
-    echo ""
-    echo "  ${CYAN}work${NC} - Work apps (Slack, Teams, Zoom, Office...)"
-    if ask_yes_no "  Include?" "y"; then
-        [ -n "$WIZARD_PROFILES" ] && WIZARD_PROFILES="$WIZARD_PROFILES work" || WIZARD_PROFILES="work"
-    fi
-
-    echo ""
-    echo "  ${CYAN}personal${NC} - Personal apps (Spotify, OBS, media tools...)"
-    if ask_yes_no "  Include?" "n"; then
-        [ -n "$WIZARD_PROFILES" ] && WIZARD_PROFILES="$WIZARD_PROFILES personal" || WIZARD_PROFILES="personal"
+    if [ -n "$WIZARD_PROFILES" ]; then
+        print_success "Selected: $WIZARD_PROFILES"
+    else
+        print_info "No profiles selected (minimal base)"
     fi
 
     # Display name
