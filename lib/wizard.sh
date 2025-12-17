@@ -31,6 +31,7 @@ select_option() {
     local count=${#options[@]}
     local selected=0
     local key=""
+    local first_draw=1
 
     # Hide cursor
     printf "\033[?25l"
@@ -38,21 +39,25 @@ select_option() {
     # Trap to restore cursor on exit
     trap 'printf "\033[?25h"' RETURN
 
-    while true; do
-        # Clear and redraw options
-        printf "\033[${count}A" 2>/dev/null || true  # Move up
-
+    # Draw function
+    draw_options() {
         for i in "${!options[@]}"; do
-            printf "\033[2K"  # Clear line
             if [ $i -eq $selected ]; then
-                printf "  ${GREEN}❯${NC} ${BOLD}%s${NC}\n" "${options[$i]}"
+                printf "  ${GREEN}❯${NC} ${BOLD}%s${NC}\033[K\n" "${options[$i]}"
             else
-                printf "    ${DIM}%s${NC}\n" "${options[$i]}"
+                printf "    ${DIM}%s${NC}\033[K\n" "${options[$i]}"
             fi
         done
+    }
 
+    # Initial draw
+    draw_options
+
+    while true; do
         # Read single keypress
         IFS= read -rsn1 key
+
+        local old_selected=$selected
 
         # Handle arrow keys (escape sequences)
         if [ "$key" = $'\x1b' ]; then
@@ -71,13 +76,18 @@ select_option() {
             # Enter pressed
             break
         elif [ "$key" = "k" ] || [ "$key" = "K" ]; then
-            # Vim-style up
             ((selected--))
             [ $selected -lt 0 ] && selected=$((count - 1))
         elif [ "$key" = "j" ] || [ "$key" = "J" ]; then
-            # Vim-style down
             ((selected++))
             [ $selected -ge $count ] && selected=0
+        fi
+
+        # Only redraw if selection changed
+        if [ $selected -ne $old_selected ]; then
+            # Move cursor up to start of options
+            printf "\033[${count}A"
+            draw_options
         fi
     done
 
@@ -108,36 +118,35 @@ select_multiple() {
     printf "\033[?25l"
     trap 'printf "\033[?25h"' RETURN
 
-    # Print initial options
-    for i in "${!options[@]}"; do
-        echo ""
-    done
-
-    while true; do
-        # Move up to redraw
-        printf "\033[${count}A"
-
+    # Draw function
+    draw_checkboxes() {
         for i in "${!options[@]}"; do
-            printf "\033[2K"  # Clear line
             local is_checked=$(echo "$checked" | cut -d' ' -f$((i + 1)))
             local checkbox="○"
             [ "$is_checked" = "1" ] && checkbox="${GREEN}●${NC}"
 
             if [ $i -eq $selected ]; then
-                printf "  ${GREEN}❯${NC} %b ${BOLD}%s${NC}\n" "$checkbox" "${options[$i]}"
+                printf "  ${GREEN}❯${NC} %b ${BOLD}%s${NC}\033[K\n" "$checkbox" "${options[$i]}"
             else
-                printf "    %b ${DIM}%s${NC}\n" "$checkbox" "${options[$i]}"
+                printf "    %b ${DIM}%s${NC}\033[K\n" "$checkbox" "${options[$i]}"
             fi
         done
+    }
 
+    # Initial draw
+    draw_checkboxes
+
+    while true; do
         # Read keypress
         IFS= read -rsn1 key
+
+        local needs_redraw=0
 
         if [ "$key" = $'\x1b' ]; then
             read -rsn2 -t 0.1 key
             case "$key" in
-                '[A') ((selected--)); [ $selected -lt 0 ] && selected=$((count - 1)) ;;
-                '[B') ((selected++)); [ $selected -ge $count ] && selected=0 ;;
+                '[A') ((selected--)); [ $selected -lt 0 ] && selected=$((count - 1)); needs_redraw=1 ;;
+                '[B') ((selected++)); [ $selected -ge $count ] && selected=0; needs_redraw=1 ;;
             esac
         elif [ "$key" = "" ]; then
             # Enter - finish selection
@@ -153,10 +162,16 @@ select_multiple() {
                 new_checked="$new_checked $is_checked"
             done
             checked=$(echo "$new_checked" | sed 's/^ //')
+            needs_redraw=1
         elif [ "$key" = "k" ]; then
-            ((selected--)); [ $selected -lt 0 ] && selected=$((count - 1))
+            ((selected--)); [ $selected -lt 0 ] && selected=$((count - 1)); needs_redraw=1
         elif [ "$key" = "j" ]; then
-            ((selected++)); [ $selected -ge $count ] && selected=0
+            ((selected++)); [ $selected -ge $count ] && selected=0; needs_redraw=1
+        fi
+
+        if [ $needs_redraw -eq 1 ]; then
+            printf "\033[${count}A"
+            draw_checkboxes
         fi
     done
 
@@ -257,10 +272,6 @@ run_setup_wizard() {
 
     local host_count=$i
 
-    # Print placeholder lines for selector
-    local opt_count=$((host_count + 1))
-    for j in $(seq 1 $opt_count); do echo ""; done
-
     # Convert to array and select
     IFS='|' read -ra opt_array <<< "$options"
     select_option "${opt_array[@]}"
@@ -330,10 +341,6 @@ create_new_configuration() {
     print_header "Machine Type"
     print_info "Use ↑↓ to navigate, Enter to select"
     echo ""
-    echo ""
-    echo ""
-    echo ""
-    echo ""
 
     local machine_types=(
         "macbook      MacBook Air/Pro (battery optimized)"
@@ -355,9 +362,6 @@ create_new_configuration() {
     echo ""
     print_header "Profiles"
     print_info "Use ↑↓ to navigate, Space to toggle, Enter to confirm"
-    echo ""
-    echo ""
-    echo ""
     echo ""
 
     local profile_options=(
