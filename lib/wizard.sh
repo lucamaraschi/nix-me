@@ -192,63 +192,47 @@ get_available_profiles() {
 prompt_profile_selection() {
     print_header "Select Configuration Profiles"
     echo ""
-    print_info "Profiles are composable - select all that apply"
-    print_info "Press Enter with no selection for minimal (base only)"
+    print_info "Answer yes/no for each profile you want to include:"
     echo ""
 
-    local available_list=$(get_available_profiles)
+    WIZARD_PROFILES=""
 
-    if [ -z "$available_list" ]; then
-        # Fall back to known profiles
-        available_list="dev work personal"
+    # Dev profile
+    echo "  ${CYAN}dev${NC} - Development tools, IDEs, languages (VS Code, Node, Python, Go...)"
+    if ask_yes_no "  Include dev profile?" "y"; then
+        WIZARD_PROFILES="dev"
+        print_success "  Added: dev"
     fi
-
-    local i=1
-    local available_array=""
-    for profile in $available_list; do
-        local desc=$(get_profile_description "$profile")
-        echo "  [$i] $profile - $desc"
-        available_array="$available_array $profile"
-        i=$((i + 1))
-    done
-    available_array=$(echo "$available_array" | sed 's/^ //')
-
-    echo ""
-    echo "  Example: 1,2 for dev+work, or just 1 for dev only"
     echo ""
 
-    read -p "$(echo -e ${CYAN}Select profiles \(comma-separated, or Enter for none\): ${NC})" profile_choices
-
-    if [ -z "$profile_choices" ]; then
-        WIZARD_PROFILES=""
-        print_info "Using minimal base configuration (no profiles)"
-    else
-        WIZARD_PROFILES=""
-        local profile_count=$(echo "$available_array" | wc -w | tr -d ' ')
-
-        # Split by comma
-        local IFS_OLD="$IFS"
-        IFS=','
-        for choice in $profile_choices; do
-            IFS="$IFS_OLD"
-            choice=$(echo "$choice" | tr -d ' ')
-            if [ -n "$choice" ] && [ "$choice" -ge 1 ] 2>/dev/null && [ "$choice" -le "$profile_count" ] 2>/dev/null; then
-                local selected=$(echo "$available_array" | cut -d' ' -f"$choice")
-                if [ -n "$WIZARD_PROFILES" ]; then
-                    WIZARD_PROFILES="$WIZARD_PROFILES $selected"
-                else
-                    WIZARD_PROFILES="$selected"
-                fi
-            fi
-            IFS=','
-        done
-        IFS="$IFS_OLD"
-
+    # Work profile
+    echo "  ${CYAN}work${NC} - Work collaboration (Slack, Teams, Zoom, Office...)"
+    if ask_yes_no "  Include work profile?" "y"; then
         if [ -n "$WIZARD_PROFILES" ]; then
-            print_success "Selected profiles: $WIZARD_PROFILES"
+            WIZARD_PROFILES="$WIZARD_PROFILES work"
         else
-            print_info "Using minimal base configuration"
+            WIZARD_PROFILES="work"
         fi
+        print_success "  Added: work"
+    fi
+    echo ""
+
+    # Personal profile
+    echo "  ${CYAN}personal${NC} - Entertainment & media (Spotify, OBS, yt-dlp...)"
+    if ask_yes_no "  Include personal profile?" "n"; then
+        if [ -n "$WIZARD_PROFILES" ]; then
+            WIZARD_PROFILES="$WIZARD_PROFILES personal"
+        else
+            WIZARD_PROFILES="personal"
+        fi
+        print_success "  Added: personal"
+    fi
+    echo ""
+
+    if [ -n "$WIZARD_PROFILES" ]; then
+        print_success "Selected profiles: $WIZARD_PROFILES"
+    else
+        print_info "Using minimal base configuration (no profiles)"
     fi
 }
 
@@ -256,27 +240,18 @@ prompt_profile_selection() {
 prompt_machine_type_selection() {
     print_header "Select Machine Type"
     echo ""
-    print_info "Machine types provide hardware-specific optimizations"
-    echo ""
-
-    local i=1
-    local type_keys=""
-
-    for mtype in macbook macbook-pro macmini vm; do
-        type_keys="$type_keys $mtype"
-        local desc=$(get_machine_type_description "$mtype")
-        echo "  [$i] $mtype - $desc"
-        i=$((i + 1))
-    done
-    type_keys=$(echo "$type_keys" | sed 's/^ //')
-
-    echo ""
 
     # Auto-detect default
     local default_type="macbook"
     if [ "${VM_TYPE:-physical}" != "physical" ]; then
         default_type="vm"
     fi
+
+    echo "  ${CYAN}1${NC}) macbook     - MacBook Air/Pro (battery optimized)"
+    echo "  ${CYAN}2${NC}) macbook-pro - MacBook Pro (performance focused)"
+    echo "  ${CYAN}3${NC}) macmini     - Mac Mini (desktop, multi-display)"
+    echo "  ${CYAN}4${NC}) vm          - Virtual Machine (minimal)"
+    echo ""
 
     local default_num=1
     case "$default_type" in
@@ -286,16 +261,18 @@ prompt_machine_type_selection() {
         vm)          default_num=4 ;;
     esac
 
-    read -p "$(echo -e ${CYAN}Select machine type ${NC}[${default_num}]: )" type_choice
+    read -p "$(echo -e ${CYAN}Enter choice [${default_num}]: ${NC})" type_choice
     type_choice=${type_choice:-$default_num}
 
-    if [ -n "$type_choice" ] && [ "$type_choice" -ge 1 ] 2>/dev/null && [ "$type_choice" -le 4 ] 2>/dev/null; then
-        WIZARD_MACHINE_TYPE=$(echo "$type_keys" | cut -d' ' -f"$type_choice")
-        print_success "Selected: $WIZARD_MACHINE_TYPE"
-    else
-        WIZARD_MACHINE_TYPE="$default_type"
-        print_info "Using default: $WIZARD_MACHINE_TYPE"
-    fi
+    case "$type_choice" in
+        1) WIZARD_MACHINE_TYPE="macbook" ;;
+        2) WIZARD_MACHINE_TYPE="macbook-pro" ;;
+        3) WIZARD_MACHINE_TYPE="macmini" ;;
+        4) WIZARD_MACHINE_TYPE="vm" ;;
+        *) WIZARD_MACHINE_TYPE="$default_type" ;;
+    esac
+
+    print_success "Selected: $WIZARD_MACHINE_TYPE"
 }
 
 # Main wizard function
