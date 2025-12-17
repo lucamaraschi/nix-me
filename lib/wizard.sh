@@ -61,7 +61,7 @@ select_option() {
 
         # Handle arrow keys (escape sequences)
         if [ "$key" = $'\x1b' ]; then
-            read -rsn2 -t 0.1 key
+            read -rsn2 key
             case "$key" in
                 '[A') # Up arrow
                     ((selected--))
@@ -143,7 +143,7 @@ select_multiple() {
         local needs_redraw=0
 
         if [ "$key" = $'\x1b' ]; then
-            read -rsn2 -t 0.1 key
+            read -rsn2 key
             case "$key" in
                 '[A') ((selected--)); [ $selected -lt 0 ] && selected=$((count - 1)); needs_redraw=1 ;;
                 '[B') ((selected++)); [ $selected -ge $count ] && selected=0; needs_redraw=1 ;;
