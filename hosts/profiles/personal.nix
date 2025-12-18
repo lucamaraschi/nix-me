@@ -30,12 +30,12 @@
     };
   };
 
-  # Personal system preferences
+  # Personal system preferences (use mkDefault so work profile can override)
   system.defaults = {
     # More relaxed security for personal use
     screensaver = {
-      askForPassword = true;
-      askForPasswordDelay = 300; # 5 minutes grace period
+      askForPassword = lib.mkDefault true;
+      askForPasswordDelay = lib.mkDefault 300; # 5 minutes grace period
     };
   };
 
