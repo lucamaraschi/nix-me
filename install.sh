@@ -374,7 +374,7 @@ run_simple_wizard() {
                     fi
 
                     # Export wizard values
-                    export WIZARD_HOSTNAME WIZARD_MACHINE_TYPE WIZARD_MACHINE_NAME WIZARD_USERNAME WIZARD_CONFIG_PROFILE
+                    export WIZARD_HOSTNAME WIZARD_MACHINE_TYPE WIZARD_MACHINE_NAME WIZARD_USERNAME WIZARD_CONFIG_PROFILE WIZARD_SELECTED_HOST
                     return 0
                 else
                     print_error "Setup cancelled"
@@ -637,8 +637,10 @@ main() {
     print_step "7/7" "Building and Activating System"
     cd "$REPO_DIR"
 
-    # Generate config if config-builder exists
-    if [ -f "$REPO_DIR/lib/config-builder.sh" ]; then
+    # Generate config only if creating new (not selecting existing host)
+    if [ -n "$WIZARD_SELECTED_HOST" ]; then
+        log "Using existing configuration: $WIZARD_SELECTED_HOST"
+    elif [ -f "$REPO_DIR/lib/config-builder.sh" ]; then
         log "Generating machine configuration..."
         source "$REPO_DIR/lib/config-builder.sh"
         generate_machine_config "$HOST_NAME" "$MACHINE_TYPE" "$MACHINE_NAME" "$NIXOS_USERNAME" "$REPO_DIR" "0"
@@ -669,6 +671,16 @@ EOF
     log "Building system configuration (this may take 15-30 minutes)..."
     # Export USERNAME for flake.nix to read (with --impure flag)
     export USERNAME="$NIXOS_USERNAME"
+
+    # Backup /etc files that nix-darwin needs to manage
+    for etc_file in /etc/zshenv /etc/zshrc /etc/bashrc; do
+        if [ -f "$etc_file" ] && [ ! -L "$etc_file" ]; then
+            if ! grep -q "nix-darwin" "$etc_file" 2>/dev/null; then
+                log "Backing up $etc_file to ${etc_file}.before-nix-darwin"
+                sudo mv "$etc_file" "${etc_file}.before-nix-darwin"
+            fi
+        fi
+    done
 
     if ! command -v darwin-rebuild &>/dev/null; then
         log "Installing nix-darwin..."
