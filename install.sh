@@ -704,21 +704,23 @@ EOF
     echo ""
     echo "  Your macOS system is now managed with Nix."
     echo ""
-    echo "  ${GREEN}Next Steps:${NC}"
-    echo "  1. Restart your terminal (or run: exec \$SHELL)"
-    echo "  2. Run: ${CYAN}nix-me doctor${NC} (check system health)"
-    echo "  3. Run: ${CYAN}nix-me customize${NC} (add more apps)"
-    echo "  4. Run: ${CYAN}nix-me --help${NC} (see all commands)"
+    echo -e "  ${GREEN}Next Steps:${NC}"
+    echo -e "  1. Run: ${CYAN}nix-me doctor${NC} (check system health)"
+    echo -e "  2. Run: ${CYAN}nix-me customize${NC} (add more apps)"
+    echo -e "  3. Run: ${CYAN}nix-me --help${NC} (see all commands)"
     echo ""
-    echo "  ${YELLOW}Useful Commands:${NC}"
-    echo "  • ${CYAN}nix-me add app <n>${NC}  - Search and add GUI apps"
-    echo "  • ${CYAN}nix-me add tool <n>${NC} - Add CLI tools"
-    echo "  • ${CYAN}nix-me setup${NC}           - Re-run setup wizard"
-    echo "  • ${CYAN}nix-me switch${NC}          - Apply configuration changes"
+    echo -e "  ${YELLOW}Useful Commands:${NC}"
+    echo -e "  • ${CYAN}nix-me add app <name>${NC}  - Search and add GUI apps"
+    echo -e "  • ${CYAN}nix-me add tool <name>${NC} - Add CLI tools"
+    echo -e "  • ${CYAN}nix-me setup${NC}           - Re-run setup wizard"
+    echo -e "  • ${CYAN}nix-me switch${NC}          - Apply configuration changes"
     echo ""
-    echo "  ${GREEN}Configuration:${NC}"
-    echo "  📁 ${REPO_DIR}"
+    echo -e "  ${GREEN}Configuration:${NC} ${REPO_DIR}"
     echo ""
+
+    # Restart shell to pick up new environment
+    echo -e "  ${YELLOW}Restarting shell...${NC}"
+    exec $SHELL
 }
 
 # Run main function
