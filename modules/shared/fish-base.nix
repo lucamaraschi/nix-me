@@ -277,7 +277,7 @@ in
 
           # Git status
           if command -v git >/dev/null
-            set -l git_branch (git branch 2>/dev/null | grep '^*' | sed 's/* //')
+            set -l git_branch (git branch 2>/dev/null | command grep '^*' | sed 's/* //')
             if test -n "$git_branch"
               printf "$git_color($git_branch) "
             end
