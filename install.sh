@@ -502,6 +502,12 @@ main() {
         done
     fi
     print_success "Xcode Command Line Tools ready"
+
+    # Accept Xcode license automatically
+    if ! sudo xcodebuild -license status &>/dev/null; then
+        log "Accepting Xcode license..."
+        sudo xcodebuild -license accept
+    fi
     echo ""
 
     # STEP 3: Clone/update repository so wizard can see existing hosts
