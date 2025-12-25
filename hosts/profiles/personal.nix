@@ -11,7 +11,6 @@
     casksToAdd = [
       # Entertainment & Media
       "spotify"
-      "obs"               # Streaming/recording
 
       # Creative
       # "figma"
