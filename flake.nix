@@ -82,6 +82,7 @@
             {
               nixpkgs.overlays = [
                 (import ./overlays/nodejs.nix)
+                (import ./overlays/airjack.nix)
                 # Add other overlays here
               ];
             }
@@ -113,6 +114,8 @@
           extraModules = [
             ./hosts/profiles/dev.nix   # Development tools
             ./hosts/profiles/work.nix  # Work collaboration apps
+            ./hosts/profiles/personal.nix  # Media tools for tutorials/streaming
+            ./hosts/profiles/hacking.nix  # Hacking tools for on the go
           ];
         };
 
@@ -233,6 +236,18 @@
           machineName = "Minimal Mac";
           username = "batman";
           # No extraModules = truly minimal base only
+        };
+
+        # Security testing / ethical hacking setup
+        "hacking-mac" = mkDarwinSystem {
+          hostname = "hacking-mac";
+          machineType = "macbook";
+          machineName = "Hacking Lab";
+          username = "batman";
+          extraModules = [
+            ./hosts/profiles/dev.nix      # Development tools
+            ./hosts/profiles/hacking.nix  # Security/pentesting tools
+          ];
         };
       };
 

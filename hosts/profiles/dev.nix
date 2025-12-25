@@ -17,12 +17,15 @@
       "orbstack"          # Lightweight Docker/Linux VMs
       "github"            # GitHub Desktop
 
+      "claude-code"
+
       # API & Database
       # "postman"
       # "tableplus"
 
       # Virtualization
       "utm"
+      "orka-desktop"
       "virtualbuddy"
     ];
 

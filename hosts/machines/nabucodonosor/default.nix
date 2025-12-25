@@ -18,7 +18,7 @@
 
     # Add machine-specific GUI apps
     casksToAdd = [
-      "obs"
+      "obs"               # Streaming/recording
     ];
 
     # Remove apps you don't need on this machine
