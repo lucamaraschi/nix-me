@@ -18,8 +18,7 @@
 
     # Add machine-specific GUI apps
     casksToAdd = [
-      "obs"
-      "openscad"               # Streaming/recording
+      "obs"            # Streaming/recording
     ];
 
     # Remove apps you don't need on this machine
