@@ -116,6 +116,7 @@
             ./hosts/profiles/work.nix  # Work collaboration apps
             ./hosts/profiles/personal.nix  # Media tools for tutorials/streaming
             ./hosts/profiles/hacking.nix  # Hacking tools for on the go
+            ./hosts/profiles/maker.nix  # 3D printing & CAD
           ];
         };
 
