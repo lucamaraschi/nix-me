@@ -8,6 +8,7 @@
     ./git.nix
     ./tmux.nix
     ./ssh.nix
+    ./claude-code.nix # Claude Code global settings
     ../rectangle.nix  # Rectangle window manager config
   ];
 }
