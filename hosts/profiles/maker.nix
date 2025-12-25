@@ -19,11 +19,6 @@
       "freecad"             # Open source parametric CAD
     ];
 
-    # Maker CLI tools
-    brewsToAdd = [
-      "openscad"            # CLI for OpenSCAD
-    ];
-
     # Maker packages via Nix
     systemPackagesToAdd = [
       # Mesh tools
