@@ -83,6 +83,19 @@
   environment.systemPath = lib.mkDefault [ "/opt/homebrew/bin" ];
   environment.pathsToLink = lib.mkDefault [ "/Applications" ];
 
+  # Pre-activation: backup /etc files that nix-darwin wants to manage
+  system.activationScripts.preActivation.text = ''
+    # Backup existing /etc files if they exist and aren't already managed by nix-darwin
+    for f in /etc/shells /etc/bashrc /etc/zshrc /etc/zshenv; do
+      if [ -f "$f" ] && [ ! -L "$f" ]; then
+        if ! grep -q "nix-darwin" "$f" 2>/dev/null; then
+          echo "Backing up $f to $f.before-nix-darwin" >&2
+          mv "$f" "$f.before-nix-darwin" 2>/dev/null || true
+        fi
+      fi
+    done
+  '';
+
   # System activation
   system.activationScripts.postActivation.text = ''
     # Reset LaunchPad (as the actual user, not root)
