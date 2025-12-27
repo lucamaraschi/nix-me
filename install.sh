@@ -679,7 +679,7 @@ EOF
     export USERNAME="$NIXOS_USERNAME"
 
     # Backup /etc files that nix-darwin needs to manage
-    for etc_file in /etc/zshenv /etc/zshrc /etc/bashrc; do
+    for etc_file in /etc/shells /etc/zshenv /etc/zshrc /etc/bashrc; do
         if [ -f "$etc_file" ] && [ ! -L "$etc_file" ]; then
             if ! grep -q "nix-darwin" "$etc_file" 2>/dev/null; then
                 log "Backing up $etc_file to ${etc_file}.before-nix-darwin"

@@ -72,6 +72,15 @@ switch:
 ifeq ($(DRY_RUN), 1)
 	@echo "[DRY RUN] HOSTNAME=$(FINAL_HOSTNAME) MACHINE_TYPE=$(MACHINE_TYPE) MACHINE_NAME=\"$(MACHINE_NAME)\" darwin-rebuild switch --flake $(FLAKE_DIR)#$(FINAL_HOSTNAME) --impure"
 else
+	@# Backup /etc files that nix-darwin needs to manage (avoids activation errors)
+	@for f in /etc/shells /etc/bashrc /etc/zshrc /etc/zshenv; do \
+		if [ -f "$$f" ] && [ ! -L "$$f" ]; then \
+			if ! grep -q "nix-darwin" "$$f" 2>/dev/null; then \
+				echo "==> Backing up $$f to $$f.before-nix-darwin"; \
+				sudo mv "$$f" "$$f.before-nix-darwin"; \
+			fi; \
+		fi; \
+	done
 	@# Find darwin-rebuild in common locations
 	@DARWIN_REBUILD=""; \
 	if [ -x "/run/current-system/sw/bin/darwin-rebuild" ]; then \
