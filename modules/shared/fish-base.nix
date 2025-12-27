@@ -56,6 +56,12 @@ in
       # Set fish greeting
       set fish_greeting ""
 
+      # Nix profile paths (must be early to ensure commands are available for aliases)
+      fish_add_path /nix/var/nix/profiles/default/bin
+      fish_add_path ~/.nix-profile/bin
+      fish_add_path /etc/profiles/per-user/$USER/bin
+      fish_add_path /run/current-system/sw/bin
+
       # Common paths
       fish_add_path ~/.local/bin
       fish_add_path ~/.npm-global/bin
