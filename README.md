@@ -175,10 +175,32 @@ Profiles are **composable** - combine them to match your needs:
 
 - Spotify, OBS
 - yt-dlp, ffmpeg
-- iA Writer, PDF Expert
+- iA Writer
 
 </td>
 <td>Entertainment & personal</td>
+</tr>
+<tr>
+<td><code>hacking</code></td>
+<td>
+
+- Wireshark, Ghidra, Metasploit
+- nmap, hashcat, aircrack-ng
+- AirJack (auto-installed)
+
+</td>
+<td>Security testing & CTFs</td>
+</tr>
+<tr>
+<td><code>maker</code></td>
+<td>
+
+- Bambu Studio, Bambu Connect
+- Fusion 360, Blender, FreeCAD
+- OpenSCAD, MeshLab
+
+</td>
+<td>3D printing & CAD</td>
 </tr>
 </table>
 
@@ -197,11 +219,25 @@ extraModules = [
   ./hosts/profiles/personal.nix
 ];
 
+# Security researcher / pentester
+extraModules = [
+  ./hosts/profiles/dev.nix
+  ./hosts/profiles/hacking.nix
+];
+
+# Maker / 3D printing station
+extraModules = [
+  ./hosts/profiles/dev.nix
+  ./hosts/profiles/maker.nix
+];
+
 # Full setup (everything)
 extraModules = [
   ./hosts/profiles/dev.nix
   ./hosts/profiles/work.nix
   ./hosts/profiles/personal.nix
+  ./hosts/profiles/hacking.nix
+  ./hosts/profiles/maker.nix
 ];
 
 # Minimal (no profiles - just base essentials)
@@ -264,7 +300,9 @@ nix-me/
 │   ├── profiles/             # Composable profiles
 │   │   ├── dev.nix           # Development tools
 │   │   ├── work.nix          # Work/collaboration apps
-│   │   └── personal.nix      # Entertainment/personal
+│   │   ├── personal.nix      # Entertainment/personal
+│   │   ├── hacking.nix       # Security/pentesting tools
+│   │   └── maker.nix         # 3D printing & CAD
 │   │
 │   └── machines/
 │       └── [hostname]/       # Machine-specific overrides
@@ -278,11 +316,13 @@ nix-me/
 │   │   └── ...
 │   │
 │   └── home-manager/         # User-level (home-manager)
-│       ├── shell/
-│       │   └── fish.nix
-│       ├── git.nix
-│       ├── ssh.nix
-│       └── ...
+│       ├── apps/
+│       │   ├── claude-code.nix   # Claude Code global settings
+│       │   ├── git.nix
+│       │   ├── ssh.nix
+│       │   └── ...
+│       └── shell/
+│           └── fish.nix
 │
 ├── lib/                      # Shell libraries
 │   ├── ui.sh
@@ -483,6 +523,34 @@ Automatically closes brackets and quotes: `()` `[]` `{}` `""` `''`
 
 ---
 
+## Claude Code Integration
+
+nix-me configures [Claude Code](https://github.com/anthropics/claude-code) with global settings managed by Nix.
+
+### What's Configured
+
+- **Global settings** at `~/.claude/settings.json`
+- **Safe default permissions** for common commands (git, nix, brew, npm)
+- **Co-authored-by disabled** by default
+
+### Customizing
+
+Edit `modules/home-manager/apps/claude-code.nix` to modify global permissions:
+
+```nix
+permissions = {
+  allow = [
+    "Bash(git:*)"
+    "Bash(nix:*)"
+    # Add more...
+  ];
+};
+```
+
+Project-specific settings go in `.claude/settings.json` in each repo (gitignored by default).
+
+---
+
 ## 1Password SSH Integration
 
 nix-me configures SSH to use 1Password as your SSH agent.
@@ -544,6 +612,23 @@ export SSH_AUTH_SOCK="$HOME/Library/Group Containers/2BUA8C4S2C.com.1password/t/
 make check                              # Validate config
 darwin-rebuild switch --show-trace      # Detailed errors
 sudo darwin-rebuild switch --rollback   # Rollback changes
+```
+</details>
+
+<details>
+<summary><strong>"/etc files have unrecognized content" error</strong></summary>
+
+This happens when `/etc/bashrc`, `/etc/zshrc`, etc. were modified outside nix-darwin. The `make switch` command automatically backs these up now, but if you see this error:
+
+```bash
+# Manually backup the files
+sudo mv /etc/shells /etc/shells.before-nix-darwin
+sudo mv /etc/bashrc /etc/bashrc.before-nix-darwin
+sudo mv /etc/zshrc /etc/zshrc.before-nix-darwin
+sudo mv /etc/zshenv /etc/zshenv.before-nix-darwin
+
+# Then retry
+make switch
 ```
 </details>
 
