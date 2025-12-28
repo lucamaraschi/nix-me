@@ -15,13 +15,6 @@
 
     # 3D printing and design apps
     casksToAdd = [
-      # 3D Printing
-      "bambu-studio"          # Bambu Lab slicer
-
-      # CAD/Design
-      "autodesk-fusion"       # Fusion 360
-      "openscad"              # Programmable CAD
-
       # Streaming/Recording
       "elgato-camera-hub"     # Elgato Prompter & camera controls
 
@@ -32,7 +25,6 @@
 
     # Design-related CLI tools
     systemPackagesToAdd = [
-      "openscad"              # OpenSCAD CLI for scripted models
     ];
   };
 
