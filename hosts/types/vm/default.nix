@@ -33,10 +33,15 @@
   # Override problematic activation scripts for VMs
   system.activationScripts.vmOptimization.text = ''
     echo "Configuring VM optimizations..." >&2
-    
+
+    # Disable Gatekeeper for VM environment (allows unsigned apps)
+    echo "Disabling Gatekeeper for VM..." >&2
+    sudo spctl --master-disable 2>/dev/null || true
+    sudo xattr -r -d com.apple.quarantine /Applications 2>/dev/null || true
+
     # Disable spotlight indexing for better VM performance
     sudo mdutil -a -i off 2>/dev/null || echo "Could not disable spotlight indexing"
-    
+
     # Touch a last-rebuild file
     printf "%s" "$(date)" > "$HOME"/.nix-last-rebuild
   '';

@@ -113,11 +113,5 @@
     '';
   };
 
-  system.activationScripts.postActivation.text = ''
-    echo "Disabling Gatekeeper for VM environment..."
-    sudo spctl --master-disable 2>/dev/null || true
-
-    # Also disable quarantine attribute on apps
-    sudo xattr -r -d com.apple.quarantine /Applications 2>/dev/null || true
-  '';
+  # Note: Gatekeeper disable moved to hosts/types/vm/default.nix (only for VMs)
 }

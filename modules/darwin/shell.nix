@@ -21,7 +21,11 @@
   # Ensure Fish is properly setup
   system.activationScripts.postActivation.text = ''
     # Add Fish to /etc/shells if it's not already there
-    grep -q '${pkgs.fish}/bin/fish' /etc/shells || echo '${pkgs.fish}/bin/fish' | sudo tee -a /etc/shells
+    if [ -f /etc/shells ]; then
+      grep -q '${pkgs.fish}/bin/fish' /etc/shells || echo '${pkgs.fish}/bin/fish' | sudo tee -a /etc/shells
+    else
+      echo '${pkgs.fish}/bin/fish' | sudo tee /etc/shells
+    fi
   '';
   
   # Programs configuration
