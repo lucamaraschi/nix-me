@@ -32,14 +32,4 @@
     $DRY_RUN_CMD /usr/bin/defaults write com.knollsoft.Rectangle subsequentExecutionMode -int 1
   '';
 
-  # Add Rectangle to Login Items via launchd
-  launchd.agents.rectangle = {
-    enable = true;
-    config = {
-      Label = "com.knollsoft.Rectangle";
-      ProgramArguments = [ "/Applications/Rectangle.app/Contents/MacOS/Rectangle" ];
-      RunAtLoad = true;
-      KeepAlive = false;
-    };
-  };
 }
