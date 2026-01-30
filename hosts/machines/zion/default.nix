@@ -9,6 +9,20 @@
     ../../types/macmini/default.nix
   ];
 
+  # Swap Ctrl and Command keys (both left and right)
+  # Useful for PC-style keyboard layout
+  # HID key codes: Ctrl Left=0xE0, Ctrl Right=0xE4, Cmd Left=0xE3, Cmd Right=0xE7
+  system.keyboard.userKeyMapping = [
+    # Left Control -> Left Command
+    { HIDKeyboardModifierMappingSrc = 30064771296; HIDKeyboardModifierMappingDst = 30064771299; }
+    # Right Control -> Right Command
+    { HIDKeyboardModifierMappingSrc = 30064771300; HIDKeyboardModifierMappingDst = 30064771303; }
+    # Left Command -> Left Control
+    { HIDKeyboardModifierMappingSrc = 30064771299; HIDKeyboardModifierMappingDst = 30064771296; }
+    # Right Command -> Right Control
+    { HIDKeyboardModifierMappingSrc = 30064771303; HIDKeyboardModifierMappingDst = 30064771300; }
+  ];
+
   # Maker/craft specific applications
   apps = {
     useBaseLists = true;
