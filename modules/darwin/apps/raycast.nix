@@ -39,33 +39,49 @@ in
     # Disable Spotlight keyboard shortcuts (run as user, not root!)
     echo "  Disabling Spotlight hotkeys..." >&2
 
-    # Disable Cmd+Space for Spotlight (key 64) - must create full dict structure
-    sudo -u ${username} /usr/libexec/PlistBuddy -c "Delete :AppleSymbolicHotKeys:64" "${symbolicHotkeysPath}" 2>/dev/null || true
-    sudo -u ${username} /usr/libexec/PlistBuddy -c "Add :AppleSymbolicHotKeys:64 dict" "${symbolicHotkeysPath}"
-    sudo -u ${username} /usr/libexec/PlistBuddy -c "Add :AppleSymbolicHotKeys:64:enabled bool false" "${symbolicHotkeysPath}"
-    sudo -u ${username} /usr/libexec/PlistBuddy -c "Add :AppleSymbolicHotKeys:64:value dict" "${symbolicHotkeysPath}"
-    sudo -u ${username} /usr/libexec/PlistBuddy -c "Add :AppleSymbolicHotKeys:64:value:type string standard" "${symbolicHotkeysPath}"
-    sudo -u ${username} /usr/libexec/PlistBuddy -c "Add :AppleSymbolicHotKeys:64:value:parameters array" "${symbolicHotkeysPath}"
-    sudo -u ${username} /usr/libexec/PlistBuddy -c "Add :AppleSymbolicHotKeys:64:value:parameters:0 integer 65535" "${symbolicHotkeysPath}"
-    sudo -u ${username} /usr/libexec/PlistBuddy -c "Add :AppleSymbolicHotKeys:64:value:parameters:1 integer 65535" "${symbolicHotkeysPath}"
-    sudo -u ${username} /usr/libexec/PlistBuddy -c "Add :AppleSymbolicHotKeys:64:value:parameters:2 integer 0" "${symbolicHotkeysPath}"
+    # Use defaults write with dict-add for more reliable modification on modern macOS
+    # Key 64 = Cmd+Space (Show Spotlight search)
+    # Key 65 = Cmd+Option+Space (Show Finder search window)
+    sudo -u ${username} defaults write com.apple.symbolichotkeys AppleSymbolicHotKeys -dict-add 64 '
+      <dict>
+        <key>enabled</key>
+        <false/>
+        <key>value</key>
+        <dict>
+          <key>parameters</key>
+          <array>
+            <integer>65535</integer>
+            <integer>65535</integer>
+            <integer>0</integer>
+          </array>
+          <key>type</key>
+          <string>standard</string>
+        </dict>
+      </dict>'
 
-    # Disable Cmd+Option+Space for Spotlight window (key 65) - must create full dict structure
-    sudo -u ${username} /usr/libexec/PlistBuddy -c "Delete :AppleSymbolicHotKeys:65" "${symbolicHotkeysPath}" 2>/dev/null || true
-    sudo -u ${username} /usr/libexec/PlistBuddy -c "Add :AppleSymbolicHotKeys:65 dict" "${symbolicHotkeysPath}"
-    sudo -u ${username} /usr/libexec/PlistBuddy -c "Add :AppleSymbolicHotKeys:65:enabled bool false" "${symbolicHotkeysPath}"
-    sudo -u ${username} /usr/libexec/PlistBuddy -c "Add :AppleSymbolicHotKeys:65:value dict" "${symbolicHotkeysPath}"
-    sudo -u ${username} /usr/libexec/PlistBuddy -c "Add :AppleSymbolicHotKeys:65:value:type string standard" "${symbolicHotkeysPath}"
-    sudo -u ${username} /usr/libexec/PlistBuddy -c "Add :AppleSymbolicHotKeys:65:value:parameters array" "${symbolicHotkeysPath}"
-    sudo -u ${username} /usr/libexec/PlistBuddy -c "Add :AppleSymbolicHotKeys:65:value:parameters:0 integer 65535" "${symbolicHotkeysPath}"
-    sudo -u ${username} /usr/libexec/PlistBuddy -c "Add :AppleSymbolicHotKeys:65:value:parameters:1 integer 65535" "${symbolicHotkeysPath}"
-    sudo -u ${username} /usr/libexec/PlistBuddy -c "Add :AppleSymbolicHotKeys:65:value:parameters:2 integer 0" "${symbolicHotkeysPath}"
+    sudo -u ${username} defaults write com.apple.symbolichotkeys AppleSymbolicHotKeys -dict-add 65 '
+      <dict>
+        <key>enabled</key>
+        <false/>
+        <key>value</key>
+        <dict>
+          <key>parameters</key>
+          <array>
+            <integer>65535</integer>
+            <integer>65535</integer>
+            <integer>0</integer>
+          </array>
+          <key>type</key>
+          <string>standard</string>
+        </dict>
+      </dict>'
 
     # Apply the changes immediately
     sudo -u ${username} /System/Library/PrivateFrameworks/SystemAdministration.framework/Resources/activateSettings -u 2>/dev/null || true
 
-    # Kill cfprefsd to force reload of preferences (required on modern macOS)
+    # Kill cfprefsd to force reload of preferences (both user and system)
     sudo -u ${username} killall cfprefsd 2>/dev/null || true
+    sudo killall cfprefsd 2>/dev/null || true
 
     # Configure Raycast settings
     echo "  Configuring Raycast preferences..." >&2
