@@ -1,4 +1,4 @@
-{ pkgs, config, lib, ... }:
+{ pkgs, config, lib, username ? "batman", ... }:
 
 {
   # Zion - Mac Mini maker/craft station
@@ -22,6 +22,20 @@
     # Right Command -> Right Control
     { HIDKeyboardModifierMappingSrc = 30064771303; HIDKeyboardModifierMappingDst = 30064771300; }
   ];
+
+  # LaunchAgent to persist keyboard mapping across reboots
+  launchd.user.agents.keyboard-remap = {
+    serviceConfig = {
+      Label = "com.nix-me.keyboard-remap";
+      ProgramArguments = [
+        "/usr/bin/hidutil"
+        "property"
+        "--set"
+        ''{"UserKeyMapping":[{"HIDKeyboardModifierMappingSrc":0x7000000E0,"HIDKeyboardModifierMappingDst":0x7000000E3},{"HIDKeyboardModifierMappingSrc":0x7000000E4,"HIDKeyboardModifierMappingDst":0x7000000E7},{"HIDKeyboardModifierMappingSrc":0x7000000E3,"HIDKeyboardModifierMappingDst":0x7000000E0},{"HIDKeyboardModifierMappingSrc":0x7000000E7,"HIDKeyboardModifierMappingDst":0x7000000E4}]}''
+      ];
+      RunAtLoad = true;
+    };
+  };
 
   # Maker/craft specific applications
   apps = {
