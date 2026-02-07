@@ -1,13 +1,18 @@
 import React from 'react';
-import { Box, Text } from 'ink';
+import { Box, Text, useStdout } from 'ink';
 import type { SystemInfo } from '../types.js';
 
-// Simple bordered box component
-function BorderedBox({ children, color = 'white', title }: { children: React.ReactNode; color?: string; title?: string }) {
+// Simple top/bottom border box (Ink's borderStyle has rendering bugs with side borders)
+function BorderedBox({ children, color = 'white', width }: { children: React.ReactNode; color?: string; width: number }) {
+  const line = '─'.repeat(width);
+
   return (
-    <Box flexDirection="column" borderStyle="round" borderColor={color} padding={1}>
-      {title && <Text bold color={color}>{title}</Text>}
-      {children}
+    <Box flexDirection="column" width={width}>
+      <Text color={color}>{line}</Text>
+      <Box flexDirection="column" paddingX={1} paddingY={1}>
+        {children}
+      </Box>
+      <Text color={color}>{line}</Text>
     </Box>
   );
 }
@@ -17,6 +22,11 @@ interface DashboardProps {
 }
 
 export function Dashboard({ systemInfo }: DashboardProps) {
+  const { stdout } = useStdout();
+  const terminalWidth = stdout?.columns || 80;
+  // Account for padding (2 on each side from App.tsx paddingX={2})
+  const boxWidth = terminalWidth - 4;
+
   const { hostname, generation, branch, uncommitted, packages, updates } = systemInfo;
 
   const totalPackages = packages.guiApps + packages.brewCLI + packages.nixCLI;
@@ -62,9 +72,9 @@ export function Dashboard({ systemInfo }: DashboardProps) {
         </Text>
       </Box>
 
-      {/* Row 1: System Status - Full Width */}
-      <Box width="100%" height={10} marginBottom={1}>
-        <BorderedBox color="cyan">
+      {/* Row 1: System Status */}
+      <Box height={10} marginBottom={1}>
+        <BorderedBox color="cyan" width={boxWidth}>
           <Box flexDirection="column" height="100%">
             <Text bold color="cyan">⚙️  SYSTEM STATUS</Text>
             <Box marginTop={1}>
@@ -94,9 +104,9 @@ export function Dashboard({ systemInfo }: DashboardProps) {
         </BorderedBox>
       </Box>
 
-      {/* Row 2: Package Stats - Three Columns Spanning Full Width */}
-      <Box width="100%" height={7} marginBottom={1}>
-        <BorderedBox color="green">
+      {/* Row 2: Package Stats */}
+      <Box height={7} marginBottom={1}>
+        <BorderedBox color="green" width={boxWidth}>
           <Box flexDirection="column" height="100%">
             <Text bold color="green">📦 PACKAGES</Text>
             <Box marginTop={1}>
@@ -132,14 +142,11 @@ export function Dashboard({ systemInfo }: DashboardProps) {
         </BorderedBox>
       </Box>
 
-      {/* Row 3: Quick Actions - Full Width with Descriptions */}
-      <Box width="100%" height={16} marginBottom={1}>
-        <BorderedBox color="yellow">
-          <Box flexDirection="column" height="100%">
-            <Box>
-              <Text bold color="yellow">⚡  QUICK ACTIONS</Text>
-              <Box flexGrow={1}></Box>
-            </Box>
+      {/* Row 3: Quick Actions */}
+      <Box height={16} marginBottom={1}>
+        <BorderedBox color="yellow" width={boxWidth}>
+          <Box flexDirection="column">
+            <Text bold color="yellow">⚡  QUICK ACTIONS</Text>
             <Box marginTop={1} flexDirection="column">
               <Box>
                 <Text bold color="cyan">[1]</Text>
@@ -171,10 +178,6 @@ export function Dashboard({ systemInfo }: DashboardProps) {
                 <Text> Quit             </Text>
                 <Text dimColor>- Exit nix-me</Text>
               </Box>
-            </Box>
-            <Box>
-              <Box width="50%"></Box>
-              <Box width="50%"></Box>
             </Box>
           </Box>
         </BorderedBox>
