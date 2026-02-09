@@ -24,6 +24,7 @@
   ];
 
   # LaunchAgent to persist keyboard mapping across reboots
+  # This runs hidutil at login to remap Ctrl<->Cmd keys
   launchd.user.agents.keyboard-remap = {
     serviceConfig = {
       Label = "com.nix-me.keyboard-remap";
@@ -34,6 +35,9 @@
         ''{"UserKeyMapping":[{"HIDKeyboardModifierMappingSrc":0x7000000E0,"HIDKeyboardModifierMappingDst":0x7000000E3},{"HIDKeyboardModifierMappingSrc":0x7000000E4,"HIDKeyboardModifierMappingDst":0x7000000E7},{"HIDKeyboardModifierMappingSrc":0x7000000E3,"HIDKeyboardModifierMappingDst":0x7000000E0},{"HIDKeyboardModifierMappingSrc":0x7000000E7,"HIDKeyboardModifierMappingDst":0x7000000E4}]}''
       ];
       RunAtLoad = true;
+      KeepAlive = false;
+      StandardOutPath = "/tmp/keyboard-remap.log";
+      StandardErrorPath = "/tmp/keyboard-remap.err";
     };
   };
 
