@@ -14,27 +14,27 @@
   # Core system configuration
   nix = {
     package = pkgs.nix;
-    
+
     # Disable nix-darwin's Nix management (using Determinate Systems installer)
     enable = false;
-    
+
     # These settings won't work with Determinate, but kept for reference
     # optimise.automatic = lib.mkDefault false;
     # gc = lib.mkDefault {
     #   automatic = false;
-    #   interval = { 
+    #   interval = {
     #     Hour = 3;
     #     Minute = 0;
     #   };
     #   options = "--delete-older-than 30d";
     # };
-    
+
     # Nix settings - these might not work with Determinate
     # settings = {
     #   experimental-features = [ "nix-command" "flakes" ];
     #   warn-dirty = false;
     # };
-    
+
     # Updated nixPath configuration
     nixPath = [
       "darwin-config=/etc/nix-darwin/configuration.nix"
@@ -46,13 +46,6 @@
 
   # Package management is handled by modules/darwin/apps/installations.nix
   # Profiles can customize via systemPackagesToAdd/systemPackagesToRemove
-
-  # Add Nix paths to /etc/paths.d so GUI apps (VS Code, etc.) can find Nix binaries
-  environment.etc."paths.d/nix".text = ''
-    /run/current-system/sw/bin
-    /etc/profiles/per-user/${username}/bin
-    /nix/var/nix/profiles/default/bin
-  '';
 
   # Add Nix paths to /etc/paths.d so GUI apps (VS Code, etc.) can find Nix binaries
   environment.etc."paths.d/nix".text = ''
