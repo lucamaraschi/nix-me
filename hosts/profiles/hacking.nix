@@ -20,7 +20,7 @@
       "utm"                 # VMs for isolated testing
 
       # Exploitation
-      "metasploit"          # Penetration testing framework
+      # "metasploit" - removed, see docs/REMOVED_APPS.md
     ];
 
     # Security CLI tools via Homebrew
