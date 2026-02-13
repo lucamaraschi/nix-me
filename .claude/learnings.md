@@ -16,6 +16,11 @@
 - **Profiles**: Customize via `systemPackagesToAdd`/`systemPackagesToRemove`
 - **Avoid**: Defining `environment.systemPackages` in multiple modules (causes override conflicts)
 
+## Makefile
+- `make switch` prompts for Homebrew updates before darwin-rebuild
+- Uses `brew outdated --verbose` to show current → new versions
+- Non-blocking prompt with `read -r` - default is No
+
 ## Solutions
 - **GUI apps can't find Nix binaries**: Add `/etc/paths.d/nix` with Nix paths via `environment.etc."paths.d/nix"`
 - **Claude Code global settings**: Managed via home-manager in `modules/home-manager/apps/claude-code.nix`
