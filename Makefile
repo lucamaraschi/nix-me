@@ -86,7 +86,7 @@ else
 		read -r REPLY; \
 		if [ "$$REPLY" = "y" ] || [ "$$REPLY" = "Y" ]; then \
 			echo "==> Updating Homebrew packages..."; \
-			brew upgrade; \
+			brew upgrade || echo "==> Some updates failed, continuing with switch..."; \
 		else \
 			echo "==> Skipping Homebrew updates, continuing with switch..."; \
 		fi; \
