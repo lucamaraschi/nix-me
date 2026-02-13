@@ -63,6 +63,7 @@
     dnsutils
     mtr
     nixpkgs-fmt
+    nil  # Nix language server
     comma
     pandoc
     imagemagick
