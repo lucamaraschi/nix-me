@@ -18,7 +18,8 @@ result-*
 .vscode/*.code-workspace
 .vscode/.history/
 .idea/
-.claude/
+.claude/*
+!.claude/learnings.md
 
 # Temporary files
 *.tmp
