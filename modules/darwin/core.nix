@@ -54,13 +54,6 @@
     /nix/var/nix/profiles/default/bin
   '';
 
-  # Add Nix paths to /etc/paths.d so GUI apps (VS Code, etc.) can find Nix binaries
-  environment.etc."paths.d/nix".text = ''
-    /run/current-system/sw/bin
-    /etc/profiles/per-user/${username}/bin
-    /nix/var/nix/profiles/default/bin
-  '';
-
   # Pre-activation: backup /etc files that nix-darwin wants to manage
   system.activationScripts.preActivation.text = ''
     # Backup existing /etc files if they exist and aren't already managed by nix-darwin
