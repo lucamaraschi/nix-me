@@ -1,15 +1,15 @@
 # Centralized app installation management
-# This defines the MINIMAL base - productivity essentials only
-# Development tools, work apps, and personal apps are in profiles
+# This is the single source of truth for all Nix packages
+# Profiles can customize via systemPackagesToAdd/systemPackagesToRemove
 { config, lib, pkgs, ... }:
 
 let
-  # Define base lists - these are the MINIMAL essentials
-  # Development-specific tools are in hosts/profiles/dev.nix
+  # Base package lists - these apply to ALL machines
+  # Profiles can add/remove from these lists
   baseLists = {
-    # System packages via Nix - minimal essentials
+    # System packages via Nix
     systemPackages = [
-      # Core utilities
+      # Core CLI utilities
       "ripgrep"
       "fd"
       "eza"
@@ -23,6 +23,22 @@ let
       "nixpkgs-fmt"
       "nil"  # Nix language server
       "comma"
+
+      # Development languages & tools
+      "python3"
+      "rustup"
+      "go"
+      "gh"
+      "nodejs_22"
+
+      # Network tools
+      "nmap"
+      "dnsutils"
+      "mtr"
+
+      # Document & media
+      "pandoc"
+      "imagemagick"
     ];
 
     # GUI applications via Homebrew casks - minimal essentials

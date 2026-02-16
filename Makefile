@@ -72,6 +72,27 @@ switch:
 ifeq ($(DRY_RUN), 1)
 	@echo "[DRY RUN] HOSTNAME=$(FINAL_HOSTNAME) MACHINE_TYPE=$(MACHINE_TYPE) MACHINE_NAME=\"$(MACHINE_NAME)\" darwin-rebuild switch --flake $(FLAKE_DIR)#$(FINAL_HOSTNAME) --impure"
 else
+	@# Check for Homebrew updates before switch
+	@echo "==> Checking for Homebrew updates..."
+	@OUTDATED=$$(brew outdated --verbose 2>/dev/null); \
+	if [ -n "$$OUTDATED" ]; then \
+		echo ""; \
+		echo "╭─────────────────────────────────────────╮"; \
+		echo "│  Homebrew packages with updates:        │"; \
+		echo "╰─────────────────────────────────────────╯"; \
+		echo "$$OUTDATED" | while read line; do echo "  $$line"; done; \
+		echo ""; \
+		printf "Update these packages before switch? [y/N] "; \
+		read -r REPLY; \
+		if [ "$$REPLY" = "y" ] || [ "$$REPLY" = "Y" ]; then \
+			echo "==> Updating Homebrew packages..."; \
+			brew upgrade || echo "==> Some updates failed, continuing with switch..."; \
+		else \
+			echo "==> Skipping Homebrew updates, continuing with switch..."; \
+		fi; \
+	else \
+		echo "==> All Homebrew packages are up to date"; \
+	fi
 	@# Backup /etc files that nix-darwin needs to manage (avoids activation errors)
 	@for f in /etc/shells /etc/bashrc /etc/zshrc /etc/zshenv; do \
 		if [ -f "$$f" ] && [ ! -L "$$f" ]; then \

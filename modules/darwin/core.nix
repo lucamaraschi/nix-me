@@ -43,45 +43,16 @@
       "$HOME/.nix-defexpr/channels"
     ];
   };
-  
-  # Core system packages
-  environment.systemPackages = with pkgs; [
-    # Development tools
-    jq
-    ripgrep
-    fd
-    eza
-    bat
-    tree
-    htop
-    ncdu
-    python3
-    rustup
-    go
-    gh
-    nmap
-    dnsutils
-    mtr
-    nixpkgs-fmt
-    comma
-    pandoc
-    imagemagick
 
-    # Node.js ecosystem (prebuilt binary)
-    nodejs_22
-    # npm comes bundled with nodejs_22
-    # pnpm and typescript: install via npm or use Homebrew pnpm
-  ];
+  # Package management is handled by modules/darwin/apps/installations.nix
+  # Profiles can customize via systemPackagesToAdd/systemPackagesToRemove
 
-  # Environment variables
-  environment.variables = lib.mkDefault {
-    EDITOR = "vim";
-    VISUAL = "vim";
-  };
-
-  # System PATH
-  environment.systemPath = lib.mkDefault [ "/opt/homebrew/bin" ];
-  environment.pathsToLink = lib.mkDefault [ "/Applications" ];
+  # Add Nix paths to /etc/paths.d so GUI apps (VS Code, etc.) can find Nix binaries
+  environment.etc."paths.d/nix".text = ''
+    /run/current-system/sw/bin
+    /etc/profiles/per-user/${username}/bin
+    /nix/var/nix/profiles/default/bin
+  '';
 
   # Pre-activation: backup /etc files that nix-darwin wants to manage
   system.activationScripts.preActivation.text = ''
