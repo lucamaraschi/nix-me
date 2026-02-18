@@ -32,6 +32,7 @@
         unstage = "reset HEAD --";
         last = "log -1 HEAD";
         sync-branches = "!git fetch --prune && git branch -vv | grep ': gone]' | awk '{print $1}' | xargs git branch -D";
+        sync = "!git fetch --all --prune && git branch -vv | grep ': gone]' | awk '{print $1}' | xargs git branch -d";
       };
     };
   };
