@@ -151,7 +151,7 @@ Profiles are composable and can add/remove packages from each other.
 - [x] ~~Fix non-installed package preview in `lib/package-manager.sh`~~ — Use `·` prefix instead of bare spaces for consistent fzf field parsing
 - [x] ~~Expand React/Ink TUI beyond minimal stub~~ — Dashboard with system info, packages, quick actions
 - [ ] Clean up unclear commit "Updated Zion?" (5514968)
-- [ ] Investigate starship not loading on Zion (home-manager packages not in PATH?)
+- [x] ~~Investigate starship not loading on Zion~~ — Replaced manual `command -v` init with `programs.starship` home-manager module
 - [ ] Symlink `~/.config/nixpkgs` → `~/src/lm/nix-me` to avoid config sync issues
 
 ---
