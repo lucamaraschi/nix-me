@@ -88,10 +88,7 @@ in
       set -g fish_color_escape magenta
       set -g fish_color_autosuggestion brblack
 
-      # Use starship prompt if available
-      if command -v starship >/dev/null
-        starship init fish | source
-      end
+      # Starship prompt is managed by programs.starship in home-manager
 
       # Use zoxide if available
       if command -v zoxide >/dev/null
@@ -457,7 +454,6 @@ EOF
     fd
     fzf
     ripgrep
-    starship
     zoxide
   ];
 }
