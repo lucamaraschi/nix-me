@@ -150,7 +150,7 @@ Profiles are composable and can add/remove packages from each other.
 - [x] ~~Fix process accumulation in `lib/package-manager.sh`~~ — Added signal traps (INT/TERM/HUP) for temp file cleanup
 - [x] ~~Fix non-installed package preview in `lib/package-manager.sh`~~ — Use `·` prefix instead of bare spaces for consistent fzf field parsing
 - [x] ~~Expand React/Ink TUI beyond minimal stub~~ — Dashboard with system info, packages, quick actions
-- [ ] Clean up unclear commit "Updated Zion?" (5514968)
+- [x] ~~Clean up unclear commit "Updated Zion?" (5514968)~~ — Investigated: actually a multi-module refactor (1password, raycast, hiddenbar, maker profile, VM gatekeeper move). 20 commits deep, not worth rewriting history.
 - [x] ~~Investigate starship not loading on Zion~~ — Replaced manual `command -v` init with `programs.starship` home-manager module
 - [x] ~~Symlink `~/.config/nixpkgs` → `~/src/lm/nix-me`~~ — Added to postActivation in core.nix, backs up existing dir automatically
 
