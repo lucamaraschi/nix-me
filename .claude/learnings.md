@@ -21,8 +21,19 @@
 - Uses `brew outdated --verbose` to show current → new versions
 - Non-blocking prompt with `read -r` - default is No
 
+## Activation Scripts
+- `postActivation.text` uses `types.lines` — multiple modules can set it and values concatenate
+- App-specific activation (1password, raycast, hiddenbar) uses `extraActivation.text` with `lib.mkAfter`
+- `core.nix` handles repo symlink: `~/.config/nixpkgs` → `~/src/lm/nix-me`
+
+## Home-Manager Modules
+- Prefer `programs.<tool>` modules over manual `home.packages` + `interactiveShellInit`
+- `programs.starship` handles install + shell integration + init ordering automatically
+- `useUserPackages = true` puts packages in `/etc/profiles/per-user/<username>/bin`
+
 ## Solutions
 - **GUI apps can't find Nix binaries**: Add `/etc/paths.d/nix` with Nix paths via `environment.etc."paths.d/nix"`
 - **Claude Code global settings**: Managed via home-manager in `modules/home-manager/apps/claude-code.nix`
 - **fzf field extraction with mixed formatting**: Use a visible character (like `·`) instead of spaces for non-active indicators — bare whitespace prefixes break fzf's `{N}` token extraction
 - **Bash signal cleanup in sourced functions**: Use `trap ... INT TERM HUP` (not EXIT) since EXIT traps in sourced functions affect the parent shell; reset with `trap -` before returning
+- **Stale branches from squash merges**: `git branch -d` won't work; use `-D` after verifying the PR was merged
