@@ -147,8 +147,8 @@ Profiles are composable and can add/remove packages from each other.
 
 ## Pending Tasks
 
-- [ ] Fix process accumulation in `lib/package-manager.sh` (HIGH)
-- [ ] Fix non-installed package preview in `lib/package-manager.sh` (MEDIUM)
+- [x] ~~Fix process accumulation in `lib/package-manager.sh`~~ — Added signal traps (INT/TERM/HUP) for temp file cleanup
+- [x] ~~Fix non-installed package preview in `lib/package-manager.sh`~~ — Use `·` prefix instead of bare spaces for consistent fzf field parsing
 - [x] ~~Expand React/Ink TUI beyond minimal stub~~ — Dashboard with system info, packages, quick actions
 - [ ] Clean up unclear commit "Updated Zion?" (5514968)
 - [ ] Investigate starship not loading on Zion (home-manager packages not in PATH?)

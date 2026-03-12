@@ -65,6 +65,10 @@ browse_homebrew_casks_fzf() {
     # Create temp file with cask list
     local temp_file=$(mktemp)
     local formatted_file=$(mktemp)
+    local search_script=$(mktemp)
+
+    # Trap signals to ensure cleanup on interruption (Ctrl-C, etc.)
+    trap 'rm -f "$temp_file" "$formatted_file" "$search_script"' INT TERM HUP
 
     # Get all casks (or search results)
     if [ -n "$query" ]; then
@@ -132,7 +136,8 @@ EOF
     fi
 
     if [ ! -s "$temp_file" ]; then
-        rm "$temp_file"
+        trap - INT TERM HUP
+        rm -f "$temp_file" "$formatted_file" "$search_script"
         print_error "No applications found"
         return 1
     fi
@@ -143,8 +148,8 @@ EOF
             # Installed - add green tick
             echo -e "\033[0;32m✓\033[0m $cask" >> "$formatted_file"
         else
-            # Not installed - add spacing
-            echo "  $cask" >> "$formatted_file"
+            # Not installed - middle dot ensures consistent field parsing for fzf
+            echo "· $cask" >> "$formatted_file"
         fi
     done < "$temp_file"
 
@@ -155,7 +160,6 @@ EOF
     echo ""
 
     # Create a search script for reload functionality
-    local search_script=$(mktemp)
     cat > "$search_script" << 'SEARCHEOF'
 #!/bin/bash
 query="$1"
@@ -165,7 +169,7 @@ if [ -n "$query" ]; then
         if echo "$installed_casks" | grep -q "^${cask}$"; then
             echo -e "\033[0;32m✓\033[0m $cask"
         else
-            echo "  $cask"
+            echo "· $cask"
         fi
     done
 fi
@@ -186,10 +190,8 @@ SEARCHEOF
         --ansi \
     )
 
-    rm -f "$search_script"
-
-    rm "$temp_file"
-    rm "$formatted_file"
+    trap - INT TERM HUP
+    rm -f "$temp_file" "$formatted_file" "$search_script"
 
     if [ -z "$selected" ]; then
         print_info "No selection made"
@@ -197,7 +199,7 @@ SEARCHEOF
     fi
 
     # Extract package names from formatted lines (remove tick/spacing prefix)
-    local cleaned_selected=$(echo "$selected" | sed 's/^[[:space:]]*✓[[:space:]]*//' | sed 's/^[[:space:]]*//')
+    local cleaned_selected=$(echo "$selected" | sed 's/^[[:space:]]*[✓·][[:space:]]*//' | sed 's/^[[:space:]]*//')
 
     # Return selected apps
     echo "$cleaned_selected"
