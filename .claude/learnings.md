@@ -24,3 +24,5 @@
 ## Solutions
 - **GUI apps can't find Nix binaries**: Add `/etc/paths.d/nix` with Nix paths via `environment.etc."paths.d/nix"`
 - **Claude Code global settings**: Managed via home-manager in `modules/home-manager/apps/claude-code.nix`
+- **fzf field extraction with mixed formatting**: Use a visible character (like `·`) instead of spaces for non-active indicators — bare whitespace prefixes break fzf's `{N}` token extraction
+- **Bash signal cleanup in sourced functions**: Use `trap ... INT TERM HUP` (not EXIT) since EXIT traps in sourced functions affect the parent shell; reset with `trap -` before returning
