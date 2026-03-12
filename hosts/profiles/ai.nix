@@ -12,9 +12,15 @@
       "docker"              # For Open WebUI container
     ];
 
+    # CLI tools via Homebrew
+    brewsToAdd = [
+      "pi-coding-agent"     # Terminal AI coding agent (pi.dev)
+    ];
+
     # Nix packages
     systemPackagesToAdd = [
       "ollama"              # Local LLM runner with OpenAI-compatible API
+      "opencode"            # Terminal AI coding assistant (opencode.ai)
     ];
   };
 
@@ -29,6 +35,7 @@
   # ============================================================
   # After running darwin-rebuild switch, run these commands:
   #
+  # --- Ollama Setup ---
   # 1. Start Ollama service:
   #    ollama serve &
   #
@@ -49,5 +56,19 @@
   #      ghcr.io/open-webui/open-webui:main
   #
   # 5. Access Open WebUI at http://localhost:3000
+  #
+  # --- OpenCode Setup ---
+  # 1. Login with your provider API key:
+  #    opencode auth login
+  #
+  # 2. Run in any project directory:
+  #    opencode
+  #
+  # --- Pi Coding Agent Setup ---
+  # 1. Configure your API key:
+  #    pi config
+  #
+  # 2. Run in any project directory:
+  #    pi
   # ============================================================
 }
