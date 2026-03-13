@@ -87,16 +87,16 @@
     NIXPKGS_LINK="$HOME/.config/nixpkgs"
     if [ -d "$REPO_SOURCE/.git" ]; then
       if [ -L "$NIXPKGS_LINK" ]; then
-        echo "~/.config/nixpkgs symlink already exists" >&2
+        echo "$HOME/.config/nixpkgs symlink already exists" >&2
       elif [ -d "$NIXPKGS_LINK" ]; then
-        echo "Backing up ~/.config/nixpkgs to ~/.config/nixpkgs.backup" >&2
+        echo "Backing up $HOME/.config/nixpkgs to $HOME/.config/nixpkgs.backup" >&2
         mv "$NIXPKGS_LINK" "$NIXPKGS_LINK.backup"
         ln -s "$REPO_SOURCE" "$NIXPKGS_LINK"
-        echo "Created symlink ~/.config/nixpkgs -> ~/src/lm/nix-me" >&2
+        echo "Created symlink $HOME/.config/nixpkgs -> $HOME/src/lm/nix-me" >&2
       else
         mkdir -p "$(dirname "$NIXPKGS_LINK")"
         ln -s "$REPO_SOURCE" "$NIXPKGS_LINK"
-        echo "Created symlink ~/.config/nixpkgs -> ~/src/lm/nix-me" >&2
+        echo "Created symlink $HOME/.config/nixpkgs -> $HOME/src/lm/nix-me" >&2
       fi
     fi
   '';
