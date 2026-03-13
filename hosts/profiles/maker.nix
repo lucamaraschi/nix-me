@@ -21,8 +21,8 @@
 
     # Maker packages via Nix
     systemPackagesToAdd = [
-      # Mesh tools
-      "meshlab"             # 3D mesh processing
+      # meshlab removed - broken in nixpkgs (patch fails on 2025.07)
+      # Install via: brew install --cask meshlab
     ];
   };
 }
