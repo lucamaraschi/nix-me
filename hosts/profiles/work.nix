@@ -29,7 +29,7 @@
     systemPackagesToAdd = [
       "terraform"
       "kubectl"
-      "helm"
+      "kubernetes-helm"   # Helm CLI (the 'helm' package is Linux-only)
       "awscli2"
     ];
 

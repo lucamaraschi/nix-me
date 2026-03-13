@@ -170,7 +170,7 @@ in
 
   config = {
     # System packages configuration
-    environment.systemPackages = lib.mkDefault (
+    environment.systemPackages =
       let
         packageNames = if config.apps.useBaseLists
           then (lib.subtractLists config.apps.systemPackagesToRemove config.apps.baseSystemPackages) ++ config.apps.systemPackagesToAdd
@@ -182,8 +182,7 @@ in
           then lib.getAttrFromPath (lib.splitString "." name) pkgs
           else lib.getAttr name pkgs;
       in
-        map resolvePackage packageNames
-    );
+        map resolvePackage packageNames;
 
     # Environment variables
     environment.variables = lib.mkDefault {
