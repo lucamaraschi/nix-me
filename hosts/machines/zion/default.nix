@@ -48,7 +48,8 @@
     # 3D printing and design apps
     casksToAdd = [
       # Streaming/Recording
-      "elgato-camera-hub"     # Elgato Prompter & camera controls
+      "elgato-camera-hub"
+      "vlc"     # Elgato Prompter & camera controls
 
       # Manual installs required (not in Homebrew):
       # - Cricut Design Space: https://design.cricut.com/
