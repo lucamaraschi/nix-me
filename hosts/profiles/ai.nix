@@ -19,7 +19,7 @@
 
     # Nix packages
     systemPackagesToAdd = [
-      "ollama"              # Local LLM runner with OpenAI-compatible API
+      # "ollama"  # broken in nixpkgs - app/dist missing files in build
       "opencode"            # Terminal AI coding assistant (opencode.ai)
     ];
   };
