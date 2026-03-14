@@ -503,10 +503,13 @@ main() {
     fi
     print_success "Xcode Command Line Tools ready"
 
-    # Accept Xcode license automatically
-    if ! sudo xcodebuild -license status &>/dev/null; then
-        log "Accepting Xcode license..."
-        sudo xcodebuild -license accept
+    # Accept Xcode license only if full Xcode.app is installed
+    # (xcodebuild requires Xcode.app, not just Command Line Tools)
+    if [ -d "/Applications/Xcode.app" ]; then
+        if ! sudo xcodebuild -license status &>/dev/null 2>&1; then
+            log "Accepting Xcode license..."
+            sudo xcodebuild -license accept 2>/dev/null || true
+        fi
     fi
     echo ""
 
