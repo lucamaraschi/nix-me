@@ -14,6 +14,7 @@
 
     # CLI tools via Homebrew
     brewsToAdd = [
+      "ollama"              # Local LLM runner (brew, nix build broken)
       "pi-coding-agent"     # Terminal AI coding agent (pi.dev)
     ];
 
