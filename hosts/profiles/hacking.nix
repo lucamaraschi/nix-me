@@ -56,7 +56,7 @@
       "netcat"
       "socat"
       "tcpdump"
-      # "mitmproxy"  # broken in nixpkgs - mitmproxy_macos wheel hash mismatch
+      "mitmproxy"
 
       # Reconnaissance
       "whois"

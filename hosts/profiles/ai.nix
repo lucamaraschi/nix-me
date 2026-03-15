@@ -14,13 +14,12 @@
 
     # CLI tools via Homebrew
     brewsToAdd = [
-      "ollama"              # Local LLM runner (brew, nix build broken)
       "pi-coding-agent"     # Terminal AI coding agent (pi.dev)
     ];
 
     # Nix packages
     systemPackagesToAdd = [
-      # "ollama"  # broken in nixpkgs - app/dist missing files in build
+      "ollama"              # Local LLM runner with OpenAI-compatible API
       "opencode"            # Terminal AI coding assistant (opencode.ai)
     ];
   };
