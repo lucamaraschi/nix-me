@@ -47,7 +47,6 @@ let
       "1password"
 
       # Productivity & Utilities
-      "hiddenbar"
       "raycast"
       "rectangle"
       "hammerspoon"

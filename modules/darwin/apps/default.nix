@@ -7,7 +7,6 @@
     ./vm-manager.nix
     ./1password.nix
     ./raycast.nix
-    ./hiddenbar.nix
     # Add more system-level app configurations here:
     # ./hammerspoon.nix
     # ./docker.nix
