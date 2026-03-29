@@ -6,5 +6,8 @@
   programs.starship = {
     enable = true;
     enableFishIntegration = true;
+    settings = {
+      swift.disabled = true;
+    };
   };
 }
