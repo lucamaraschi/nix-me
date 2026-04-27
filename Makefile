@@ -5,7 +5,8 @@ DETECTED_HOSTNAME := $(shell hostname -s | tr '[:upper:]' '[:lower:]')
 HOSTNAME ?= $(DETECTED_HOSTNAME)
 MACHINE_TYPE ?= $(shell if [[ "$(HOSTNAME)" == *"macbook"* || "$(HOSTNAME)" == *"mba"* ]]; then echo "macbook"; elif [[ "$(HOSTNAME)" == *"mini"* ]]; then echo "macmini"; else echo ""; fi)
 MACHINE_NAME ?= "$(HOSTNAME)"
-FLAKE_DIR ?= $(HOME)/.config/nixpkgs
+MAKEFILE_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
+FLAKE_DIR ?= $(if $(wildcard $(MAKEFILE_DIR)/flake.nix),$(MAKEFILE_DIR),$(HOME)/.config/nixpkgs)
 DRY_RUN ?= 0
 USERNAME := $(shell whoami)
 
@@ -22,7 +23,7 @@ help:
 	@echo "  build           Build the configuration"
 	@echo "  switch          Build and activate the configuration"
 	@echo "  check           Run nix flake check"
-	@echo "  update          Update flake inputs"
+	@echo "  update          Pull latest nix-me code and update flake inputs"
 	@echo "  fmt             Format nix files with nixpkgs-fmt"
 	@echo "  gc              Run garbage collection"
 	@echo "  clean           Clean up old generations"
@@ -134,10 +135,17 @@ endif
 
 # Update flake inputs
 update:
-	@echo "==> Updating flake inputs..."
+	@echo "==> Pulling latest nix-me code and updating flake inputs..."
 ifeq ($(DRY_RUN), 1)
+	@echo "[DRY RUN] if git -C \"$(FLAKE_DIR)\" rev-parse --is-inside-work-tree >/dev/null 2>&1; then git -C \"$(FLAKE_DIR)\" pull --ff-only; fi"
 	@echo "[DRY RUN] nix flake update $(FLAKE_DIR)"
 else
+	@if git -C "$(FLAKE_DIR)" rev-parse --is-inside-work-tree >/dev/null 2>&1; then \
+		echo "==> Pulling latest changes in $(FLAKE_DIR)..."; \
+		git -C "$(FLAKE_DIR)" pull --ff-only; \
+	else \
+		echo "==> Skipping git pull: $(FLAKE_DIR) is not a git checkout"; \
+	fi
 	@nix flake update $(FLAKE_DIR)
 endif
 
