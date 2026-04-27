@@ -128,9 +128,9 @@ endif
 check:
 	@echo "==> Checking flake..."
 ifeq ($(DRY_RUN), 1)
-	@echo "[DRY RUN] nix flake check $(FLAKE_DIR)"
+	@echo "[DRY RUN] nix flake check --flake \"$(FLAKE_DIR)\""
 else
-	@nix flake check $(FLAKE_DIR)
+	@nix flake check --flake "$(FLAKE_DIR)"
 endif
 
 # Update flake inputs
@@ -138,7 +138,7 @@ update:
 	@echo "==> Pulling latest nix-me code and updating flake inputs..."
 ifeq ($(DRY_RUN), 1)
 	@echo "[DRY RUN] if git -C \"$(FLAKE_DIR)\" rev-parse --is-inside-work-tree >/dev/null 2>&1; then git -C \"$(FLAKE_DIR)\" pull --ff-only; fi"
-	@echo "[DRY RUN] nix flake update $(FLAKE_DIR)"
+	@echo "[DRY RUN] nix flake update --flake \"$(FLAKE_DIR)\""
 else
 	@if git -C "$(FLAKE_DIR)" rev-parse --is-inside-work-tree >/dev/null 2>&1; then \
 		echo "==> Pulling latest changes in $(FLAKE_DIR)..."; \
@@ -146,7 +146,7 @@ else
 	else \
 		echo "==> Skipping git pull: $(FLAKE_DIR) is not a git checkout"; \
 	fi
-	@nix flake update $(FLAKE_DIR)
+	@nix flake update --flake "$(FLAKE_DIR)"
 endif
 
 # Format nix files
