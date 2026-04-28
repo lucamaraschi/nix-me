@@ -128,9 +128,9 @@ endif
 check:
 	@echo "==> Checking flake..."
 ifeq ($(DRY_RUN), 1)
-	@echo "[DRY RUN] nix flake check --flake \"$(FLAKE_DIR)\""
+	@echo "[DRY RUN] nix flake check \"$(FLAKE_DIR)\""
 else
-	@nix flake check --flake "$(FLAKE_DIR)"
+	@nix flake check "$(FLAKE_DIR)"
 endif
 
 # Update flake inputs

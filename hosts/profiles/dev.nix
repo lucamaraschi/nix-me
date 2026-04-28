@@ -44,9 +44,8 @@
     systemPackagesToAdd = [
       # Languages & Runtimes
       "nodejs_22"
-      "nodePackages.pnpm"
-      "nodePackages.npm"
-      "nodePackages.typescript"
+      "pnpm"
+      "typescript"
       "python3"
       "rustup"
       "go"

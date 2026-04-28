@@ -310,9 +310,8 @@ in
 pkgs.mkShell {
   buildInputs = with pkgs; [
     nodejs_22
-    nodePackages.pnpm
-    nodePackages.typescript
-    nodePackages.ts-node
+    pnpm
+    typescript
   ];
 
   shellHook = '''
@@ -359,8 +358,8 @@ EOF
 pkgs.mkShell {
   buildInputs = with pkgs; [
     $node_version
-    nodePackages.pnpm
-    nodePackages.typescript
+    pnpm
+    typescript
   ];
 }
 EOF
