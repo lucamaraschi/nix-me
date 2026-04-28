@@ -176,10 +176,20 @@ in
           else config.apps.baseSystemPackages;
 
         # Convert package name strings to actual packages
-        resolvePackage = name:
-          if lib.hasPrefix "nodePackages." name
-          then lib.getAttrFromPath (lib.splitString "." name) pkgs
-          else lib.getAttr name pkgs;
+        resolvePackage =
+          name:
+          let
+            legacyPath = lib.splitString "." name;
+            topLevelName =
+              if lib.hasPrefix "nodePackages." name
+              then lib.removePrefix "nodePackages." name
+              else name;
+            topLevelPkg = lib.attrByPath [ topLevelName ] null pkgs;
+            legacyPkg = lib.attrByPath legacyPath null pkgs;
+          in
+            if topLevelPkg != null then topLevelPkg
+            else if legacyPkg != null then legacyPkg
+            else throw "Unknown package '${name}'";
       in
         map resolvePackage packageNames;
 
@@ -202,11 +212,6 @@ in
       };
 
       taps = lib.mkDefault [];
-
-      global = {
-        brewfile = true;
-        lockfiles = false;
-      };
 
       casks = lib.mkDefault (
         if config.apps.useBaseLists
