@@ -8,12 +8,13 @@ MACHINE_NAME ?= "$(HOSTNAME)"
 MAKEFILE_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 FLAKE_DIR ?= $(if $(wildcard $(MAKEFILE_DIR)/flake.nix),$(MAKEFILE_DIR),$(HOME)/.config/nixpkgs)
 DRY_RUN ?= 0
+SKIP_BREW ?= 0
 USERNAME := $(shell whoami)
 
 # Force hostname to lowercase in all commands
 FINAL_HOSTNAME := $(shell echo "$(HOSTNAME)" | tr '[:upper:]' '[:lower:]')
 
-.PHONY: switch build clean update check fmt help list-machines
+.PHONY: switch switch-fast build clean update check fmt help list-machines
 
 # Default target
 help:
@@ -22,6 +23,7 @@ help:
 	@echo "Targets:"
 	@echo "  build           Build the configuration"
 	@echo "  switch          Build and activate the configuration"
+	@echo "  switch-fast     Build and activate without Homebrew update checks"
 	@echo "  check           Run nix flake check"
 	@echo "  update          Pull latest nix-me code and update flake inputs"
 	@echo "  fmt             Format nix files with nixpkgs-fmt"
@@ -36,6 +38,7 @@ help:
 	@echo "  MACHINE_NAME    Set the friendly computer name (default: $(MACHINE_NAME))"
 	@echo "  FLAKE_DIR       Override flake directory (default: $(FLAKE_DIR))"
 	@echo "  DRY_RUN         Set to 1 for dry run (default: 0)"
+	@echo "  SKIP_BREW       Set to 1 to skip Homebrew checks during switch (default: 0)"
 	@echo ""
 	@echo "Machine Types:"
 	@echo "  macbook         Laptop configuration with battery optimization, trackpad settings, etc."
@@ -43,7 +46,9 @@ help:
 	@echo ""
 	@echo "Examples:"
 	@echo "  make switch"
+	@echo "  make switch-fast"
 	@echo "  make MACHINE_TYPE=macbook switch"
+	@echo "  make SKIP_BREW=1 switch"
 	@echo "  make HOSTNAME=mac-mini MACHINE_TYPE=macmini MACHINE_NAME=\"Studio Mac Mini\" switch"
 	@echo "  make DRY_RUN=1 switch"
 	@echo ""
@@ -74,25 +79,29 @@ ifeq ($(DRY_RUN), 1)
 	@echo "[DRY RUN] HOSTNAME=$(FINAL_HOSTNAME) MACHINE_TYPE=$(MACHINE_TYPE) MACHINE_NAME=\"$(MACHINE_NAME)\" darwin-rebuild switch --flake $(FLAKE_DIR)#$(FINAL_HOSTNAME) --impure"
 else
 	@# Check for Homebrew updates before switch
-	@echo "==> Checking for Homebrew updates..."
-	@OUTDATED=$$(brew outdated --verbose 2>/dev/null); \
-	if [ -n "$$OUTDATED" ]; then \
-		echo ""; \
-		echo "╭─────────────────────────────────────────╮"; \
-		echo "│  Homebrew packages with updates:        │"; \
-		echo "╰─────────────────────────────────────────╯"; \
-		echo "$$OUTDATED" | while read line; do echo "  $$line"; done; \
-		echo ""; \
-		printf "Update these packages before switch? [y/N] "; \
-		read -r REPLY; \
-		if [ "$$REPLY" = "y" ] || [ "$$REPLY" = "Y" ]; then \
-			echo "==> Updating Homebrew packages..."; \
-			brew upgrade || echo "==> Some updates failed, continuing with switch..."; \
-		else \
-			echo "==> Skipping Homebrew updates, continuing with switch..."; \
-		fi; \
+	@if [ "$(SKIP_BREW)" = "1" ]; then \
+		echo "==> Skipping Homebrew checks (SKIP_BREW=1)"; \
 	else \
-		echo "==> All Homebrew packages are up to date"; \
+		echo "==> Checking for Homebrew updates..."; \
+		OUTDATED=$$(brew outdated --verbose 2>/dev/null); \
+		if [ -n "$$OUTDATED" ]; then \
+			echo ""; \
+			echo "╭─────────────────────────────────────────╮"; \
+			echo "│  Homebrew packages with updates:        │"; \
+			echo "╰─────────────────────────────────────────╯"; \
+			echo "$$OUTDATED" | while read line; do echo "  $$line"; done; \
+			echo ""; \
+			printf "Update these packages before switch? [y/N] "; \
+			read -r REPLY; \
+			if [ "$$REPLY" = "y" ] || [ "$$REPLY" = "Y" ]; then \
+				echo "==> Updating Homebrew packages..."; \
+				brew upgrade || echo "==> Some updates failed, continuing with switch..."; \
+			else \
+				echo "==> Skipping Homebrew updates, continuing with switch..."; \
+			fi; \
+		else \
+			echo "==> All Homebrew packages are up to date"; \
+		fi; \
 	fi
 	@# Backup /etc files that nix-darwin needs to manage (avoids activation errors)
 	@for f in /etc/shells /etc/bashrc /etc/zshrc /etc/zshenv; do \
@@ -123,6 +132,9 @@ else
 		HOSTNAME="$(FINAL_HOSTNAME)" MACHINE_TYPE="$(MACHINE_TYPE)" MACHINE_NAME="$(MACHINE_NAME)" sudo env USERNAME="$(USERNAME)" PATH="$$PATH" "$$DARWIN_REBUILD" switch --flake $(FLAKE_DIR)#$(FINAL_HOSTNAME) --impure; \
 	fi
 endif
+
+switch-fast:
+	@$(MAKE) SKIP_BREW=1 HOSTNAME="$(HOSTNAME)" MACHINE_TYPE="$(MACHINE_TYPE)" MACHINE_NAME=$(MACHINE_NAME) FLAKE_DIR="$(FLAKE_DIR)" DRY_RUN="$(DRY_RUN)" switch
 
 # Run a syntax check on the flake
 check:

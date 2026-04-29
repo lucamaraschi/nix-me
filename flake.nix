@@ -2,19 +2,23 @@
   description = "My Mac configuration";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-25.05-darwin";
+    nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     darwin = {
-      url = "github:LnL7/nix-darwin";
+      url = "github:nix-darwin/nix-darwin/nix-darwin-25.05";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     home-manager = {
-      url = "github:nix-community/home-manager";
+      url = "github:nix-community/home-manager/release-25.05";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    nixos-generators.url = "github:nix-community/nixos-generators";
+    nixos-generators = {
+      url = "github:nix-community/nixos-generators";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = inputs@{ self, nixpkgs, darwin, home-manager, ... }:
+  outputs = inputs@{ self, nixpkgs, nixpkgs-unstable, darwin, home-manager, ... }:
     let
         defaultUsername = "lucamaraschi";
         username = let
@@ -23,6 +27,13 @@
 
         # Check if we're running in VM mode (skip Mac App Store apps)
         skipMasApps = builtins.getEnv "SKIP_MAS_APPS" == "1";
+
+        mkUnstablePkgs =
+          system:
+          import nixpkgs-unstable {
+            inherit system;
+            config.allowUnfree = true;
+          };
 
       # Function to create a darwin configuration
       mkDarwinSystem = {
@@ -74,7 +85,10 @@
               home-manager.useUserPackages = true;
               home-manager.backupFileExtension = "backup";
 
-              home-manager.extraSpecialArgs = { inherit username; };
+              home-manager.extraSpecialArgs = {
+                inherit inputs username;
+                unstablePkgs = mkUnstablePkgs system;
+              };
               home-manager.users.${username} = import ./modules/home-manager;
             }
 
@@ -92,6 +106,7 @@
           ] ++ extraModules;
           specialArgs = {
             inherit inputs hostname machineType machineName username;
+            unstablePkgs = mkUnstablePkgs system;
           };
   };
     in
