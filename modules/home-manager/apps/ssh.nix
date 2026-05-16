@@ -3,7 +3,6 @@
 {
   programs.ssh = {
     enable = true;
-    enableDefaultConfig = false;  # We set our own defaults in matchBlocks."*"
 
     matchBlocks = {
       "github.com" = {
