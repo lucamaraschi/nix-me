@@ -43,7 +43,7 @@
     # Development packages via Nix
     systemPackagesToAdd = [
       # Languages & Runtimes
-      "nodejs_22"
+      "nodejs_latest"     # Track the latest current Node.js release by default
       "pnpm"
       "typescript"
       "python3"

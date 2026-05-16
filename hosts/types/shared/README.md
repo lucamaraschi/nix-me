@@ -80,7 +80,7 @@ imports = [
 ### System Packages (via Nix)
 
 **Development Tools:**
-- **Languages:** nodejs_22, python3, rustup, go
+- **Languages:** nodejs_latest, python3, rustup, go
 - **Node.js Tools:** pnpm, npm, typescript
 - **Version Control:** gh (GitHub CLI)
 - **Build Tools:** gcc (via Homebrew)

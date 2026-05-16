@@ -29,7 +29,7 @@ let
       "rustup"
       "go"
       "gh"
-      "nodejs_22"
+      "nodejs_latest" # Track the latest current Node.js release at the system level
 
       # Network tools
       "nmap"

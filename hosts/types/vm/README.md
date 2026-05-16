@@ -251,7 +251,7 @@ apps = {
   useBaseLists = false;
   systemPackagesToAdd = [
     "git"
-    "nodejs_22"
+    "nodejs_latest"
     "python3"
     "docker"
   ];

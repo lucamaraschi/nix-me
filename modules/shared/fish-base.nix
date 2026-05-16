@@ -309,7 +309,7 @@ in
 
 pkgs.mkShell {
   buildInputs = with pkgs; [
-    nodejs_22
+    nodejs_latest
     pnpm
     typescript
   ];
@@ -345,10 +345,14 @@ EOF
             echo "Adding Nix support to existing Node.js project..."
 
             # Detect Node version from package.json or .nvmrc
-            set node_version "nodejs_22"
+            # Default to the latest current Node.js release; pin only when a project asks for it.
+            set node_version "nodejs_latest"
             if test -f .nvmrc
-              set detected_version (cat .nvmrc | string replace "v" "" | string replace "." "_")
-              set node_version "nodejs_$detected_version"
+              set detected_version (cat .nvmrc | string trim | string replace "v" "")
+              set detected_major (echo $detected_version | cut -d. -f1)
+              if string match -qr '^[0-9]+$' -- $detected_major
+                set node_version "nodejs_$detected_major"
+              end
               echo "Detected Node version from .nvmrc: $node_version"
             end
 

@@ -95,7 +95,6 @@
             # Overlays
             {
               nixpkgs.overlays = [
-                (import ./overlays/nodejs.nix)
                 (import ./overlays/airjack.nix)
                 # Add other overlays here
               ];
