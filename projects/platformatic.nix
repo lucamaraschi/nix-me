@@ -8,4 +8,6 @@ in
 {
   # Add additional must-have Platformatic repositories here.
   platformatic = mkRepo "platformatic";
+  machinist = mkRepo "machinist";
+  coordinator = mkRepo "coordinator";
 }
