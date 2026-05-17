@@ -14,7 +14,7 @@ USERNAME := $(shell whoami)
 # Force hostname to lowercase in all commands
 FINAL_HOSTNAME := $(shell echo "$(HOSTNAME)" | tr '[:upper:]' '[:lower:]')
 
-.PHONY: switch switch-fast build clean update check fmt help list-machines
+.PHONY: switch switch-fast build clean update check fmt help list-machines sync-projects
 
 # Default target
 help:
@@ -26,6 +26,7 @@ help:
 	@echo "  switch-fast     Build and activate without Homebrew update checks"
 	@echo "  check           Run nix flake check"
 	@echo "  update          Pull latest nix-me code and update flake inputs"
+	@echo "  sync-projects   Clone and update configured projects"
 	@echo "  fmt             Format nix files with nixpkgs-fmt"
 	@echo "  gc              Run garbage collection"
 	@echo "  clean           Clean up old generations"
@@ -47,6 +48,7 @@ help:
 	@echo "Examples:"
 	@echo "  make switch"
 	@echo "  make switch-fast"
+	@echo "  make sync-projects"
 	@echo "  make MACHINE_TYPE=macbook switch"
 	@echo "  make SKIP_BREW=1 switch"
 	@echo "  make HOSTNAME=mac-mini MACHINE_TYPE=macmini MACHINE_NAME=\"Studio Mac Mini\" switch"
@@ -151,6 +153,7 @@ update:
 ifeq ($(DRY_RUN), 1)
 	@echo "[DRY RUN] if git -C \"$(FLAKE_DIR)\" rev-parse --is-inside-work-tree >/dev/null 2>&1; then git -C \"$(FLAKE_DIR)\" pull --ff-only; fi"
 	@echo "[DRY RUN] nix flake update --flake \"$(FLAKE_DIR)\""
+	@echo "[DRY RUN] $(MAKEFILE_DIR)/scripts/sync-projects.sh --flake-dir \"$(FLAKE_DIR)\" --hostname \"$(FINAL_HOSTNAME)\" --home \"$(HOME)\""
 else
 	@if git -C "$(FLAKE_DIR)" rev-parse --is-inside-work-tree >/dev/null 2>&1; then \
 		echo "==> Pulling latest changes in $(FLAKE_DIR)..."; \
@@ -159,6 +162,15 @@ else
 		echo "==> Skipping git pull: $(FLAKE_DIR) is not a git checkout"; \
 	fi
 	@nix flake update --flake "$(FLAKE_DIR)"
+	@$(MAKE) HOSTNAME="$(HOSTNAME)" MACHINE_TYPE="$(MACHINE_TYPE)" MACHINE_NAME=$(MACHINE_NAME) FLAKE_DIR="$(FLAKE_DIR)" sync-projects
+endif
+
+sync-projects:
+	@echo "==> Syncing configured projects for $(FINAL_HOSTNAME)..."
+ifeq ($(DRY_RUN), 1)
+	@echo "[DRY RUN] $(MAKEFILE_DIR)/scripts/sync-projects.sh --flake-dir \"$(FLAKE_DIR)\" --hostname \"$(FINAL_HOSTNAME)\" --home \"$(HOME)\""
+else
+	@$(MAKEFILE_DIR)/scripts/sync-projects.sh --flake-dir "$(FLAKE_DIR)" --hostname "$(FINAL_HOSTNAME)" --home "$(HOME)"
 endif
 
 # Format nix files

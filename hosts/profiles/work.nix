@@ -4,6 +4,10 @@
 { config, pkgs, lib, ... }:
 
 {
+  projects.sets = [
+    (import ../../projects/platformatic.nix)
+  ];
+
   apps = {
     useBaseLists = true;
 

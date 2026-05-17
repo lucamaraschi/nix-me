@@ -7,6 +7,7 @@
     ./display.nix
     ./fonts.nix
     ./keyboard.nix
+    ./project-sync.nix
     ./shell.nix
     ./system.nix
   ];

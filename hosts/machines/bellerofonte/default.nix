@@ -30,6 +30,14 @@
     ];
   };
 
+  projects.repos = {
+    # Example:
+    # extra-platformatic-repo = {
+    #   url = "git@github.com:platformatic/your-repo.git";
+    #   path = "src/platformatic/your-repo";
+    # };
+  };
+
   # Machine-specific system settings
   # system.defaults = {
   #   # Custom dock size, etc.
