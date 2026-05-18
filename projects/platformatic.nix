@@ -10,4 +10,7 @@ in
   platformatic = mkRepo "platformatic";
   machinist = mkRepo "machinist";
   coordinator = mkRepo "coordinator";
+  regina = mkRepo "regina";
+  flame = mkRepo "flame";
+  desk = mkRepo "desk";
 }
