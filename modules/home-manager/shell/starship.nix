@@ -7,6 +7,7 @@
     enable = true;
     enableFishIntegration = true;
     settings = {
+      nodejs.disabled = true;
       swift.disabled = true;
     };
   };
