@@ -208,7 +208,9 @@ in
       enable = lib.mkDefault true;
       onActivation = {
         autoUpdate = lib.mkDefault true;
-        cleanup = lib.mkDefault "zap";
+        # Homebrew Bundle now requires explicit force for cleanup; avoid zapping
+        # user-installed formulae/casks during routine nix-darwin activation.
+        cleanup = lib.mkDefault "none";
       };
 
       taps = lib.mkDefault [];
