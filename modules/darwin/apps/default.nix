@@ -3,6 +3,7 @@
 {
   imports = [
     ./installations.nix
+    ./codex.nix
     ./nix-me.nix
     ./vm-manager.nix
     ./1password.nix
