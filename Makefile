@@ -14,7 +14,7 @@ USERNAME := $(shell whoami)
 # Force hostname to lowercase in all commands
 FINAL_HOSTNAME := $(shell echo "$(HOSTNAME)" | tr '[:upper:]' '[:lower:]')
 
-.PHONY: switch switch-fast build clean update check fmt help list-machines sync-projects
+.PHONY: switch switch-fast build clean update check fmt help list-machines sync-projects reset-raycast-window
 
 # Default target
 help:
@@ -27,6 +27,7 @@ help:
 	@echo "  check           Run nix flake check"
 	@echo "  update          Pull latest nix-me code and update flake inputs"
 	@echo "  sync-projects   Clone and update configured projects"
+	@echo "  reset-raycast-window  Reset Raycast window placement cache"
 	@echo "  fmt             Format nix files with nixpkgs-fmt"
 	@echo "  gc              Run garbage collection"
 	@echo "  clean           Clean up old generations"
@@ -49,6 +50,7 @@ help:
 	@echo "  make switch"
 	@echo "  make switch-fast"
 	@echo "  make sync-projects"
+	@echo "  make reset-raycast-window"
 	@echo "  make MACHINE_TYPE=macbook switch"
 	@echo "  make SKIP_BREW=1 switch"
 	@echo "  make HOSTNAME=mac-mini MACHINE_TYPE=macmini MACHINE_NAME=\"Studio Mac Mini\" switch"
@@ -171,6 +173,13 @@ ifeq ($(DRY_RUN), 1)
 	@echo "[DRY RUN] $(MAKEFILE_DIR)/scripts/sync-projects.sh --flake-dir \"$(FLAKE_DIR)\" --hostname \"$(FINAL_HOSTNAME)\" --home \"$(HOME)\""
 else
 	@$(MAKEFILE_DIR)/scripts/sync-projects.sh --flake-dir "$(FLAKE_DIR)" --hostname "$(FINAL_HOSTNAME)" --home "$(HOME)"
+endif
+
+reset-raycast-window:
+ifeq ($(DRY_RUN), 1)
+	@echo "[DRY RUN] $(MAKEFILE_DIR)/scripts/reset-raycast-window.sh"
+else
+	@$(MAKEFILE_DIR)/scripts/reset-raycast-window.sh
 endif
 
 # Format nix files
