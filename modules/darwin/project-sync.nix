@@ -3,6 +3,13 @@
 let
   projectType = lib.types.submodule {
     options = {
+      name = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        visible = false;
+        description = "Resolved project name, derived from the projects.repos attribute name.";
+      };
+
       url = lib.mkOption {
         type = lib.types.str;
         description = "Git clone URL.";
