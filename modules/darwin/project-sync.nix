@@ -104,14 +104,12 @@ in
       }
     ];
 
-    system.activationScripts.projectSync = lib.mkIf config.projects.syncOnActivation {
-      text = ''
-        echo "Syncing configured projects..." >&2
-        sudo -u ${username} HOME=${userHome} USER=${username} \
-          ${projectSyncScript} \
-          --home ${userHome} \
-          --projects-json ${lib.escapeShellArg (builtins.toJSON finalRepos)}
-      '';
-    };
+    system.activationScripts.postActivation.text = lib.mkIf config.projects.syncOnActivation (lib.mkAfter ''
+      echo "Syncing configured projects..." >&2
+      sudo -u ${username} HOME=${userHome} USER=${username} \
+        ${projectSyncScript} \
+        --home ${userHome} \
+        --projects-json ${lib.escapeShellArg (builtins.toJSON finalRepos)}
+    '');
   };
 }
