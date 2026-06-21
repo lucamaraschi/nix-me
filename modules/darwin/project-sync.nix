@@ -59,7 +59,15 @@ let
 
   projectPaths = map (repo: repo.path) finalRepos;
 
-  projectSyncScript = "${../../scripts/sync-projects.sh}";
+  projectSyncScript = pkgs.writeShellApplication {
+    name = "sync-projects";
+    runtimeInputs = with pkgs; [
+      coreutils
+      git
+      jq
+    ];
+    text = builtins.readFile ../../scripts/sync-projects.sh;
+  };
   userHome = "/Users/${username}";
 in
 {
@@ -107,7 +115,7 @@ in
     system.activationScripts.postActivation.text = lib.mkIf config.projects.syncOnActivation (lib.mkAfter ''
       echo "Syncing configured projects..." >&2
       sudo -u ${username} HOME=${userHome} USER=${username} \
-        ${projectSyncScript} \
+        ${projectSyncScript}/bin/sync-projects \
         --home ${userHome} \
         --projects-json ${lib.escapeShellArg (builtins.toJSON finalRepos)}
     '');
