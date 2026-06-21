@@ -58,6 +58,27 @@ if [[ -z "$home_dir" ]]; then
   exit 1
 fi
 
+configure_ssh_agent() {
+  local candidate
+  local candidates=(
+    "$home_dir/.1password/agent.sock"
+    "$home_dir/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"
+  )
+
+  if [[ -n "${SSH_AUTH_SOCK:-}" && -S "${SSH_AUTH_SOCK:-}" ]]; then
+    return 0
+  fi
+
+  for candidate in "${candidates[@]}"; do
+    if [[ -S "$candidate" ]]; then
+      export SSH_AUTH_SOCK="$candidate"
+      return 0
+    fi
+  done
+}
+
+configure_ssh_agent
+
 if [[ "$(printf '%s' "$projects_json" | jq 'length')" -eq 0 ]]; then
   echo "==> No projects configured"
   exit 0
