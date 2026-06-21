@@ -66,13 +66,17 @@ fi
 resolve_path() {
   local raw_path="$1"
 
-  if [[ "$raw_path" == "~/"* ]]; then
-    printf '%s/%s\n' "$home_dir" "${raw_path#\~/}"
-  elif [[ "$raw_path" == /* ]]; then
-    printf '%s\n' "$raw_path"
-  else
-    printf '%s/%s\n' "$home_dir" "$raw_path"
-  fi
+  case "$raw_path" in
+    \~/*)
+      printf '%s/%s\n' "$home_dir" "${raw_path#\~/}"
+      ;;
+    /*)
+      printf '%s\n' "$raw_path"
+      ;;
+    *)
+      printf '%s/%s\n' "$home_dir" "$raw_path"
+      ;;
+  esac
 }
 
 sync_project() {
