@@ -17,11 +17,6 @@
       "orbstack"          # Lightweight Docker/Linux VMs
       "github"            # GitHub Desktop
 
-      "claude-code"
-      "claude"              # Claude Desktop
-      "codex"               # OpenAI Codex CLI
-      "codex-app"           # OpenAI Codex Desktop
-
       # API & Database
       # "postman"
       # "tableplus"

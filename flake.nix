@@ -119,7 +119,7 @@
           machineName = "Gotham";
         };
 
-        # Work laptop with dev + work profiles
+        # Work laptop with dev + coding agents + work profiles
         "nabucodonosor" = mkDarwinSystem {
           hostname = "nabucodonosor";
           machineType = "macbook";
@@ -127,6 +127,7 @@
           username = "batman";
           extraModules = [
             ./hosts/profiles/dev.nix   # Development tools
+            ./hosts/profiles/coding-agents.nix  # AI coding agents
             ./hosts/profiles/work.nix  # Work collaboration apps
             ./hosts/profiles/personal.nix  # Media tools for tutorials/streaming
             ./hosts/profiles/hacking.nix  # Hacking tools for on the go
@@ -141,7 +142,7 @@
         };
 
         # MacBook Pro configurations
-        # Work laptop with dev + work profiles
+        # Work laptop with dev + coding agents + work profiles
         "bellerofonte" = mkDarwinSystem {
           hostname = "bellerofonte";
           machineType = "macbook-pro";
@@ -149,6 +150,7 @@
           username = "batman";
           extraModules = [
             ./hosts/profiles/dev.nix   # Development tools
+            ./hosts/profiles/coding-agents.nix  # AI coding agents
             ./hosts/profiles/work.nix  # Work collaboration apps
             ./hosts/profiles/personal.nix  # Media tools for tutorials/streaming
             ./hosts/profiles/hacking.nix  # Hacking tools for on the go
@@ -172,6 +174,7 @@
           username = "batman";
           extraModules = [
             ./hosts/profiles/dev.nix       # Development tools
+            ./hosts/profiles/coding-agents.nix  # AI coding agents
             ./hosts/profiles/work.nix      # Work collaboration apps
             ./hosts/profiles/personal.nix  # Media tools for tutorials/streaming
             ./hosts/profiles/maker.nix  # 3D printing & CAD
@@ -201,7 +204,7 @@
         #   - work.nix     → Slack, Teams, Zoom, etc.
         #   - personal.nix → Spotify, OBS, media tools
 
-        # Work developer machine (dev + work)
+        # Work developer machine (dev + coding agents + work)
         "work-macbook-pro" = mkDarwinSystem {
           hostname = "work-macbook-pro";
           machineType = "macbook-pro";
@@ -209,11 +212,12 @@
           username = "batman";
           extraModules = [
             ./hosts/profiles/dev.nix
+            ./hosts/profiles/coding-agents.nix
             ./hosts/profiles/work.nix
           ];
         };
 
-        # Personal dev machine (dev + personal)
+        # Personal dev machine (dev + coding agents + personal)
         "personal-macbook-pro" = mkDarwinSystem {
           hostname = "personal-macbook-pro";
           machineType = "macbook-pro";
@@ -221,11 +225,12 @@
           username = "batman";
           extraModules = [
             ./hosts/profiles/dev.nix
+            ./hosts/profiles/coding-agents.nix
             ./hosts/profiles/personal.nix
           ];
         };
 
-        # Full-stack machine (all profiles)
+        # Full-stack machine (dev + coding agents + work + personal)
         "work-macbook" = mkDarwinSystem {
           hostname = "work-macbook";
           machineType = "macbook";
@@ -233,6 +238,7 @@
           username = "batman";
           extraModules = [
             ./hosts/profiles/dev.nix
+            ./hosts/profiles/coding-agents.nix
             ./hosts/profiles/work.nix
             ./hosts/profiles/personal.nix  # For after-hours
           ];
@@ -266,6 +272,7 @@
           username = "batman";
           extraModules = [
             ./hosts/profiles/dev.nix      # Development tools
+            ./hosts/profiles/coding-agents.nix  # AI coding agents
             ./hosts/profiles/hacking.nix  # Security/pentesting tools
           ];
         };
