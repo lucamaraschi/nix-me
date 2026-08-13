@@ -31,4 +31,14 @@ then
 fi
 
 jq -e '.error.code == "invalid_request"' "$TEMP_DIR/invalid.json" >/dev/null
+
+NIX_ME_HOSTNAME=test-host NIX_ME_USERNAME=test-user \
+  "$REPO_DIR/bin/nix-me" action apply >"$TEMP_DIR/apply.json"
+jq -e '
+  .schemaVersion == 1 and
+  .action == "apply" and
+  .success and
+  (.message | contains("Would apply configuration for test-host as test-user"))
+' "$TEMP_DIR/apply.json" >/dev/null
+
 echo "nix-me action contract passed"

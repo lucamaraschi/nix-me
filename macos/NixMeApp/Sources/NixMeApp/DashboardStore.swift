@@ -6,6 +6,7 @@ final class DashboardStore: ObservableObject {
     @Published private(set) var snapshot: ManagementSnapshot?
     @Published private(set) var isLoading = false
     @Published private(set) var isUpdating = false
+    @Published private(set) var isApplying = false
     @Published private(set) var updatingItemCount = 0
     @Published private(set) var errorMessage: String?
     @Published private(set) var updateNotice: String?
@@ -52,7 +53,7 @@ final class DashboardStore: ObservableObject {
     }
 
     func updateSoftware(_ updates: [SoftwareUpdate]) async {
-        guard !updates.isEmpty, !isUpdating, !isLoading else { return }
+        guard !updates.isEmpty, !isUpdating, !isApplying, !isLoading else { return }
         isUpdating = true
         updatingItemCount = updates.count
         updateNotice = nil
@@ -81,6 +82,32 @@ final class DashboardStore: ObservableObject {
         await refresh()
         isUpdating = false
         updatingItemCount = 0
+        updateNotice = notice
+    }
+
+    func applyConfiguration() async {
+        guard !isApplying, !isUpdating, !isLoading, let snapshot else { return }
+        isApplying = true
+        updateNotice = nil
+        var notice: String
+
+        do {
+            let managementClient = try client ?? ManagementAPIClient()
+            self.client = managementClient
+            let actionClient = ManagementActionClient(configurationDirectory: managementClient.configurationDirectory)
+            let response = try await actionClient.apply(
+                hostname: snapshot.host.hostname,
+                username: snapshot.host.username
+            )
+            notice = response.success
+                ? "Configuration applied successfully."
+                : "Apply failed: \(response.message)"
+        } catch {
+            notice = "Apply failed: \(error.localizedDescription)"
+        }
+
+        await refresh()
+        isApplying = false
         updateNotice = notice
     }
 

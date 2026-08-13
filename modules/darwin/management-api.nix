@@ -8,7 +8,7 @@ let
 
   caskNames = lib.unique (map (cask: cask.name) config.homebrew.casks);
   formulaNames = lib.unique (map (formula: formula.name) config.homebrew.brews);
-  nixPackageNames = lib.unique (map lib.getName config.environment.systemPackages);
+  nixPackageNames = lib.unique (map (package: package.name or (lib.getName package)) config.environment.systemPackages);
 
   manifest = {
     schemaVersion = 1;
@@ -18,6 +18,8 @@ let
     source = {
       revision = sourceRevision;
       dirty = !(inputs.self ? rev);
+      contentHash = builtins.baseNameOf (toString inputs.self.outPath);
+      lockHash = builtins.hashFile "sha256" ../../flake.lock;
     };
     software = {
       nixPackages = nixPackageNames;

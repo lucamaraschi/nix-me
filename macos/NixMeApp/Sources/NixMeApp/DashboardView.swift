@@ -24,6 +24,7 @@ struct DashboardView: View {
     @State private var softwareMode = SoftwareMode.managed
     @State private var projectFilter = ProjectFilter.all
     @State private var selectedUpdateIDs = Set<String>()
+    @State private var showingApplyConfirmation = false
 
     var body: some View {
         NavigationSplitView {
@@ -59,11 +60,19 @@ struct DashboardView: View {
                     }
                     .disabled(store.snapshot == nil)
 
+                    if store.snapshot?.configuration.applyState != "current" {
+                        Button("Apply", systemImage: "checkmark.circle") {
+                            showingApplyConfirmation = true
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(actionInProgress)
+                    }
+
                     Button("Refresh", systemImage: "arrow.clockwise") {
                         Task { await store.refresh() }
                     }
                     .keyboardShortcut("r", modifiers: .command)
-                    .disabled(store.isLoading)
+                    .disabled(actionInProgress)
                 }
             }
         }
@@ -79,6 +88,22 @@ struct DashboardView: View {
         } message: {
             Text(store.updateNotice ?? "")
         }
+        .confirmationDialog(
+            "Apply this configuration?",
+            isPresented: $showingApplyConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Apply Configuration") {
+                Task { await store.applyConfiguration() }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Nix will build and activate the current configuration. macOS will request administrator approval. Software update checks will be skipped.")
+        }
+    }
+
+    private var actionInProgress: Bool {
+        store.isLoading || store.isUpdating || store.isApplying
     }
 
     @ViewBuilder
@@ -101,7 +126,9 @@ struct DashboardView: View {
                 openProjectAttention: {
                     projectFilter = .attention
                     selection = .projects
-                }
+                },
+                applyConfiguration: { showingApplyConfirmation = true },
+                isApplying: store.isApplying
             )
         case .software:
             SoftwareView(snapshot: snapshot, mode: $softwareMode)
@@ -112,6 +139,7 @@ struct DashboardView: View {
                 snapshot: snapshot,
                 selectedUpdateIDs: $selectedUpdateIDs,
                 isUpdating: store.isUpdating,
+                isApplying: store.isApplying,
                 isRefreshing: store.isLoading,
                 updatingItemCount: store.updatingItemCount,
                 updateItems: { updates in
@@ -128,6 +156,8 @@ private struct OverviewView: View {
     let openInstalledSoftware: () -> Void
     let openUpdates: () -> Void
     let openProjectAttention: () -> Void
+    let applyConfiguration: () -> Void
+    let isApplying: Bool
 
     var body: some View {
         ScrollView {
@@ -156,6 +186,28 @@ private struct OverviewView: View {
                     DetailRow(label: "Remote", value: remoteSummary)
                     DetailRow(label: "Working tree", value: snapshot.configuration.git?.dirty == true ? "Uncommitted changes" : "Clean")
                     DetailRow(label: "Location", value: snapshot.configuration.path)
+                    if snapshot.configuration.applyState != "current" {
+                        Divider()
+                        HStack {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("Activate pending changes")
+                                    .fontWeight(.medium)
+                                Text("Build and switch to the current Nix configuration.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            if isApplying {
+                                ProgressView()
+                                    .controlSize(.small)
+                                Text("Applying…")
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Button("Apply Configuration", action: applyConfiguration)
+                                    .buttonStyle(.borderedProminent)
+                            }
+                        }
+                    }
                 }
 
                 SectionCard(title: "System services", symbol: "heart.text.square") {
@@ -391,6 +443,7 @@ private struct UpdatesView: View {
     let snapshot: ManagementSnapshot
     @Binding var selectedUpdateIDs: Set<String>
     let isUpdating: Bool
+    let isApplying: Bool
     let isRefreshing: Bool
     let updatingItemCount: Int
     let updateItems: ([SoftwareUpdate]) -> Void
@@ -479,7 +532,7 @@ private struct UpdatesView: View {
     }
 
     private var actionsDisabled: Bool {
-        isUpdating || isRefreshing
+        isUpdating || isApplying || isRefreshing
     }
 
     private var formulaUpdates: [SoftwareUpdate] {

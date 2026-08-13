@@ -120,8 +120,8 @@ fi
 
 apply_state="unknown"
 if [[ "$desired_manifest" != "null" && "$applied_manifest" != "null" ]]; then
-  desired_fingerprint="$(jq -cS '{host, software, projects}' <<<"$desired_manifest")"
-  applied_fingerprint="$(jq -cS '{host, software, projects}' <<<"$applied_manifest")"
+  desired_fingerprint="$(jq -cS '{host, software, projects, contentHash: .source.contentHash, lockHash: .source.lockHash}' <<<"$desired_manifest")"
+  applied_fingerprint="$(jq -cS '{host, software, projects, contentHash: .source.contentHash, lockHash: .source.lockHash}' <<<"$applied_manifest")"
   if [[ "$desired_fingerprint" == "$applied_fingerprint" ]]; then
     apply_state="current"
   else

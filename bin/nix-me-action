@@ -13,8 +13,64 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 69
 fi
 
-if [[ "${1:-}" != "update" ]]; then
-  jq -n --arg action "${1:-}" \
+action="${1:-}"
+
+run_apply() {
+  local host_name current_user make_path log_file message succeeded
+  host_name="${NIX_ME_HOSTNAME:-$(hostname -s | tr '[:upper:]' '[:lower:]')}"
+  current_user="${NIX_ME_USERNAME:-${USER:-$(id -un)}}"
+  make_path="$(command -v make)"
+
+  if [[ ! -f "$CONFIG_DIR/flake.nix" || ! -f "$CONFIG_DIR/Makefile" ]]; then
+    jq -n '{schemaVersion: 1, action: "apply", success: false, message: "The nix-me configuration or Makefile is missing"}'
+    return
+  fi
+
+  if [[ ! "$host_name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ || ! "$current_user" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+    jq -n '{schemaVersion: 1, action: "apply", success: false, message: "The host or username failed validation"}'
+    return
+  fi
+
+  if [[ "${NIX_ME_ACTION_DRY_RUN:-0}" == "1" ]]; then
+    jq -n \
+      --arg host "$host_name" \
+      --arg username "$current_user" \
+      '{schemaVersion: 1, action: "apply", success: true, message: ("Would apply configuration for " + $host + " as " + $username)}'
+    return
+  fi
+
+  log_file="$(mktemp "${TMPDIR:-/tmp}/nix-me-apply.XXXXXX")"
+  succeeded=true
+  if ! /usr/bin/osascript \
+    -e 'on run argv' \
+    -e 'set makePath to item 1 of argv' \
+    -e 'set configPath to item 2 of argv' \
+    -e 'set hostName to item 3 of argv' \
+    -e 'set userName to item 4 of argv' \
+    -e 'set commandText to "env PATH=/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin " & quoted form of makePath & " -C " & quoted form of configPath & " SKIP_BREW=1 FLAKE_DIR=" & quoted form of configPath & " HOSTNAME=" & quoted form of hostName & " USERNAME=" & quoted form of userName & " switch-fast"' \
+    -e 'with timeout of 86400 seconds' \
+    -e 'do shell script commandText with administrator privileges' \
+    -e 'end timeout' \
+    -e 'end run' \
+    -- "$make_path" "$CONFIG_DIR" "$host_name" "$current_user" >"$log_file" 2>&1; then
+    succeeded=false
+  fi
+
+  message="$(tail -40 "$log_file" 2>/dev/null || true)"
+  rm -f -- "$log_file"
+  jq -n \
+    --argjson success "$succeeded" \
+    --arg message "${message:-Configuration applied successfully}" \
+    '{schemaVersion: 1, action: "apply", success: $success, message: $message}'
+}
+
+if [[ "$action" == "apply" ]]; then
+  run_apply
+  exit 0
+fi
+
+if [[ "$action" != "update" ]]; then
+  jq -n --arg action "$action" \
     '{schemaVersion: 1, error: {code: "unknown_action", message: ("Unknown action: " + $action)}}'
   exit 64
 fi

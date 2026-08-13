@@ -103,6 +103,9 @@ struct MenuBarView: View {
         if store.isUpdating {
             return "Updating \(store.updatingItemCount) item\(store.updatingItemCount == 1 ? "" : "s")…"
         }
+        if store.isApplying {
+            return "Applying configuration…"
+        }
         return store.isLoading ? "Refreshing…" : "System manager"
     }
 

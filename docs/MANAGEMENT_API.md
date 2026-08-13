@@ -29,6 +29,10 @@ compares host settings, software, and projects from those manifests:
 - `unknown`: one of the manifests is unavailable, normally before the first
   switch containing management API support.
 
+The comparison includes the evaluated flake source and `flake.lock` hashes, so
+package input changes and non-package Nix setting edits remain pending until a
+successful activation.
+
 Git state is reported separately. `dirty`, `ahead`, and `behind` describe
 whether configuration changes need committing, pushing, or pulling; they do
 not imply that the system needs activation.
@@ -56,3 +60,8 @@ unsafe package names, then maps accepted items to fixed operations:
 
 Actions return structured per-item results. `NIX_ME_ACTION_DRY_RUN=1` validates
 and reports intended operations without changing packages or `flake.lock`.
+
+`nix-me action apply` runs the existing `switch-fast` activation path after a
+native macOS administrator prompt. The app passes the evaluated hostname and
+username explicitly, skips duplicate Homebrew update checks, waits for
+activation to finish, and then refreshes desired-versus-applied state.

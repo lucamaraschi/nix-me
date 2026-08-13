@@ -18,7 +18,8 @@ in Xcode. The app discovers the configuration from
 The app displays desired and applied state, Git synchronization, managed
 software, updates, and configured projects using `nix-me api snapshot`.
 Available updates can be applied individually, as a selection, or as one batch.
-Nix input updates change `flake.lock` but do not activate the configuration.
+Nix input updates change `flake.lock`; the dashboard then offers an explicit
+Apply Configuration step with native administrator approval.
 
 The menu bar indicator checks every 30 minutes and displays the total number of
 available Nix input, Homebrew, and Mac App Store updates. Opening it shows a
