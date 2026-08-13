@@ -10,7 +10,7 @@ the `warnings` array so clients can render partial results.
 nix-me api snapshot   # Complete dashboard state (default)
 nix-me api status     # Host, configuration, Git, and tool health
 nix-me api inventory  # Desired, applied, and installed software
-nix-me api updates    # Available software updates
+nix-me api updates    # Available Nix, Homebrew, and Mac App Store updates
 nix-me api projects   # Configured repository state
 nix-me api manifest   # Current desired Nix manifest
 ```
@@ -38,4 +38,8 @@ not imply that the system needs activation.
 - `NIX_ME_CONFIG_DIR` overrides configuration discovery.
 - `NIX_ME_HOSTNAME` evaluates another configured host.
 - `NIX_ME_APPLIED_MANIFEST` overrides the active manifest path for testing.
-- `NIX_ME_SKIP_UPDATES=1` skips the Homebrew update query.
+- `NIX_ME_SKIP_UPDATES=1` skips all network-backed update queries.
+
+Nix updates are detected by resolving inputs into a temporary candidate lock
+file and comparing revisions. The repository's real `flake.lock` is never
+modified by an API check.

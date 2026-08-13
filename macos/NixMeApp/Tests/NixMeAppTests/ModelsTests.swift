@@ -11,7 +11,7 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(snapshot.desiredSoftwareCount, 5)
         XCTAssertEqual(snapshot.installedHomebrewCount, 3)
         XCTAssertEqual(snapshot.projectAttentionCount, 1)
-        XCTAssertEqual(snapshot.updates.homebrew.count, 1)
+        XCTAssertEqual(snapshot.softwareUpdateCount, 3)
     }
 
     private let fixture = #"""
@@ -30,7 +30,11 @@ final class ModelsTests: XCTestCase {
         "applied":{"nixPackages":["git","jq"],"homebrew":{"formulae":["coreutils"],"casks":["raycast"],"masApps":{"Xcode":497799835}}},
         "installed":{"homebrew":{"formulae":[{"name":"coreutils","versions":["9.7"]}],"casks":[{"name":"raycast","versions":["1.0"]},{"name":"rectangle","versions":["1.0"]}]}}
       },
-      "updates":{"homebrew":[{"name":"raycast","kind":"cask","installedVersions":["1.0"],"availableVersion":"1.1"}]},
+      "updates":{
+        "homebrew":[{"name":"raycast","kind":"cask","installedVersions":["1.0"],"availableVersion":"1.1"}],
+        "macAppStore":[{"name":"Xcode","kind":"mas","installedVersions":["26.3"],"availableVersion":"26.4"}],
+        "nixFlake":[{"name":"nixpkgs","kind":"nixFlake","installedVersions":["abc1234"],"availableVersion":"def5678"}]
+      },
       "projects":[
         {"name":"platformatic","url":"https://github.com/platformatic/platformatic.git","path":"src/platformatic/platformatic","branch":null,"remote":"origin","clone":true,"update":true,"absolutePath":"/Users/batman/src/platformatic/platformatic","present":true,"isGitRepository":true,"status":"current","git":null},
         {"name":"desk","url":"https://github.com/platformatic/desk.git","path":"src/platformatic/desk","branch":null,"remote":"origin","clone":true,"update":true,"absolutePath":"/Users/batman/src/platformatic/desk","present":false,"isGitRepository":false,"status":"missing","git":null}

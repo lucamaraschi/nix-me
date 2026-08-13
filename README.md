@@ -29,7 +29,8 @@
 
 The SwiftUI dashboard shows desired and installed software, pending Homebrew
 updates, configuration drift, Git synchronization, and project repository
-health. This first milestone is intentionally read-only.
+health. Its menu bar indicator checks Nix, Homebrew, and Mac App Store updates
+every 30 minutes. This first milestone is intentionally read-only.
 
 ```bash
 make app-run

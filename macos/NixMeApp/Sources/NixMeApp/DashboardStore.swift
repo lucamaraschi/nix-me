@@ -8,6 +8,19 @@ final class DashboardStore: ObservableObject {
     @Published private(set) var errorMessage: String?
 
     private var client: ManagementAPIClient?
+    private var monitoringTask: Task<Void, Never>?
+
+    func startMonitoring() {
+        guard monitoringTask == nil else { return }
+
+        monitoringTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self else { return }
+                await self.refresh()
+                try? await Task.sleep(nanoseconds: 30 * 60 * 1_000_000_000)
+            }
+        }
+    }
 
     func refresh() async {
         guard !isLoading else { return }

@@ -26,6 +26,10 @@ struct ManagementSnapshot: Codable {
     var projectAttentionCount: Int {
         projects.filter { $0.status != "current" }.count
     }
+
+    var softwareUpdateCount: Int {
+        updates.all.count
+    }
 }
 
 struct Host: Codable {
@@ -112,6 +116,12 @@ struct InstalledPackage: Codable, Identifiable {
 
 struct Updates: Codable {
     let homebrew: [SoftwareUpdate]
+    let macAppStore: [SoftwareUpdate]
+    let nixFlake: [SoftwareUpdate]
+
+    var all: [SoftwareUpdate] {
+        nixFlake + homebrew + macAppStore
+    }
 }
 
 struct SoftwareUpdate: Codable, Identifiable {

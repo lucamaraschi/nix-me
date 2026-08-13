@@ -20,6 +20,8 @@ jq -e '
   (.inventory.desired.nixPackages | type == "array") and
   (.inventory.desired.homebrew.casks | type == "array") and
   (.updates.homebrew | type == "array") and
+  (.updates.macAppStore | type == "array") and
+  (.updates.nixFlake | type == "array") and
   (.projects | type == "array") and
   (.warnings | type == "array")
 ' "$TEMP_DIR/snapshot.json" >/dev/null

@@ -19,7 +19,7 @@ private enum DashboardSection: String, CaseIterable, Identifiable {
 }
 
 struct DashboardView: View {
-    @StateObject private var store = DashboardStore()
+    @ObservedObject var store: DashboardStore
     @State private var selection: DashboardSection? = .overview
 
     var body: some View {
@@ -64,7 +64,7 @@ struct DashboardView: View {
                 }
             }
         }
-        .task { await store.refresh() }
+        .task { store.startMonitoring() }
     }
 
     @ViewBuilder
@@ -102,7 +102,7 @@ private struct OverviewView: View {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: 14)], spacing: 14) {
                     MetricCard(title: "Managed software", value: snapshot.desiredSoftwareCount, symbol: "shippingbox.fill", tint: .blue)
                     MetricCard(title: "Homebrew installed", value: snapshot.installedHomebrewCount, symbol: "mug.fill", tint: .orange)
-                    MetricCard(title: "Available updates", value: snapshot.updates.homebrew.count, symbol: "arrow.down.circle.fill", tint: .green)
+                    MetricCard(title: "Available updates", value: snapshot.softwareUpdateCount, symbol: "arrow.down.circle.fill", tint: .green)
                     MetricCard(title: "Projects needing attention", value: snapshot.projectAttentionCount, symbol: "folder.badge.questionmark", tint: .pink)
                 }
 
@@ -303,9 +303,9 @@ private struct UpdatesView: View {
     let snapshot: ManagementSnapshot
 
     var body: some View {
-        List(snapshot.updates.homebrew) { update in
+        List(snapshot.updates.all) { update in
             HStack(spacing: 14) {
-                Image(systemName: update.kind == "cask" ? "macwindow" : "terminal")
+                Image(systemName: updateSymbol(update))
                     .foregroundStyle(Color.accentColor)
                     .frame(width: 26)
                 VStack(alignment: .leading, spacing: 3) {
@@ -326,13 +326,22 @@ private struct UpdatesView: View {
         }
         .navigationTitle("Updates")
         .overlay {
-            if snapshot.updates.homebrew.isEmpty {
+            if snapshot.updates.all.isEmpty {
                 ContentUnavailableView(
                     "Everything is current",
                     systemImage: "checkmark.seal.fill",
                     description: Text("No Homebrew updates are currently available.")
                 )
             }
+        }
+    }
+
+    private func updateSymbol(_ update: SoftwareUpdate) -> String {
+        switch update.kind {
+        case "cask": "macwindow"
+        case "mas": "apple.logo"
+        case "nixFlake": "snowflake"
+        default: "terminal"
         }
     }
 }

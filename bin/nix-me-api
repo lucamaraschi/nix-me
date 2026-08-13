@@ -137,6 +137,8 @@ fi
 brew_formulae='[]'
 brew_casks='[]'
 brew_updates='[]'
+mas_updates='[]'
+nix_updates='[]'
 if command_exists brew; then
   brew_formulae="$(brew list --formula --versions 2>/dev/null | jq -Rsc '
     split("\n") | map(select(length > 0) | split(" ") | {name: .[0], versions: .[1:]})
@@ -146,7 +148,7 @@ if command_exists brew; then
   ')"
 
   if [[ "${NIX_ME_SKIP_UPDATES:-0}" != "1" ]]; then
-    if brew_outdated="$(HOMEBREW_NO_AUTO_UPDATE=1 brew outdated --json=v2 2>"$TEMP_DIR/brew-outdated.err")"; then
+    if brew_outdated="$(brew outdated --json=v2 2>"$TEMP_DIR/brew-outdated.err")"; then
       brew_updates="$(jq -c '
         ([.formulae[]? | {
           name,
@@ -164,6 +166,58 @@ if command_exists brew; then
     else
       add_warning "Homebrew update information is unavailable"
     fi
+  fi
+fi
+
+if command_exists mas && [[ "${NIX_ME_SKIP_UPDATES:-0}" != "1" ]]; then
+  if mas_outdated="$(mas outdated 2>"$TEMP_DIR/mas-outdated.err")"; then
+    mas_updates="$(jq -Rsc '
+      split("\n")
+      | map(
+          select(length > 0)
+          | capture("^\\s*(?<storeId>[0-9]+)\\s+(?<name>.+\\S)\\s+\\((?<installed>\\S+)\\s*->\\s*(?<available>[^)]+\\S)\\)$")
+          | {
+              name,
+              kind: "mas",
+              installedVersions: [.installed],
+              availableVersion: .available,
+              storeId: (.storeId | tonumber)
+            }
+        )
+    ' <<<"$mas_outdated" 2>/dev/null || printf '[]')"
+  else
+    add_warning "Mac App Store update information is unavailable"
+  fi
+fi
+
+if command_exists nix && [[ -r "$CONFIG_DIR/flake.lock" && "${NIX_ME_SKIP_UPDATES:-0}" != "1" ]]; then
+  candidate_lock="$TEMP_DIR/candidate-flake.lock"
+  if nix flake update \
+    --flake "$CONFIG_DIR" \
+    --output-lock-file "$candidate_lock" \
+    >"$TEMP_DIR/nix-update.out" \
+    2>"$TEMP_DIR/nix-update.err"; then
+    nix_updates="$(jq -cn \
+      --slurpfile current "$CONFIG_DIR/flake.lock" \
+      --slurpfile candidate "$candidate_lock" '
+        [
+          $candidate[0].nodes
+          | to_entries[]
+          | select(.key != "root")
+          | . as $entry
+          | ($current[0].nodes[$entry.key].locked.rev // $current[0].nodes[$entry.key].locked.narHash // "") as $installed
+          | ($entry.value.locked.rev // $entry.value.locked.narHash // "") as $available
+          | select($installed != $available)
+          | {
+              name: $entry.key,
+              kind: "nixFlake",
+              installedVersions: [$installed[0:7]],
+              availableVersion: $available[0:7]
+            }
+        ]
+      ')"
+  else
+    add_warning "Nix flake update information is unavailable"
   fi
 fi
 
@@ -253,6 +307,8 @@ snapshot="$(jq -n \
   --argjson brewFormulae "$brew_formulae" \
   --argjson brewCasks "$brew_casks" \
   --argjson brewUpdates "$brew_updates" \
+  --argjson masUpdates "$mas_updates" \
+  --argjson nixUpdates "$nix_updates" \
   --argjson projects "$projects" \
   --argjson warnings "$warnings" \
   '{
@@ -277,7 +333,7 @@ snapshot="$(jq -n \
       applied: ($applied.software // {nixPackages: [], homebrew: {formulae: [], casks: [], masApps: {}}}),
       installed: {homebrew: {formulae: $brewFormulae, casks: $brewCasks}}
     },
-    updates: {homebrew: $brewUpdates},
+    updates: {homebrew: $brewUpdates, macAppStore: $masUpdates, nixFlake: $nixUpdates},
     projects: $projects,
     warnings: $warnings
   }')"
