@@ -21,6 +21,8 @@ private enum DashboardSection: String, CaseIterable, Identifiable {
 struct DashboardView: View {
     @ObservedObject var store: DashboardStore
     @State private var selection: DashboardSection? = .overview
+    @State private var softwareMode = SoftwareMode.managed
+    @State private var projectFilter = ProjectFilter.all
 
     var body: some View {
         NavigationSplitView {
@@ -71,11 +73,28 @@ struct DashboardView: View {
     private func content(for section: DashboardSection, snapshot: ManagementSnapshot) -> some View {
         switch section {
         case .overview:
-            OverviewView(snapshot: snapshot)
+            OverviewView(
+                snapshot: snapshot,
+                openManagedSoftware: {
+                    softwareMode = .managed
+                    selection = .software
+                },
+                openInstalledSoftware: {
+                    softwareMode = .installed
+                    selection = .software
+                },
+                openUpdates: {
+                    selection = .updates
+                },
+                openProjectAttention: {
+                    projectFilter = .attention
+                    selection = .projects
+                }
+            )
         case .software:
-            SoftwareView(snapshot: snapshot)
+            SoftwareView(snapshot: snapshot, mode: $softwareMode)
         case .projects:
-            ProjectsView(snapshot: snapshot, openProject: store.openProject)
+            ProjectsView(snapshot: snapshot, filter: $projectFilter, openProject: store.openProject)
         case .updates:
             UpdatesView(snapshot: snapshot)
         }
@@ -84,6 +103,10 @@ struct DashboardView: View {
 
 private struct OverviewView: View {
     let snapshot: ManagementSnapshot
+    let openManagedSoftware: () -> Void
+    let openInstalledSoftware: () -> Void
+    let openUpdates: () -> Void
+    let openProjectAttention: () -> Void
 
     var body: some View {
         ScrollView {
@@ -100,10 +123,10 @@ private struct OverviewView: View {
                 }
 
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: 14)], spacing: 14) {
-                    MetricCard(title: "Managed software", value: snapshot.desiredSoftwareCount, symbol: "shippingbox.fill", tint: .blue)
-                    MetricCard(title: "Homebrew installed", value: snapshot.installedHomebrewCount, symbol: "mug.fill", tint: .orange)
-                    MetricCard(title: "Available updates", value: snapshot.softwareUpdateCount, symbol: "arrow.down.circle.fill", tint: .green)
-                    MetricCard(title: "Projects needing attention", value: snapshot.projectAttentionCount, symbol: "folder.badge.questionmark", tint: .pink)
+                    MetricCard(title: "Managed software", value: snapshot.desiredSoftwareCount, symbol: "shippingbox.fill", tint: .blue, action: openManagedSoftware)
+                    MetricCard(title: "Homebrew installed", value: snapshot.installedHomebrewCount, symbol: "mug.fill", tint: .orange, action: openInstalledSoftware)
+                    MetricCard(title: "Available updates", value: snapshot.softwareUpdateCount, symbol: "arrow.down.circle.fill", tint: .green, action: openUpdates)
+                    MetricCard(title: "Projects needing attention", value: snapshot.projectAttentionCount, symbol: "folder.badge.questionmark", tint: .pink, action: openProjectAttention)
                 }
 
                 SectionCard(title: "Configuration", symbol: "slider.horizontal.3") {
@@ -169,7 +192,7 @@ private struct OverviewView: View {
 
 private struct SoftwareView: View {
     let snapshot: ManagementSnapshot
-    @State private var mode = SoftwareMode.managed
+    @Binding var mode: SoftwareMode
 
     var body: some View {
         VStack(spacing: 0) {
@@ -246,35 +269,72 @@ private struct InstalledSoftwareSection: View {
 
 private struct ProjectsView: View {
     let snapshot: ManagementSnapshot
+    @Binding var filter: ProjectFilter
     let openProject: (Project) -> Void
 
     var body: some View {
-        List(snapshot.projects) { project in
-            HStack(spacing: 14) {
-                Image(systemName: project.present ? "folder.fill" : "folder.badge.questionmark")
-                    .font(.title2)
-                    .foregroundStyle(project.present ? Color.accentColor : .orange)
-                    .frame(width: 32)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(project.name).font(.headline)
-                    Text(project.absolutePath)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+        VStack(spacing: 0) {
+            Picker("Projects", selection: $filter) {
+                ForEach(ProjectFilter.allCases) { filter in
+                    Text(filter.rawValue).tag(filter)
                 }
-                Spacer()
-                StatusBadge(label: projectStatus(project), color: projectColor(project), symbol: projectSymbol(project))
-                Button("Open") { openProject(project) }
-                    .disabled(!project.present)
             }
-            .padding(.vertical, 5)
+            .pickerStyle(.segmented)
+            .frame(maxWidth: 360)
+            .padding()
+
+            List(filteredProjects) { project in
+                HStack(spacing: 14) {
+                    Image(systemName: project.present ? "folder.fill" : "folder.badge.questionmark")
+                        .font(.title2)
+                        .foregroundStyle(project.present ? Color.accentColor : .orange)
+                        .frame(width: 32)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(project.name).font(.headline)
+                        Text(projectDetails(project))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                        Text(project.absolutePath)
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                    }
+                    Spacer()
+                    StatusBadge(label: projectStatus(project), color: projectColor(project), symbol: projectSymbol(project))
+                    Button("Open") { openProject(project) }
+                        .disabled(!project.present)
+                }
+                .padding(.vertical, 5)
+            }
         }
         .navigationTitle("Projects")
         .overlay {
-            if snapshot.projects.isEmpty {
-                ContentUnavailableView("No projects configured", systemImage: "folder")
+            if filteredProjects.isEmpty {
+                ContentUnavailableView(
+                    filter == .attention ? "No projects need attention" : "No projects configured",
+                    systemImage: filter == .attention ? "checkmark.circle" : "folder"
+                )
             }
         }
+    }
+
+    private var filteredProjects: [Project] {
+        switch filter {
+        case .all: snapshot.projects
+        case .attention: snapshot.projects.filter { $0.status != "current" }
+        }
+    }
+
+    private func projectDetails(_ project: Project) -> String {
+        guard let git = project.git else {
+            return project.present ? "Not a Git repository" : "Repository has not been cloned"
+        }
+        let branch = git.branch ?? "detached HEAD"
+        if git.ahead > 0 || git.behind > 0 {
+            return "\(branch) · \(git.ahead) ahead · \(git.behind) behind"
+        }
+        return branch
     }
 
     private func projectStatus(_ project: Project) -> String {
@@ -299,30 +359,22 @@ private struct ProjectsView: View {
     }
 }
 
+private enum ProjectFilter: String, CaseIterable, Identifiable {
+    case all = "All"
+    case attention = "Needs Attention"
+
+    var id: String { rawValue }
+}
+
 private struct UpdatesView: View {
     let snapshot: ManagementSnapshot
 
     var body: some View {
-        List(snapshot.updates.all) { update in
-            HStack(spacing: 14) {
-                Image(systemName: updateSymbol(update))
-                    .foregroundStyle(Color.accentColor)
-                    .frame(width: 26)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(update.name).font(.headline)
-                    Text(update.kind.capitalized)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Text(update.installedVersions.joined(separator: ", "))
-                    .foregroundStyle(.secondary)
-                Image(systemName: "arrow.right")
-                    .foregroundStyle(.tertiary)
-                Text(update.availableVersion ?? "Latest")
-                    .fontWeight(.medium)
-            }
-            .padding(.vertical, 5)
+        List {
+            UpdateSection(title: "Nix inputs", symbol: "snowflake", updates: snapshot.updates.nixFlake)
+            UpdateSection(title: "Homebrew formulae", symbol: "terminal", updates: formulaUpdates)
+            UpdateSection(title: "Homebrew applications", symbol: "macwindow", updates: caskUpdates)
+            UpdateSection(title: "Mac App Store", symbol: "apple.logo", updates: snapshot.updates.macAppStore)
         }
         .navigationTitle("Updates")
         .overlay {
@@ -330,18 +382,61 @@ private struct UpdatesView: View {
                 ContentUnavailableView(
                     "Everything is current",
                     systemImage: "checkmark.seal.fill",
-                    description: Text("No Homebrew updates are currently available.")
+                    description: Text("No Nix, Homebrew, or Mac App Store updates are currently available.")
                 )
             }
         }
     }
 
-    private func updateSymbol(_ update: SoftwareUpdate) -> String {
+    private var formulaUpdates: [SoftwareUpdate] {
+        snapshot.updates.homebrew.filter { $0.kind == "formula" }
+    }
+
+    private var caskUpdates: [SoftwareUpdate] {
+        snapshot.updates.homebrew.filter { $0.kind == "cask" }
+    }
+}
+
+private struct UpdateSection: View {
+    let title: String
+    let symbol: String
+    let updates: [SoftwareUpdate]
+
+    var body: some View {
+        if !updates.isEmpty {
+            Section("\(title) · \(updates.count)") {
+                ForEach(updates) { update in
+                    HStack(spacing: 14) {
+                        Image(systemName: symbol)
+                            .foregroundStyle(Color.accentColor)
+                            .frame(width: 26)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(update.name).font(.headline)
+                            Text(updateSource(update))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Text(update.installedVersions.joined(separator: ", "))
+                            .foregroundStyle(.secondary)
+                        Image(systemName: "arrow.right")
+                            .foregroundStyle(.tertiary)
+                        Text(update.availableVersion ?? "Latest")
+                            .fontWeight(.medium)
+                    }
+                    .padding(.vertical, 5)
+                }
+            }
+        }
+    }
+
+    private func updateSource(_ update: SoftwareUpdate) -> String {
         switch update.kind {
-        case "cask": "macwindow"
-        case "mas": "apple.logo"
-        case "nixFlake": "snowflake"
-        default: "terminal"
+        case "nixFlake": "Pinned flake input"
+        case "formula": "Homebrew formula"
+        case "cask": "Homebrew application"
+        case "mas": "Mac App Store application"
+        default: update.kind
         }
     }
 }
@@ -351,25 +446,46 @@ private struct MetricCard: View {
     let value: Int
     let symbol: String
     let tint: Color
+    let action: () -> Void
+    @State private var isHovered = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Image(systemName: symbol)
-                .font(.title2)
-                .foregroundStyle(tint)
-            Text(value, format: .number)
-                .font(.system(size: 30, weight: .semibold, design: .rounded))
-            Text(title)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack {
+                    Image(systemName: symbol)
+                        .font(.title2)
+                        .foregroundStyle(tint)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(isHovered ? tint : Color.secondary.opacity(0.45))
+                }
+                Text(value, format: .number)
+                    .font(.system(size: 30, weight: .semibold, design: .rounded))
+                Text(title)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(18)
         }
+        .buttonStyle(.plain)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(18)
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(isHovered ? tint.opacity(0.08) : Color(nsColor: .controlBackgroundColor))
+        )
         .overlay {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(.separator.opacity(0.4), lineWidth: 1)
+                .stroke(isHovered ? tint.opacity(0.55) : Color(nsColor: .separatorColor).opacity(0.4), lineWidth: 1)
         }
+        .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .scaleEffect(isHovered ? 1.01 : 1)
+        .animation(.easeOut(duration: 0.15), value: isHovered)
+        .onHover { isHovered = $0 }
+        .accessibilityLabel("\(title), \(value)")
+        .accessibilityHint("Open details")
     }
 }
 
