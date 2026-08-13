@@ -12,6 +12,7 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(snapshot.installedHomebrewCount, 3)
         XCTAssertEqual(snapshot.projectAttentionCount, 1)
         XCTAssertEqual(snapshot.softwareUpdateCount, 3)
+        XCTAssertEqual(snapshot.updates.macAppStore.first?.storeId, 497799835)
     }
 
     private let fixture = #"""
@@ -32,7 +33,7 @@ final class ModelsTests: XCTestCase {
       },
       "updates":{
         "homebrew":[{"name":"raycast","kind":"cask","installedVersions":["1.0"],"availableVersion":"1.1"}],
-        "macAppStore":[{"name":"Xcode","kind":"mas","installedVersions":["26.3"],"availableVersion":"26.4"}],
+        "macAppStore":[{"name":"Xcode","kind":"mas","installedVersions":["26.3"],"availableVersion":"26.4","storeId":497799835}],
         "nixFlake":[{"name":"nixpkgs","kind":"nixFlake","installedVersions":["abc1234"],"availableVersion":"def5678"}]
       },
       "projects":[

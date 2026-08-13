@@ -23,6 +23,7 @@ struct DashboardView: View {
     @State private var selection: DashboardSection? = .overview
     @State private var softwareMode = SoftwareMode.managed
     @State private var projectFilter = ProjectFilter.all
+    @State private var selectedUpdateIDs = Set<String>()
 
     var body: some View {
         NavigationSplitView {
@@ -67,6 +68,17 @@ struct DashboardView: View {
             }
         }
         .task { store.startMonitoring() }
+        .alert(
+            "Software Updates",
+            isPresented: Binding(
+                get: { store.updateNotice != nil },
+                set: { if !$0 { store.clearUpdateNotice() } }
+            )
+        ) {
+            Button("OK") { store.clearUpdateNotice() }
+        } message: {
+            Text(store.updateNotice ?? "")
+        }
     }
 
     @ViewBuilder
@@ -96,7 +108,16 @@ struct DashboardView: View {
         case .projects:
             ProjectsView(snapshot: snapshot, filter: $projectFilter, openProject: store.openProject)
         case .updates:
-            UpdatesView(snapshot: snapshot)
+            UpdatesView(
+                snapshot: snapshot,
+                selectedUpdateIDs: $selectedUpdateIDs,
+                isUpdating: store.isUpdating,
+                isRefreshing: store.isLoading,
+                updatingItemCount: store.updatingItemCount,
+                updateItems: { updates in
+                    Task { await store.updateSoftware(updates) }
+                }
+            )
         }
     }
 }
@@ -368,13 +389,24 @@ private enum ProjectFilter: String, CaseIterable, Identifiable {
 
 private struct UpdatesView: View {
     let snapshot: ManagementSnapshot
+    @Binding var selectedUpdateIDs: Set<String>
+    let isUpdating: Bool
+    let isRefreshing: Bool
+    let updatingItemCount: Int
+    let updateItems: ([SoftwareUpdate]) -> Void
+    @State private var pendingBatch: [SoftwareUpdate] = []
+    @State private var showingConfirmation = false
 
     var body: some View {
-        List {
-            UpdateSection(title: "Nix inputs", symbol: "snowflake", updates: snapshot.updates.nixFlake)
-            UpdateSection(title: "Homebrew formulae", symbol: "terminal", updates: formulaUpdates)
-            UpdateSection(title: "Homebrew applications", symbol: "macwindow", updates: caskUpdates)
-            UpdateSection(title: "Mac App Store", symbol: "apple.logo", updates: snapshot.updates.macAppStore)
+        VStack(spacing: 0) {
+            updateToolbar
+
+            List {
+                UpdateSection(title: "Nix inputs", symbol: "snowflake", updates: snapshot.updates.nixFlake, selectedUpdateIDs: $selectedUpdateIDs, actionsDisabled: actionsDisabled, updateOne: updateOne)
+                UpdateSection(title: "Homebrew formulae", symbol: "terminal", updates: formulaUpdates, selectedUpdateIDs: $selectedUpdateIDs, actionsDisabled: actionsDisabled, updateOne: updateOne)
+                UpdateSection(title: "Homebrew applications", symbol: "macwindow", updates: caskUpdates, selectedUpdateIDs: $selectedUpdateIDs, actionsDisabled: actionsDisabled, updateOne: updateOne)
+                UpdateSection(title: "Mac App Store", symbol: "apple.logo", updates: snapshot.updates.macAppStore, selectedUpdateIDs: $selectedUpdateIDs, actionsDisabled: actionsDisabled, updateOne: updateOne)
+            }
         }
         .navigationTitle("Updates")
         .overlay {
@@ -386,6 +418,68 @@ private struct UpdatesView: View {
                 )
             }
         }
+        .confirmationDialog(
+            "Update \(pendingBatch.count) selected item\(pendingBatch.count == 1 ? "" : "s")?",
+            isPresented: $showingConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Update \(pendingBatch.count) Item\(pendingBatch.count == 1 ? "" : "s")") {
+                updateItems(pendingBatch)
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Homebrew packages will be upgraded together. App Store updates may request administrator approval. Nix updates change flake.lock and require a later apply.")
+        }
+        .onChange(of: snapshot.updates.all.map(\.id)) { _, availableIDs in
+            selectedUpdateIDs.formIntersection(Set(availableIDs))
+        }
+    }
+
+    private var updateToolbar: some View {
+        HStack(spacing: 10) {
+            if isUpdating {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Updating \(updatingItemCount) item\(updatingItemCount == 1 ? "" : "s")…")
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("\(selectedUpdateIDs.count) selected")
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Button(selectedUpdateIDs.count == allUpdates.count ? "Clear" : "Select All") {
+                if selectedUpdateIDs.count == allUpdates.count {
+                    selectedUpdateIDs.removeAll()
+                } else {
+                    selectedUpdateIDs = Set(allUpdates.map(\.id))
+                }
+            }
+            .disabled(actionsDisabled || allUpdates.isEmpty)
+
+            Button("Update Selected") {
+                confirm(allUpdates.filter { selectedUpdateIDs.contains($0.id) })
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(actionsDisabled || selectedUpdateIDs.isEmpty)
+
+            Button("Update All") {
+                confirm(allUpdates)
+            }
+            .disabled(actionsDisabled || allUpdates.isEmpty)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(.bar)
+    }
+
+    private var allUpdates: [SoftwareUpdate] {
+        snapshot.updates.all
+    }
+
+    private var actionsDisabled: Bool {
+        isUpdating || isRefreshing
     }
 
     private var formulaUpdates: [SoftwareUpdate] {
@@ -395,18 +489,33 @@ private struct UpdatesView: View {
     private var caskUpdates: [SoftwareUpdate] {
         snapshot.updates.homebrew.filter { $0.kind == "cask" }
     }
+
+    private func updateOne(_ update: SoftwareUpdate) {
+        updateItems([update])
+    }
+
+    private func confirm(_ updates: [SoftwareUpdate]) {
+        pendingBatch = updates
+        showingConfirmation = true
+    }
 }
 
 private struct UpdateSection: View {
     let title: String
     let symbol: String
     let updates: [SoftwareUpdate]
+    @Binding var selectedUpdateIDs: Set<String>
+    let actionsDisabled: Bool
+    let updateOne: (SoftwareUpdate) -> Void
 
     var body: some View {
         if !updates.isEmpty {
             Section("\(title) · \(updates.count)") {
                 ForEach(updates) { update in
                     HStack(spacing: 14) {
+                        Toggle("Select \(update.name)", isOn: selectionBinding(for: update))
+                            .labelsHidden()
+                            .disabled(actionsDisabled)
                         Image(systemName: symbol)
                             .foregroundStyle(Color.accentColor)
                             .frame(width: 26)
@@ -423,11 +532,27 @@ private struct UpdateSection: View {
                             .foregroundStyle(.tertiary)
                         Text(update.availableVersion ?? "Latest")
                             .fontWeight(.medium)
+                            .frame(minWidth: 70, alignment: .leading)
+                        Button("Update") { updateOne(update) }
+                            .disabled(actionsDisabled)
                     }
                     .padding(.vertical, 5)
                 }
             }
         }
+    }
+
+    private func selectionBinding(for update: SoftwareUpdate) -> Binding<Bool> {
+        Binding(
+            get: { selectedUpdateIDs.contains(update.id) },
+            set: { selected in
+                if selected {
+                    selectedUpdateIDs.insert(update.id)
+                } else {
+                    selectedUpdateIDs.remove(update.id)
+                }
+            }
+        )
     }
 
     private func updateSource(_ update: SoftwareUpdate) -> String {

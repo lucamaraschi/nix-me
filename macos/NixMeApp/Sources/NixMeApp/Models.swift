@@ -129,6 +129,7 @@ struct SoftwareUpdate: Codable, Identifiable {
     let kind: String
     let installedVersions: [String]
     let availableVersion: String?
+    let storeId: Int?
 
     var id: String { "\(kind):\(name)" }
 }

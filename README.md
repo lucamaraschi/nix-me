@@ -30,7 +30,8 @@
 The SwiftUI dashboard shows desired and installed software, pending Homebrew
 updates, configuration drift, Git synchronization, and project repository
 health. Its menu bar indicator checks Nix, Homebrew, and Mac App Store updates
-every 30 minutes. This first milestone is intentionally read-only.
+every 30 minutes. Updates can be applied individually, as a selection, or all
+at once; Nix changes remain separate from system activation.
 
 ```bash
 make app-run

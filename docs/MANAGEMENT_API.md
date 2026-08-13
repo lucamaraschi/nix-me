@@ -43,3 +43,16 @@ not imply that the system needs activation.
 Nix updates are detected by resolving inputs into a temporary candidate lock
 file and comparing revisions. The repository's real `flake.lock` is never
 modified by an API check.
+
+## Update actions
+
+The native app sends selected update objects as JSON on stdin to
+`nix-me action update`. The action backend rejects unknown update kinds and
+unsafe package names, then maps accepted items to fixed operations:
+
+- Nix inputs: targeted `nix flake update`; activation is still required.
+- Homebrew formulae and casks: grouped `brew upgrade` operations.
+- Mac App Store apps: one authenticated `mas update` operation per batch.
+
+Actions return structured per-item results. `NIX_ME_ACTION_DRY_RUN=1` validates
+and reports intended operations without changing packages or `flake.lock`.

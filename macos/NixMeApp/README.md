@@ -15,9 +15,10 @@ in Xcode. The app discovers the configuration from
 `NIX_ME_CONFIG_DIR`, the current directory, `~/.config/nixpkgs`, or
 `~/src/lm/nix-me`, in that order.
 
-The first milestone intentionally does not modify or activate configuration.
-It displays desired and applied state, Git synchronization, managed software,
-Homebrew updates, and configured projects using `nix-me api snapshot`.
+The app displays desired and applied state, Git synchronization, managed
+software, updates, and configured projects using `nix-me api snapshot`.
+Available updates can be applied individually, as a selection, or as one batch.
+Nix input updates change `flake.lock` but do not activate the configuration.
 
 The menu bar indicator checks every 30 minutes and displays the total number of
 available Nix input, Homebrew, and Mac App Store updates. Opening it shows a

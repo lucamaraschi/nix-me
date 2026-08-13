@@ -14,7 +14,7 @@ USERNAME := $(shell whoami)
 # Force hostname to lowercase in all commands
 FINAL_HOSTNAME := $(shell echo "$(HOSTNAME)" | tr '[:upper:]' '[:lower:]')
 
-.PHONY: switch switch-fast build clean update check fmt help list-machines sync-projects reset-raycast-window api test-api app app-run
+.PHONY: switch switch-fast build clean update check fmt help list-machines sync-projects reset-raycast-window api test-api test-actions app app-run
 
 # Default target
 help:
@@ -28,6 +28,7 @@ help:
 	@echo "  update          Pull latest nix-me code and update flake inputs"
 	@echo "  api             Print the management snapshot as JSON"
 	@echo "  test-api        Validate the JSON API contract"
+	@echo "  test-actions    Validate update actions without changing the system"
 	@echo "  app             Build the native macOS app"
 	@echo "  app-run         Build and launch the native macOS app"
 	@echo "  sync-projects   Clone and update configured projects"
@@ -158,6 +159,9 @@ api:
 
 test-api:
 	@./tests/test-api.sh
+
+test-actions:
+	@./tests/test-actions.sh
 
 app:
 	@./scripts/build-macos-app.sh

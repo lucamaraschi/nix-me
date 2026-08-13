@@ -91,12 +91,19 @@ struct MenuBarView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Nix Me")
                     .font(.headline)
-                Text(store.isLoading ? "Refreshing…" : "System manager")
+                Text(activityLabel)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             Spacer()
         }
+    }
+
+    private var activityLabel: String {
+        if store.isUpdating {
+            return "Updating \(store.updatingItemCount) item\(store.updatingItemCount == 1 ? "" : "s")…"
+        }
+        return store.isLoading ? "Refreshing…" : "System manager"
     }
 
     private func status(_ snapshot: ManagementSnapshot) -> some View {
