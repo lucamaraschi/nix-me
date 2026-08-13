@@ -14,7 +14,7 @@ USERNAME := $(shell whoami)
 # Force hostname to lowercase in all commands
 FINAL_HOSTNAME := $(shell echo "$(HOSTNAME)" | tr '[:upper:]' '[:lower:]')
 
-.PHONY: switch switch-fast build clean update check fmt help list-machines sync-projects reset-raycast-window
+.PHONY: switch switch-fast build clean update check fmt help list-machines sync-projects reset-raycast-window api test-api app app-run
 
 # Default target
 help:
@@ -26,6 +26,10 @@ help:
 	@echo "  switch-fast     Build and activate without Homebrew update checks"
 	@echo "  check           Run nix flake check"
 	@echo "  update          Pull latest nix-me code and update flake inputs"
+	@echo "  api             Print the management snapshot as JSON"
+	@echo "  test-api        Validate the JSON API contract"
+	@echo "  app             Build the native macOS app"
+	@echo "  app-run         Build and launch the native macOS app"
 	@echo "  sync-projects   Clone and update configured projects"
 	@echo "  reset-raycast-window  Reset Raycast window placement cache"
 	@echo "  fmt             Format nix files with nixpkgs-fmt"
@@ -148,6 +152,18 @@ ifeq ($(DRY_RUN), 1)
 else
 	@nix flake check "$(FLAKE_DIR)"
 endif
+
+api:
+	@NIX_ME_CONFIG_DIR="$(FLAKE_DIR)" ./bin/nix-me api snapshot
+
+test-api:
+	@./tests/test-api.sh
+
+app:
+	@./scripts/build-macos-app.sh
+
+app-run: app
+	@open "$(MAKEFILE_DIR)/build/Nix Me.app"
 
 # Update flake inputs
 update:

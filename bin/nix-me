@@ -15,6 +15,12 @@ else
     CONFIG_DIR="${HOME}/.config/nixpkgs"  # Default even if doesn't exist
 fi
 
+# JSON API calls bypass the interactive libraries and always write JSON to stdout.
+if [[ "${1:-}" == "api" ]]; then
+    shift
+    exec "$SCRIPT_DIR/nix-me-api" "$@"
+fi
+
 # Source libraries
 source "$LIB_DIR/ui.sh"
 source "$LIB_DIR/config-builder.sh" 2>/dev/null || true
@@ -60,6 +66,7 @@ ${CYAN}VM Management:${NC}
   ${GREEN}vm delete${NC}           Delete a VM
 
 ${CYAN}Information:${NC}
+  ${GREEN}api${NC} [endpoint]      Machine-readable JSON API (default: snapshot)
   ${GREEN}status${NC}              Show system status
   ${GREEN}doctor${NC}              Diagnose configuration issues
   ${GREEN}list${NC}                List installed packages

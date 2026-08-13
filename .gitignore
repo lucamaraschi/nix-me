@@ -33,3 +33,7 @@ tests/output/
 tui/node_modules/
 tui/dist/
 tui/*.log
+
+# Swift and native app builds
+macos/NixMeApp/.build/
+build/

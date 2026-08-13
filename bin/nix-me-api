@@ -1,0 +1,314 @@
+#!/bin/bash
+
+# Machine-readable backend for native and third-party nix-me clients.
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+CONFIG_DIR="${NIX_ME_CONFIG_DIR:-$REPO_DIR}"
+HOST_NAME="${NIX_ME_HOSTNAME:-$(hostname -s | tr '[:upper:]' '[:lower:]')}"
+APPLIED_MANIFEST="${NIX_ME_APPLIED_MANIFEST:-/etc/nix-me/manifest.json}"
+API_VERSION=1
+
+# GUI apps do not inherit the interactive shell PATH.
+export PATH="/run/current-system/sw/bin:/etc/profiles/per-user/${USER:-$(id -un)}/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/usr/local/bin:${PATH:-/usr/bin:/bin:/usr/sbin:/sbin}"
+
+if ! command -v jq >/dev/null 2>&1; then
+  printf '{"schemaVersion":1,"error":{"code":"missing_dependency","message":"jq is required by the nix-me API"}}\n'
+  exit 69
+fi
+
+TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/nix-me-api.XXXXXX")"
+trap 'rm -rf "$TEMP_DIR"' EXIT
+
+warnings='[]'
+
+add_warning() {
+  local message="$1"
+  warnings="$(jq -c --arg message "$message" '. + [$message]' <<<"$warnings")"
+}
+
+command_exists() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+git_state() {
+  local directory="$1"
+
+  if ! git -C "$directory" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    jq -n '{repository: false, branch: null, revision: null, dirty: false, upstream: null, ahead: 0, behind: 0, remoteState: "notRepository"}'
+    return
+  fi
+
+  local branch revision upstream dirty ahead behind counts remote_state
+  branch="$(git -C "$directory" branch --show-current 2>/dev/null || true)"
+  revision="$(git -C "$directory" rev-parse HEAD 2>/dev/null || true)"
+  upstream="$(git -C "$directory" rev-parse --abbrev-ref '@{upstream}' 2>/dev/null || true)"
+  dirty=false
+  ahead=0
+  behind=0
+
+  if [[ -n "$(git -C "$directory" status --porcelain 2>/dev/null)" ]]; then
+    dirty=true
+  fi
+
+  if [[ -n "$upstream" ]]; then
+    counts="$(git -C "$directory" rev-list --left-right --count "$upstream...HEAD" 2>/dev/null || true)"
+    if [[ "$counts" =~ ^[[:space:]]*([0-9]+)[[:space:]]+([0-9]+)[[:space:]]*$ ]]; then
+      behind="${BASH_REMATCH[1]}"
+      ahead="${BASH_REMATCH[2]}"
+    fi
+  fi
+
+  if [[ -z "$upstream" ]]; then
+    remote_state="noUpstream"
+  elif (( ahead > 0 && behind > 0 )); then
+    remote_state="diverged"
+  elif (( ahead > 0 )); then
+    remote_state="ahead"
+  elif (( behind > 0 )); then
+    remote_state="behind"
+  else
+    remote_state="upToDate"
+  fi
+
+  jq -n \
+    --arg branch "$branch" \
+    --arg revision "$revision" \
+    --arg upstream "$upstream" \
+    --arg remoteState "$remote_state" \
+    --argjson dirty "$dirty" \
+    --argjson ahead "$ahead" \
+    --argjson behind "$behind" \
+    '{
+      repository: true,
+      branch: (if $branch == "" then null else $branch end),
+      revision: (if $revision == "" then null else $revision end),
+      dirty: $dirty,
+      upstream: (if $upstream == "" then null else $upstream end),
+      ahead: $ahead,
+      behind: $behind,
+      remoteState: $remoteState
+    }'
+}
+
+desired_manifest='null'
+if [[ -f "$CONFIG_DIR/flake.nix" ]] && command_exists nix; then
+  if ! desired_manifest="$(nix eval --json "$CONFIG_DIR#darwinConfigurations.$HOST_NAME.config.nixMe.manifest" 2>"$TEMP_DIR/nix-eval.err")"; then
+    desired_manifest='null'
+    nix_error="$(tail -1 "$TEMP_DIR/nix-eval.err" 2>/dev/null || true)"
+    add_warning "Could not evaluate the desired configuration${nix_error:+: $nix_error}"
+  elif ! jq -e . >/dev/null 2>&1 <<<"$desired_manifest"; then
+    desired_manifest='null'
+    add_warning "Nix returned an invalid desired manifest"
+  fi
+else
+  add_warning "The desired configuration is unavailable"
+fi
+
+applied_manifest='null'
+if [[ -r "$APPLIED_MANIFEST" ]]; then
+  if applied_manifest="$(jq -c . "$APPLIED_MANIFEST" 2>/dev/null)"; then
+    :
+  else
+    applied_manifest='null'
+    add_warning "The applied manifest is not valid JSON"
+  fi
+else
+  add_warning "No applied manifest exists yet; run make switch once to create it"
+fi
+
+apply_state="unknown"
+if [[ "$desired_manifest" != "null" && "$applied_manifest" != "null" ]]; then
+  desired_fingerprint="$(jq -cS '{host, software, projects}' <<<"$desired_manifest")"
+  applied_fingerprint="$(jq -cS '{host, software, projects}' <<<"$applied_manifest")"
+  if [[ "$desired_fingerprint" == "$applied_fingerprint" ]]; then
+    apply_state="current"
+  else
+    apply_state="pending"
+  fi
+fi
+
+config_git='null'
+if [[ -d "$CONFIG_DIR" ]] && command_exists git; then
+  config_git="$(git_state "$CONFIG_DIR")"
+fi
+
+brew_formulae='[]'
+brew_casks='[]'
+brew_updates='[]'
+if command_exists brew; then
+  brew_formulae="$(brew list --formula --versions 2>/dev/null | jq -Rsc '
+    split("\n") | map(select(length > 0) | split(" ") | {name: .[0], versions: .[1:]})
+  ')"
+  brew_casks="$(brew list --cask --versions 2>/dev/null | jq -Rsc '
+    split("\n") | map(select(length > 0) | split(" ") | {name: .[0], versions: .[1:]})
+  ')"
+
+  if [[ "${NIX_ME_SKIP_UPDATES:-0}" != "1" ]]; then
+    if brew_outdated="$(HOMEBREW_NO_AUTO_UPDATE=1 brew outdated --json=v2 2>"$TEMP_DIR/brew-outdated.err")"; then
+      brew_updates="$(jq -c '
+        ([.formulae[]? | {
+          name,
+          kind: "formula",
+          installedVersions: (.installed_versions // []),
+          availableVersion: (.current_version // null)
+        }]) +
+        ([.casks[]? | {
+          name,
+          kind: "cask",
+          installedVersions: (.installed_versions // []),
+          availableVersion: (.current_version // null)
+        }])
+      ' <<<"$brew_outdated" 2>/dev/null || printf '[]')"
+    else
+      add_warning "Homebrew update information is unavailable"
+    fi
+  fi
+fi
+
+projects='[]'
+if [[ "$desired_manifest" != "null" ]]; then
+  while IFS= read -r project; do
+    [[ -z "$project" ]] && continue
+
+    raw_path="$(jq -r '.path' <<<"$project")"
+    case "$raw_path" in
+      /*) absolute_path="$raw_path" ;;
+      \~/*) absolute_path="$HOME/${raw_path#\~/}" ;;
+      *) absolute_path="$HOME/$raw_path" ;;
+    esac
+
+    present=false
+    is_git=false
+    project_status="missing"
+    project_git='null'
+
+    if [[ -d "$absolute_path" ]]; then
+      present=true
+      if command_exists git && git -C "$absolute_path" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        is_git=true
+        project_git="$(git_state "$absolute_path")"
+        project_dirty="$(jq -r '.dirty' <<<"$project_git")"
+        remote_state="$(jq -r '.remoteState' <<<"$project_git")"
+        if [[ "$project_dirty" == "true" ]]; then
+          project_status="changes"
+        elif [[ "$remote_state" == "upToDate" ]]; then
+          project_status="current"
+        else
+          project_status="$remote_state"
+        fi
+      else
+        project_status="notRepository"
+      fi
+    fi
+
+    project="$(jq -c \
+      --arg absolutePath "$absolute_path" \
+      --arg status "$project_status" \
+      --argjson present "$present" \
+      --argjson isGitRepository "$is_git" \
+      --argjson git "$project_git" \
+      '. + {
+        absolutePath: $absolutePath,
+        present: $present,
+        isGitRepository: $isGitRepository,
+        status: $status,
+        git: $git
+      }' <<<"$project")"
+    projects="$(jq -c --argjson project "$project" '. + [$project]' <<<"$projects")"
+  done < <(jq -c '.projects[]?' <<<"$desired_manifest")
+fi
+
+nix_version='null'
+if command_exists nix; then
+  nix_version="$(nix --version 2>/dev/null | jq -Rsc 'rtrimstr("\n")')"
+fi
+
+generation='null'
+if [[ -L /nix/var/nix/profiles/system ]]; then
+  generation_target="$(readlink /nix/var/nix/profiles/system 2>/dev/null || true)"
+  if [[ "$generation_target" =~ system-([0-9]+)-link$ ]]; then
+    generation="${BASH_REMATCH[1]}"
+  fi
+fi
+
+generated_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+snapshot="$(jq -n \
+  --argjson schemaVersion "$API_VERSION" \
+  --arg generatedAt "$generated_at" \
+  --arg hostname "$HOST_NAME" \
+  --arg username "${USER:-$(id -un)}" \
+  --arg configurationPath "$CONFIG_DIR" \
+  --arg appliedManifestPath "$APPLIED_MANIFEST" \
+  --arg applyState "$apply_state" \
+  --argjson generation "$generation" \
+  --argjson desired "$desired_manifest" \
+  --argjson applied "$applied_manifest" \
+  --argjson configGit "$config_git" \
+  --argjson nixAvailable "$(command_exists nix && printf true || printf false)" \
+  --argjson darwinAvailable "$(command_exists darwin-rebuild && printf true || printf false)" \
+  --argjson homebrewAvailable "$(command_exists brew && printf true || printf false)" \
+  --argjson nixVersion "$nix_version" \
+  --argjson brewFormulae "$brew_formulae" \
+  --argjson brewCasks "$brew_casks" \
+  --argjson brewUpdates "$brew_updates" \
+  --argjson projects "$projects" \
+  --argjson warnings "$warnings" \
+  '{
+    schemaVersion: $schemaVersion,
+    generatedAt: $generatedAt,
+    host: ($desired.host // {hostname: $hostname, machineName: $hostname, machineType: null, username: $username}),
+    configuration: {
+      path: $configurationPath,
+      exists: ($desired != null),
+      appliedManifestPath: $appliedManifestPath,
+      applyState: $applyState,
+      generation: $generation,
+      git: $configGit
+    },
+    health: {
+      nix: {available: $nixAvailable, version: $nixVersion},
+      nixDarwin: {available: $darwinAvailable},
+      homebrew: {available: $homebrewAvailable}
+    },
+    inventory: {
+      desired: ($desired.software // {nixPackages: [], homebrew: {formulae: [], casks: [], masApps: {}}}),
+      applied: ($applied.software // {nixPackages: [], homebrew: {formulae: [], casks: [], masApps: {}}}),
+      installed: {homebrew: {formulae: $brewFormulae, casks: $brewCasks}}
+    },
+    updates: {homebrew: $brewUpdates},
+    projects: $projects,
+    warnings: $warnings
+  }')"
+
+case "${1:-snapshot}" in
+  snapshot)
+    jq . <<<"$snapshot"
+    ;;
+  status)
+    jq '{schemaVersion, generatedAt, host, configuration, health, warnings}' <<<"$snapshot"
+    ;;
+  inventory)
+    jq '{schemaVersion, generatedAt, host, inventory, warnings}' <<<"$snapshot"
+    ;;
+  updates)
+    jq '{schemaVersion, generatedAt, host, updates, warnings}' <<<"$snapshot"
+    ;;
+  projects)
+    jq '{schemaVersion, generatedAt, host, projects, warnings}' <<<"$snapshot"
+    ;;
+  manifest)
+    if [[ "$desired_manifest" == "null" ]]; then
+      jq -n --argjson schemaVersion "$API_VERSION" --argjson warnings "$warnings" \
+        '{schemaVersion: $schemaVersion, error: {code: "manifest_unavailable", message: "The desired manifest could not be evaluated"}, warnings: $warnings}'
+      exit 1
+    fi
+    jq . <<<"$desired_manifest"
+    ;;
+  *)
+    jq -n --arg command "$1" \
+      '{schemaVersion: 1, error: {code: "unknown_endpoint", message: ("Unknown API endpoint: " + $command)}}'
+    exit 64
+    ;;
+esac
