@@ -21,6 +21,71 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(snapshot.softwareDifferences.first?.desiredVersion, "2.53.0")
     }
 
+    func testConfigurationGraphResolvesActiveProfilesAndImports() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        try write(
+            #"""
+            {
+              outputs = inputs: {
+                darwinConfigurations.bellerofonte = mkDarwinSystem {
+                  hostname = "bellerofonte";
+                  machineType = "macbook-pro";
+                  extraModules = [ ./hosts/profiles/dev.nix ./hosts/profiles/work.nix ];
+                };
+                darwinConfigurations.zion = mkDarwinSystem {
+                  hostname = "zion";
+                  extraModules = [ ./hosts/profiles/maker.nix ];
+                };
+              };
+            }
+            """#,
+            to: root.appendingPathComponent("flake.nix")
+        )
+        try write("{ imports = [ ../../../modules/darwin ]; }", to: root.appendingPathComponent("hosts/types/shared/default.nix"))
+        try write("{ imports = [ ../macbook/default.nix ]; }", to: root.appendingPathComponent("hosts/types/macbook-pro/default.nix"))
+        try write("{}", to: root.appendingPathComponent("hosts/types/macbook/default.nix"))
+        try write("{ imports = [ ../../types/macbook-pro ]; }", to: root.appendingPathComponent("hosts/machines/bellerofonte/default.nix"))
+        try write("# Development profile\n{}", to: root.appendingPathComponent("hosts/profiles/dev.nix"))
+        try write("{ projects.sets = [ (import ../../projects/work.nix) ]; }", to: root.appendingPathComponent("hosts/profiles/work.nix"))
+        try write("{}", to: root.appendingPathComponent("hosts/profiles/maker.nix"))
+        try write("{ imports = [ ./apps ./core.nix ]; }", to: root.appendingPathComponent("modules/darwin/default.nix"))
+        try write("{}", to: root.appendingPathComponent("modules/darwin/apps/default.nix"))
+        try write("{}", to: root.appendingPathComponent("modules/darwin/core.nix"))
+        try write("{}", to: root.appendingPathComponent("modules/home-manager/default.nix"))
+        try write("{}", to: root.appendingPathComponent("overlays/airjack.nix"))
+        try write("{}", to: root.appendingPathComponent("projects/work.nix"))
+
+        let graph = try ConfigurationGraphScanner().scan(
+            directory: root,
+            hostname: "bellerofonte",
+            machineType: "macbook-pro"
+        )
+
+        XCTAssertTrue(graph.node(at: "hosts/profiles/dev.nix")?.isActive == true)
+        XCTAssertTrue(graph.node(at: "hosts/profiles/work.nix")?.isActive == true)
+        XCTAssertFalse(graph.node(at: "hosts/profiles/maker.nix")?.isActive == true)
+        XCTAssertTrue(graph.node(at: "modules/darwin/apps/default.nix")?.isActive == true)
+        XCTAssertTrue(graph.node(at: "projects/work.nix")?.isActive == true)
+        XCTAssertEqual(graph.activeProfiles.map(\.displayName), ["dev", "work"])
+        XCTAssertEqual(
+            graph.importers(of: "projects/work.nix").map(\.path),
+            ["hosts/profiles/work.nix"]
+        )
+        XCTAssertEqual(graph.node(at: "hosts/profiles/dev.nix")?.summary, "Development profile")
+    }
+
+    private func write(_ contents: String, to url: URL) throws {
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try contents.write(to: url, atomically: true, encoding: .utf8)
+    }
+
     private let fixture = #"""
     {
       "schemaVersion": 1,

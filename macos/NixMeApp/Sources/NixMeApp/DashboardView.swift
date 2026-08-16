@@ -2,6 +2,7 @@ import SwiftUI
 
 private enum DashboardSection: String, Identifiable {
     case overview = "Overview"
+    case configuration = "Configuration"
     case managedSoftware = "Managed"
     case installedSoftware = "Installed"
     case configurationChanges = "Changes"
@@ -13,6 +14,7 @@ private enum DashboardSection: String, Identifiable {
     var symbol: String {
         switch self {
         case .overview: "square.grid.2x2"
+        case .configuration: "point.3.connected.trianglepath.dotted"
         case .managedSoftware: "shippingbox"
         case .installedSoftware: "internaldrive"
         case .configurationChanges: "arrow.left.arrow.right"
@@ -33,6 +35,7 @@ struct DashboardView: View {
         NavigationSplitView {
             List(selection: $selection) {
                 SidebarRow(section: .overview)
+                SidebarRow(section: .configuration, count: store.configurationGraph?.activeNodes.count)
 
                 Section("Software") {
                     SidebarRow(section: .managedSoftware, count: store.snapshot?.desiredSoftwareCount)
@@ -149,6 +152,14 @@ struct DashboardView: View {
                 },
                 applyConfiguration: { showingApplyConfirmation = true },
                 isApplying: store.isApplying
+            )
+        case .configuration:
+            ConfigurationView(
+                graph: store.configurationGraph,
+                error: store.configurationGraphError,
+                host: snapshot.host,
+                openFile: store.openConfigurationFile,
+                revealFile: store.revealConfigurationFile
             )
         case .managedSoftware:
             SoftwareView(snapshot: snapshot, mode: .managed, loadDetails: store.packageDetails)

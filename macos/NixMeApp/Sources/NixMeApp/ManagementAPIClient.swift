@@ -69,6 +69,24 @@ struct ManagementAPIClient {
         }
     }
 
+    func configurationGraph(hostname: String, machineType: String?) async throws -> ConfigurationGraph {
+        let directory = configurationDirectory
+        return try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    let graph = try ConfigurationGraphScanner().scan(
+                        directory: directory,
+                        hostname: hostname,
+                        machineType: machineType
+                    )
+                    continuation.resume(returning: graph)
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
     private func run(executable: URL, arguments: [String]) async throws -> Data {
         try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {

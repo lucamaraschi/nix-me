@@ -4,6 +4,8 @@ import Foundation
 @MainActor
 final class DashboardStore: ObservableObject {
     @Published private(set) var snapshot: ManagementSnapshot?
+    @Published private(set) var configurationGraph: ConfigurationGraph?
+    @Published private(set) var configurationGraphError: String?
     @Published private(set) var isLoading = false
     @Published private(set) var isUpdating = false
     @Published private(set) var isApplying = false
@@ -35,7 +37,18 @@ final class DashboardStore: ObservableObject {
         do {
             let client = try client ?? ManagementAPIClient()
             self.client = client
-            snapshot = try await client.snapshot()
+            let snapshot = try await client.snapshot()
+            self.snapshot = snapshot
+            do {
+                configurationGraph = try await client.configurationGraph(
+                    hostname: snapshot.host.hostname,
+                    machineType: snapshot.host.machineType
+                )
+                configurationGraphError = nil
+            } catch {
+                configurationGraph = nil
+                configurationGraphError = error.localizedDescription
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -46,6 +59,20 @@ final class DashboardStore: ObservableObject {
     func openConfiguration() {
         guard let snapshot else { return }
         NSWorkspace.shared.open(URL(fileURLWithPath: snapshot.configuration.path))
+    }
+
+    func openConfigurationFile(_ path: String) {
+        guard let configurationGraph else { return }
+        NSWorkspace.shared.open(
+            URL(fileURLWithPath: configurationGraph.rootPath).appendingPathComponent(path)
+        )
+    }
+
+    func revealConfigurationFile(_ path: String) {
+        guard let configurationGraph else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([
+            URL(fileURLWithPath: configurationGraph.rootPath).appendingPathComponent(path)
+        ])
     }
 
     func openProject(_ project: Project) {
