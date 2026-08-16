@@ -24,7 +24,7 @@ private enum DashboardSection: String, Identifiable {
 
 struct DashboardView: View {
     @ObservedObject var store: DashboardStore
-    @State private var selection: DashboardSection? = .overview
+    @State private var selection: DashboardSection = .overview
     @State private var projectFilter = ProjectFilter.all
     @State private var selectedUpdateIDs = Set<String>()
     @State private var showingApplyConfirmation = false
@@ -54,7 +54,7 @@ struct DashboardView: View {
         } detail: {
             Group {
                 if let snapshot = store.snapshot {
-                    content(for: selection ?? .overview, snapshot: snapshot)
+                    content(for: selection, snapshot: snapshot)
                 } else if let errorMessage = store.errorMessage {
                     ContentUnavailableView(
                         "Configuration unavailable",
@@ -333,14 +333,25 @@ private struct SoftwareView: View {
     @State private var detailsError: String?
     @State private var isLoadingDetails = false
     @State private var query = ""
+    @State private var filter = SoftwareFilter.all
 
     var body: some View {
         VStack(spacing: 0) {
+            SoftwareInventoryHeader(
+                mode: mode,
+                itemCount: filteredItems.count,
+                totalCount: allItems.count,
+                baselineAvailable: snapshot.configuration.applyState != "unknown",
+                filter: $filter
+            )
+
             List(selection: $selectedItem) {
                 ForEach(SoftwareKind.allCases, id: \.self) { kind in
                     SoftwareItemSection(
                         title: sectionTitle(kind),
-                        items: filteredItems.filter { $0.kind == kind }
+                        items: filteredItems.filter { $0.kind == kind },
+                        mode: mode,
+                        baselineAvailable: snapshot.configuration.applyState != "unknown"
                     )
                 }
             }
@@ -380,12 +391,17 @@ private struct SoftwareView: View {
     }
 
     private var filteredItems: [SoftwareListItem] {
-        let items = mode == .managed ? snapshot.desiredSoftwareItems : snapshot.installedSoftwareItems
-        guard !query.isEmpty else { return items }
-        return items.filter {
-            $0.displayName.localizedCaseInsensitiveContains(query)
-                || $0.kind.label.localizedCaseInsensitiveContains(query)
+        allItems.filter { item in
+            let matchesFilter = filter.kind == nil || item.kind == filter.kind
+            let matchesQuery = query.isEmpty
+                || item.displayName.localizedCaseInsensitiveContains(query)
+                || item.kind.label.localizedCaseInsensitiveContains(query)
+            return matchesFilter && matchesQuery
         }
+    }
+
+    private var allItems: [SoftwareListItem] {
+        mode == .managed ? snapshot.desiredSoftwareItems : snapshot.installedSoftwareItems
     }
 
     private func sectionTitle(_ kind: SoftwareKind) -> String {
@@ -409,15 +425,83 @@ private enum SoftwareMode: String {
     var title: String { "\(rawValue) Software" }
 }
 
+private enum SoftwareFilter: String, CaseIterable, Identifiable {
+    case all = "All"
+    case nix = "Nix"
+    case formula = "Formulae"
+    case cask = "Apps"
+    case mas = "App Store"
+
+    var id: String { rawValue }
+
+    var kind: SoftwareKind? {
+        switch self {
+        case .all: nil
+        case .nix: .nix
+        case .formula: .formula
+        case .cask: .cask
+        case .mas: .mas
+        }
+    }
+}
+
+private struct SoftwareInventoryHeader: View {
+    let mode: SoftwareMode
+    let itemCount: Int
+    let totalCount: Int
+    let baselineAvailable: Bool
+    @Binding var filter: SoftwareFilter
+
+    var body: some View {
+        HStack(spacing: 20) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(mode == .managed ? "Declared by this configuration" : "Present on this Mac")
+                    .font(.headline)
+                Text(countLabel)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if mode == .managed && !baselineAvailable {
+                    Label("Apply once to compare this list with the active configuration", systemImage: "info.circle")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+            }
+
+            Spacer()
+
+            Picker("Source", selection: $filter) {
+                ForEach(SoftwareFilter.allCases) { filter in
+                    Text(filter.rawValue).tag(filter)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(maxWidth: 470)
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
+        .background(.bar)
+    }
+
+    private var countLabel: String {
+        if itemCount == totalCount {
+            return "\(totalCount) item\(totalCount == 1 ? "" : "s")"
+        }
+        return "Showing \(itemCount) of \(totalCount) items"
+    }
+}
+
 private struct SoftwareItemSection: View {
     let title: String
     let items: [SoftwareListItem]
+    let mode: SoftwareMode
+    let baselineAvailable: Bool
 
     var body: some View {
         if !items.isEmpty {
             Section {
                 ForEach(items.sorted { $0.displayName < $1.displayName }) { item in
-                    SoftwareItemRow(item: item)
+                    SoftwareItemRow(item: item, mode: mode, baselineAvailable: baselineAvailable)
                         .tag(item)
                 }
             } header: {
@@ -429,20 +513,70 @@ private struct SoftwareItemSection: View {
 
 private struct SoftwareItemRow: View {
     let item: SoftwareListItem
+    let mode: SoftwareMode
+    let baselineAvailable: Bool
 
     var body: some View {
-        HStack {
-            Label(item.displayName, systemImage: item.kind.symbol)
-            Spacer()
-            if let version = item.desiredVersion ?? item.installedVersions.first {
-                Text(version)
+        HStack(spacing: 13) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(kindColor.opacity(0.13))
+                Image(systemName: item.kind.symbol)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(kindColor)
+            }
+            .frame(width: 34, height: 34)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(item.displayName)
+                    .font(.body.weight(.medium))
+                Text(item.kind.label)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            Image(systemName: "info.circle")
+
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: 4) {
+                if let version = item.desiredVersion ?? item.installedVersions.first {
+                    Text(version)
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+                Text(status.label)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundStyle(status.color)
+            }
+
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.semibold))
                 .foregroundStyle(.tertiary)
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 5)
+        .contentShape(Rectangle())
+    }
+
+    private var status: (label: String, color: Color) {
+        if mode == .installed {
+            return item.isDesired ? ("Managed", .blue) : ("Unmanaged", .secondary)
+        }
+        if !item.installedVersions.isEmpty {
+            return ("Installed", .green)
+        }
+        if item.kind == .nix && !baselineAvailable {
+            return ("Managed", .blue)
+        }
+        return item.isApplied ? ("Active", .green) : ("Pending", .orange)
+    }
+
+    private var kindColor: Color {
+        switch item.kind {
+        case .nix: .blue
+        case .formula: .orange
+        case .cask: .teal
+        case .mas: .indigo
+        }
     }
 }
 
@@ -821,6 +955,7 @@ private struct ConfigurationDriftCard: View {
         .overlay {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(tint.opacity(0.35), lineWidth: 1)
+                .allowsHitTesting(false)
         }
     }
 
@@ -1287,6 +1422,7 @@ private struct MetricCard: View {
         .overlay {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(isHovered ? tint.opacity(0.55) : Color(nsColor: .separatorColor).opacity(0.4), lineWidth: 1)
+                .allowsHitTesting(false)
         }
         .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .scaleEffect(isHovered ? 1.01 : 1)
