@@ -52,6 +52,12 @@ final class DashboardStore: ObservableObject {
         NSWorkspace.shared.open(URL(fileURLWithPath: project.absolutePath))
     }
 
+    func packageDetails(for item: SoftwareListItem) async throws -> PackageDetails {
+        let managementClient = try client ?? ManagementAPIClient()
+        self.client = managementClient
+        return try await managementClient.details(for: item)
+    }
+
     func updateSoftware(_ updates: [SoftwareUpdate]) async {
         guard !updates.isEmpty, !isUpdating, !isApplying, !isLoading else { return }
         isUpdating = true

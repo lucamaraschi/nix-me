@@ -26,6 +26,11 @@ if [[ "${1:-}" == "action" ]]; then
     exec "$SCRIPT_DIR/nix-me-action" "$@"
 fi
 
+if [[ "${1:-}" == "details" ]]; then
+    shift
+    exec "$SCRIPT_DIR/nix-me-details" "$@"
+fi
+
 # Source libraries
 source "$LIB_DIR/ui.sh"
 source "$LIB_DIR/config-builder.sh" 2>/dev/null || true
@@ -62,6 +67,7 @@ ${CYAN}System Management:${NC}
   ${GREEN}update${NC}              Update packages
   ${GREEN}rollback${NC}            Rollback to previous configuration
   ${GREEN}action${NC} <action>     Validated action API for native clients
+  ${GREEN}details${NC} <kind> <id> Package metadata API for native clients
 
 ${CYAN}VM Management:${NC}
   ${GREEN}vm${NC}                  Interactive VM management menu

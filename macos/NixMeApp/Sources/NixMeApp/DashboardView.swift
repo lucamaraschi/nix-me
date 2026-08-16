@@ -127,11 +127,15 @@ struct DashboardView: View {
                     projectFilter = .attention
                     selection = .projects
                 },
+                openConfigurationChanges: {
+                    softwareMode = .changes
+                    selection = .software
+                },
                 applyConfiguration: { showingApplyConfirmation = true },
                 isApplying: store.isApplying
             )
         case .software:
-            SoftwareView(snapshot: snapshot, mode: $softwareMode)
+            SoftwareView(snapshot: snapshot, mode: $softwareMode, loadDetails: store.packageDetails)
         case .projects:
             ProjectsView(snapshot: snapshot, filter: $projectFilter, openProject: store.openProject)
         case .updates:
@@ -156,6 +160,7 @@ private struct OverviewView: View {
     let openInstalledSoftware: () -> Void
     let openUpdates: () -> Void
     let openProjectAttention: () -> Void
+    let openConfigurationChanges: () -> Void
     let applyConfiguration: () -> Void
     let isApplying: Bool
 
@@ -180,11 +185,20 @@ private struct OverviewView: View {
                     MetricCard(title: "Projects needing attention", value: snapshot.projectAttentionCount, symbol: "folder.badge.questionmark", tint: .pink, action: openProjectAttention)
                 }
 
+                ConfigurationDriftCard(snapshot: snapshot, action: openConfigurationChanges)
+
                 SectionCard(title: "Configuration", symbol: "slider.horizontal.3") {
                     DetailRow(label: "Apply state", value: applyLabel)
                     DetailRow(label: "Git branch", value: snapshot.configuration.git?.branch ?? "Unavailable")
                     DetailRow(label: "Remote", value: remoteSummary)
                     DetailRow(label: "Working tree", value: snapshot.configuration.git?.dirty == true ? "Uncommitted changes" : "Clean")
+                    DetailRow(label: "Repository revision", value: shortRevision(snapshot.configuration.desiredSource?.revision))
+                    DetailRow(label: "Machine revision", value: shortRevision(snapshot.configuration.appliedSource?.revision))
+                    if let desiredLock = snapshot.configuration.desiredSource?.lockHash,
+                       let appliedLock = snapshot.configuration.appliedSource?.lockHash,
+                       desiredLock != appliedLock {
+                        DetailRow(label: "Lock file", value: "Repository and machine differ")
+                    }
                     DetailRow(label: "Location", value: snapshot.configuration.path)
                     if snapshot.configuration.applyState != "current" {
                         Divider()
@@ -261,11 +275,22 @@ private struct OverviewView: View {
         default: "Unavailable"
         }
     }
+
+    private func shortRevision(_ revision: String?) -> String {
+        guard let revision, revision != "unknown" else { return "Unavailable" }
+        let clean = revision.replacingOccurrences(of: "-dirty", with: "")
+        return String(clean.prefix(9)) + (revision.hasSuffix("-dirty") ? " (modified)" : "")
+    }
 }
 
 private struct SoftwareView: View {
     let snapshot: ManagementSnapshot
     @Binding var mode: SoftwareMode
+    let loadDetails: (SoftwareListItem) async throws -> PackageDetails
+    @State private var selectedItem: SoftwareListItem?
+    @State private var details: PackageDetails?
+    @State private var detailsError: String?
+    @State private var isLoadingDetails = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -278,64 +303,377 @@ private struct SoftwareView: View {
             .frame(maxWidth: 360)
             .padding()
 
-            List {
-                if mode == .managed {
-                    SoftwareSection(title: "Nix packages", symbol: "snowflake", names: snapshot.inventory.desired.nixPackages)
-                    SoftwareSection(title: "Homebrew formulae", symbol: "terminal", names: snapshot.inventory.desired.homebrew.formulae)
-                    SoftwareSection(title: "Applications", symbol: "macwindow", names: snapshot.inventory.desired.homebrew.casks)
-                    SoftwareSection(title: "Mac App Store", symbol: "apple.logo", names: snapshot.inventory.desired.homebrew.masApps.keys.sorted())
-                } else {
-                    SoftwareSection(title: "Active Nix packages", symbol: "snowflake", names: snapshot.inventory.applied.nixPackages)
-                    InstalledSoftwareSection(title: "Installed Homebrew formulae", symbol: "terminal", packages: snapshot.inventory.installed.homebrew.formulae)
-                    InstalledSoftwareSection(title: "Installed applications", symbol: "macwindow", packages: snapshot.inventory.installed.homebrew.casks)
+            List(selection: $selectedItem) {
+                switch mode {
+                case .managed:
+                    ForEach(SoftwareKind.allCases, id: \.self) { kind in
+                        SoftwareItemSection(title: managedTitle(kind), items: snapshot.desiredSoftwareItems.filter { $0.kind == kind })
+                    }
+                case .installed:
+                    ForEach(SoftwareKind.allCases, id: \.self) { kind in
+                        SoftwareItemSection(title: installedTitle(kind), items: snapshot.installedSoftwareItems.filter { $0.kind == kind })
+                    }
+                case .changes:
+                    if snapshot.softwareDifferences.isEmpty {
+                        Section {
+                            ContentUnavailableView(
+                                snapshot.configuration.applyState == "current" ? "Software matches this Mac" : "No package list changes",
+                                systemImage: snapshot.configuration.applyState == "current" ? "checkmark.circle" : "doc.text.magnifyingglass",
+                                description: Text(snapshot.configuration.applyState == "unknown" ? "Apply the configuration once to establish a machine baseline." : "Other configuration files or project settings differ from the applied system.")
+                            )
+                        }
+                    }
+                    ForEach(SoftwareChangeKind.allCases, id: \.self) { change in
+                        DifferenceSection(
+                            change: change,
+                            differences: snapshot.softwareDifferences.filter { $0.change == change },
+                            item: { item(for: $0) }
+                        )
+                    }
                 }
             }
         }
         .navigationTitle("Managed Software")
+        .inspector(isPresented: Binding(
+            get: { selectedItem != nil },
+            set: { if !$0 { selectedItem = nil } }
+        )) {
+            PackageDetailsPanel(item: selectedItem, details: details, error: detailsError, isLoading: isLoadingDetails)
+                .inspectorColumnWidth(min: 280, ideal: 340, max: 460)
+        }
+        .task(id: selectedItem?.id) {
+            details = nil
+            detailsError = nil
+            guard let selectedItem else { return }
+            isLoadingDetails = true
+            do {
+                details = try await loadDetails(selectedItem)
+            } catch {
+                detailsError = error.localizedDescription
+            }
+            isLoadingDetails = false
+        }
+        .onChange(of: mode) { _, _ in selectedItem = nil }
+    }
+
+    private func item(for difference: SoftwareDifference) -> SoftwareListItem {
+        let id = "\(difference.kind.rawValue):\(difference.name)"
+        if let item = snapshot.desiredSoftwareItems.first(where: { $0.id == id })
+            ?? snapshot.installedSoftwareItems.first(where: { $0.id == id }) {
+            return item
+        }
+        return SoftwareListItem(
+            kind: difference.kind,
+            name: difference.name,
+            displayName: difference.name,
+            desiredVersion: difference.desiredVersion,
+            appliedVersion: difference.appliedVersion,
+            installedVersions: [],
+            storeId: difference.storeId,
+            embeddedDetails: nil,
+            isDesired: difference.change != .removed,
+            isApplied: difference.change != .added
+        )
+    }
+
+    private func managedTitle(_ kind: SoftwareKind) -> String {
+        switch kind {
+        case .nix: "Nix packages"
+        case .formula: "Homebrew formulae"
+        case .cask: "Applications"
+        case .mas: "Mac App Store"
+        }
+    }
+
+    private func installedTitle(_ kind: SoftwareKind) -> String {
+        switch kind {
+        case .nix: "Active Nix packages"
+        case .formula: "Installed Homebrew formulae"
+        case .cask: "Installed applications"
+        case .mas: "Mac App Store"
+        }
     }
 }
 
 private enum SoftwareMode: String, CaseIterable, Identifiable {
     case managed = "Managed"
     case installed = "Installed"
+    case changes = "Changes"
 
     var id: String { rawValue }
 }
 
-private struct SoftwareSection: View {
+private struct SoftwareItemSection: View {
     let title: String
-    let symbol: String
-    let names: [String]
+    let items: [SoftwareListItem]
 
     var body: some View {
-        Section {
-            ForEach(names.sorted(), id: \.self) { name in
-                Label(name, systemImage: symbol)
+        if !items.isEmpty {
+            Section {
+                ForEach(items.sorted { $0.displayName < $1.displayName }) { item in
+                    SoftwareItemRow(item: item)
+                        .tag(item)
+                }
+            } header: {
+                Text("\(title) · \(items.count)")
             }
-        } header: {
-            Text("\(title) · \(names.count)")
         }
     }
 }
 
-private struct InstalledSoftwareSection: View {
-    let title: String
-    let symbol: String
-    let packages: [InstalledPackage]
+private struct SoftwareItemRow: View {
+    let item: SoftwareListItem
 
     var body: some View {
-        Section {
-            ForEach(packages.sorted { $0.name < $1.name }) { package in
-                HStack {
-                    Label(package.name, systemImage: symbol)
-                    Spacer()
-                    Text(package.versions.joined(separator: ", "))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+        HStack {
+            Label(item.displayName, systemImage: item.kind.symbol)
+            Spacer()
+            if let version = item.desiredVersion ?? item.installedVersions.first {
+                Text(version)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Image(systemName: "info.circle")
+                .foregroundStyle(.tertiary)
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+private struct DifferenceSection: View {
+    let change: SoftwareChangeKind
+    let differences: [SoftwareDifference]
+    let item: (SoftwareDifference) -> SoftwareListItem
+
+    var body: some View {
+        if !differences.isEmpty {
+            Section("\(change.rawValue) · \(differences.count)") {
+                ForEach(differences) { difference in
+                    let software = item(difference)
+                    HStack(spacing: 12) {
+                        Image(systemName: difference.kind.symbol)
+                            .foregroundStyle(changeColor)
+                            .frame(width: 24)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(difference.name).font(.headline)
+                            Text(difference.kind.label)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        differenceValue(difference)
+                        StatusBadge(label: change.rawValue, color: changeColor, symbol: changeSymbol)
+                    }
+                    .padding(.vertical, 4)
+                    .tag(software)
                 }
             }
-        } header: {
-            Text("\(title) · \(packages.count)")
+        }
+    }
+
+    @ViewBuilder
+    private func differenceValue(_ difference: SoftwareDifference) -> some View {
+        if difference.change == .versionChanged {
+            Text(difference.appliedVersion ?? "Unknown")
+                .foregroundStyle(.secondary)
+            Image(systemName: "arrow.right")
+                .foregroundStyle(.tertiary)
+            Text(difference.desiredVersion ?? "Latest")
+                .fontWeight(.medium)
+        }
+    }
+
+    private var changeColor: Color {
+        switch change {
+        case .versionChanged: .orange
+        case .added: .green
+        case .removed: .red
+        }
+    }
+
+    private var changeSymbol: String {
+        switch change {
+        case .versionChanged: "arrow.left.arrow.right"
+        case .added: "plus.circle.fill"
+        case .removed: "minus.circle.fill"
+        }
+    }
+}
+
+private struct PackageDetailsPanel: View {
+    let item: SoftwareListItem?
+    let details: PackageDetails?
+    let error: String?
+    let isLoading: Bool
+
+    var body: some View {
+        ScrollView {
+            if let item {
+                VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Image(systemName: item.kind.symbol)
+                            .font(.system(size: 34))
+                            .foregroundStyle(Color.accentColor)
+                        Text(details?.displayName ?? item.displayName)
+                            .font(.title2.weight(.semibold))
+                            .textSelection(.enabled)
+                        Text(item.kind.label)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if isLoading {
+                        HStack {
+                            ProgressView().controlSize(.small)
+                            Text("Loading package details…").foregroundStyle(.secondary)
+                        }
+                    } else if let error {
+                        Label(error, systemImage: "exclamationmark.triangle")
+                            .foregroundStyle(.orange)
+                    } else if let details {
+                        if let description = details.description, !description.isEmpty {
+                            Text(description)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .textSelection(.enabled)
+                        } else {
+                            Text("No package description is available.")
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Divider()
+                        VStack(spacing: 10) {
+                            InspectorRow(label: "Repository", value: item.desiredVersion ?? (item.isDesired ? "Managed" : "Not managed"))
+                            InspectorRow(label: "On this Mac", value: item.appliedVersion ?? item.installedVersions.first ?? (item.isApplied ? "Applied" : "Not applied"))
+                            InspectorRow(label: "Latest", value: details.version ?? "Unavailable")
+                            if let license = details.license, !license.isEmpty {
+                                InspectorRow(label: "License", value: license)
+                            }
+                            if let publisher = details.publisher, !publisher.isEmpty {
+                                InspectorRow(label: "Publisher", value: publisher)
+                            }
+                            if let storeId = details.storeId ?? item.storeId {
+                                InspectorRow(label: "Store ID", value: String(storeId))
+                            }
+                        }
+
+                        if !details.dependencies.isEmpty {
+                            Divider()
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Dependencies").font(.headline)
+                                Text(details.dependencies.joined(separator: ", "))
+                                    .foregroundStyle(.secondary)
+                                    .textSelection(.enabled)
+                            }
+                        }
+
+                        if let homepage = details.homepage, let url = URL(string: homepage) {
+                            Divider()
+                            Link("Open Package Homepage", destination: url)
+                                .buttonStyle(.borderedProminent)
+                        }
+                    }
+                }
+                .padding(22)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+}
+
+private struct InspectorRow: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(label).foregroundStyle(.secondary)
+            Spacer()
+            Text(value)
+                .multilineTextAlignment(.trailing)
+                .textSelection(.enabled)
+        }
+    }
+}
+
+private struct ConfigurationDriftCard: View {
+    let snapshot: ManagementSnapshot
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 16) {
+                Image(systemName: symbol)
+                    .font(.title2)
+                    .foregroundStyle(tint)
+                    .frame(width: 34)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(title).font(.headline)
+                    Text(summary)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                if snapshot.configuration.applyState == "pending" {
+                    Text("Review Changes")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(tint)
+                }
+                Image(systemName: "chevron.right")
+                    .foregroundStyle(.secondary)
+            }
+            .padding(18)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(tint.opacity(isHovered ? 0.14 : 0.09), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(tint.opacity(isHovered ? 0.65 : 0.35), lineWidth: 1)
+        }
+        .onHover { isHovered = $0 }
+    }
+
+    private var title: String {
+        switch snapshot.configuration.applyState {
+        case "current": "Repository and this Mac match"
+        case "pending": "Repository differs from this Mac"
+        default: "Machine baseline is not available"
+        }
+    }
+
+    private var summary: String {
+        guard snapshot.configuration.applyState != "unknown" else {
+            return "Apply once to record the configuration currently active on this Mac."
+        }
+        let differences = snapshot.softwareDifferences
+        guard !differences.isEmpty else {
+            return snapshot.configuration.applyState == "current"
+                ? "The desired configuration is active."
+                : "Configuration files or project settings changed; no software list entries changed."
+        }
+        let changed = differences.filter { $0.change == .versionChanged }.count
+        let added = differences.filter { $0.change == .added }.count
+        let removed = differences.filter { $0.change == .removed }.count
+        return [
+            changed > 0 ? "\(changed) version change\(changed == 1 ? "" : "s")" : nil,
+            added > 0 ? "\(added) added" : nil,
+            removed > 0 ? "\(removed) removed" : nil
+        ].compactMap { $0 }.joined(separator: " · ")
+    }
+
+    private var tint: Color {
+        switch snapshot.configuration.applyState {
+        case "current": .green
+        case "pending": .orange
+        default: .secondary
+        }
+    }
+
+    private var symbol: String {
+        switch snapshot.configuration.applyState {
+        case "current": "checkmark.seal.fill"
+        case "pending": "arrow.left.arrow.right.circle.fill"
+        default: "questionmark.circle.fill"
         }
     }
 }

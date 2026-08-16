@@ -13,6 +13,12 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(snapshot.projectAttentionCount, 1)
         XCTAssertEqual(snapshot.softwareUpdateCount, 3)
         XCTAssertEqual(snapshot.updates.macAppStore.first?.storeId, 497799835)
+        XCTAssertEqual(snapshot.configuration.desiredSource?.revision, "def-dirty")
+        XCTAssertEqual(snapshot.softwareDifferences.count, 1)
+        XCTAssertEqual(snapshot.softwareDifferences.first?.name, "git")
+        XCTAssertEqual(snapshot.softwareDifferences.first?.change, .versionChanged)
+        XCTAssertEqual(snapshot.softwareDifferences.first?.appliedVersion, "2.52.0")
+        XCTAssertEqual(snapshot.softwareDifferences.first?.desiredVersion, "2.53.0")
     }
 
     private let fixture = #"""
@@ -22,13 +28,15 @@ final class ModelsTests: XCTestCase {
       "host": {"hostname":"bellerofonte","machineName":"Bellerofonte","machineType":"macbook-pro","username":"batman"},
       "configuration": {
         "path":"/Users/batman/.config/nixpkgs","exists":true,"appliedManifestPath":"/etc/nix-me/manifest.json",
-        "applyState":"current","generation":100,
+        "applyState":"pending","generation":100,
+        "desiredSource":{"revision":"def-dirty","dirty":true,"contentHash":"desired-source","lockHash":"desired-lock"},
+        "appliedSource":{"revision":"abc","dirty":false,"contentHash":"applied-source","lockHash":"applied-lock"},
         "git":{"repository":true,"branch":"main","revision":"abc","dirty":false,"upstream":"origin/main","ahead":0,"behind":0,"remoteState":"upToDate"}
       },
       "health": {"nix":{"available":true,"version":"nix 2.31"},"nixDarwin":{"available":true},"homebrew":{"available":true}},
       "inventory": {
-        "desired":{"nixPackages":["git","jq"],"homebrew":{"formulae":["coreutils"],"casks":["raycast"],"masApps":{"Xcode":497799835}}},
-        "applied":{"nixPackages":["git","jq"],"homebrew":{"formulae":["coreutils"],"casks":["raycast"],"masApps":{"Xcode":497799835}}},
+        "desired":{"nixPackages":["git-2.53.0","jq-1.8.1"],"nixPackageDetails":[{"name":"git","fullName":"git-2.53.0","version":"2.53.0","description":"Version control","homepage":"https://git-scm.com","license":"GPL-2.0"},{"name":"jq","fullName":"jq-1.8.1","version":"1.8.1","description":"JSON processor","homepage":"https://jqlang.org","license":"MIT"}],"homebrew":{"formulae":["coreutils"],"casks":["raycast"],"masApps":{"Xcode":497799835}}},
+        "applied":{"nixPackages":["git-2.52.0","jq-1.8.1"],"homebrew":{"formulae":["coreutils"],"casks":["raycast"],"masApps":{"Xcode":497799835}}},
         "installed":{"homebrew":{"formulae":[{"name":"coreutils","versions":["9.7"]}],"casks":[{"name":"raycast","versions":["1.0"]},{"name":"rectangle","versions":["1.0"]}]}}
       },
       "updates":{

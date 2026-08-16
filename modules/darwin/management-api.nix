@@ -10,6 +10,32 @@ let
   formulaNames = lib.unique (map (formula: formula.name) config.homebrew.brews);
   nixPackageNames = lib.unique (map (package: package.name or (lib.getName package)) config.environment.systemPackages);
 
+  licenseName = license:
+    if license == null then null
+    else if builtins.isList license then
+      lib.concatStringsSep ", " (lib.filter (name: name != null) (map licenseName license))
+    else if builtins.isAttrs license then license.spdxId or license.shortName or license.fullName or null
+    else toString license;
+
+  homepageValue = homepage:
+    if homepage == null then null
+    else if builtins.isList homepage then lib.concatStringsSep ", " homepage
+    else toString homepage;
+
+  nixPackageDetails = map (package:
+    let
+      metadata = package.meta or { };
+      packageVersion = package.version or (lib.getVersion package);
+    in {
+      name = package.pname or (lib.getName package);
+      fullName = package.name or (lib.getName package);
+      version = if packageVersion == "" then null else packageVersion;
+      description = metadata.description or null;
+      homepage = homepageValue (metadata.homepage or null);
+      license = licenseName (metadata.license or null);
+    }
+  ) config.environment.systemPackages;
+
   manifest = {
     schemaVersion = 1;
     host = {
@@ -23,6 +49,7 @@ let
     };
     software = {
       nixPackages = nixPackageNames;
+      inherit nixPackageDetails;
       homebrew = {
         casks = caskNames;
         formulae = formulaNames;

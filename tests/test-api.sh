@@ -17,7 +17,9 @@ jq -e '
   (.generatedAt | type == "string") and
   (.host.hostname | type == "string") and
   (.configuration.applyState | IN("current", "pending", "unknown")) and
+  ((.configuration.desiredSource | type) == "object") and
   (.inventory.desired.nixPackages | type == "array") and
+  (.inventory.desired.nixPackageDetails | type == "array") and
   (.inventory.desired.homebrew.casks | type == "array") and
   (.updates.homebrew | type == "array") and
   (.updates.macAppStore | type == "array") and

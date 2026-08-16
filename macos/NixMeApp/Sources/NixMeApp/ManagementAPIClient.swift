@@ -34,7 +34,7 @@ struct ManagementAPIClient {
 
     func snapshot() async throws -> ManagementSnapshot {
         let api = configurationDirectory.appendingPathComponent("bin/nix-me-api")
-        let data = try await run(api: api, endpoint: "snapshot")
+        let data = try await run(executable: api, arguments: ["snapshot"])
 
         do {
             let snapshot = try JSONDecoder().decode(ManagementSnapshot.self, from: data)
@@ -50,7 +50,26 @@ struct ManagementAPIClient {
         }
     }
 
-    private func run(api: URL, endpoint: String) async throws -> Data {
+    func details(for item: SoftwareListItem) async throws -> PackageDetails {
+        if let embeddedDetails = item.embeddedDetails {
+            return embeddedDetails
+        }
+
+        let executable = configurationDirectory.appendingPathComponent("bin/nix-me-details")
+        var arguments = [item.kind.rawValue, item.name]
+        if let storeId = item.storeId {
+            arguments.append(String(storeId))
+        }
+        let data = try await run(executable: executable, arguments: arguments)
+
+        do {
+            return try JSONDecoder().decode(PackageDetails.self, from: data)
+        } catch {
+            throw ManagementAPIError.invalidResponse(error.localizedDescription)
+        }
+    }
+
+    private func run(executable: URL, arguments: [String]) async throws -> Data {
         try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 let process = Process()
@@ -58,7 +77,7 @@ struct ManagementAPIClient {
                 let errors = Pipe()
 
                 process.executableURL = URL(fileURLWithPath: "/bin/bash")
-                process.arguments = [api.path, endpoint]
+                process.arguments = [executable.path] + arguments
                 process.currentDirectoryURL = configurationDirectory
                 process.standardOutput = output
                 process.standardError = errors
@@ -75,8 +94,10 @@ struct ManagementAPIClient {
                     let errorData = errors.fileHandleForReading.readDataToEndOfFile()
 
                     guard process.terminationStatus == 0 else {
-                        let message = String(data: errorData, encoding: .utf8)?
-                            .trimmingCharacters(in: .whitespacesAndNewlines) ?? "Unknown error"
+                        let standardError = String(data: errorData, encoding: .utf8)?
+                            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                        let responseError = (try? JSONDecoder().decode(APIErrorResponse.self, from: outputData))?.error.message
+                        let message = !standardError.isEmpty ? standardError : responseError ?? "Unknown error"
                         continuation.resume(throwing: ManagementAPIError.commandFailed(process.terminationStatus, message))
                         return
                     }
@@ -106,4 +127,12 @@ struct ManagementAPIClient {
                 && fileManager.fileExists(atPath: candidate.appendingPathComponent("bin/nix-me-api").path)
         }?.resolvingSymlinksInPath()
     }
+}
+
+private struct APIErrorResponse: Codable {
+    struct ErrorBody: Codable {
+        let message: String
+    }
+
+    let error: ErrorBody
 }

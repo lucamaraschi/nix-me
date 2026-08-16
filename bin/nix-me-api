@@ -321,7 +321,9 @@ snapshot="$(jq -n \
       appliedManifestPath: $appliedManifestPath,
       applyState: $applyState,
       generation: $generation,
-      git: $configGit
+      git: $configGit,
+      desiredSource: ($desired.source // null),
+      appliedSource: ($applied.source // null)
     },
     health: {
       nix: {available: $nixAvailable, version: $nixVersion},
@@ -329,8 +331,8 @@ snapshot="$(jq -n \
       homebrew: {available: $homebrewAvailable}
     },
     inventory: {
-      desired: ($desired.software // {nixPackages: [], homebrew: {formulae: [], casks: [], masApps: {}}}),
-      applied: ($applied.software // {nixPackages: [], homebrew: {formulae: [], casks: [], masApps: {}}}),
+      desired: ($desired.software // {nixPackages: [], nixPackageDetails: [], homebrew: {formulae: [], casks: [], masApps: {}}}),
+      applied: ($applied.software // {nixPackages: [], nixPackageDetails: [], homebrew: {formulae: [], casks: [], masApps: {}}}),
       installed: {homebrew: {formulae: $brewFormulae, casks: $brewCasks}}
     },
     updates: {homebrew: $brewUpdates, macAppStore: $masUpdates, nixFlake: $nixUpdates},
