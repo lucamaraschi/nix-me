@@ -72,6 +72,22 @@ struct ManagementActionClient {
         }
     }
 
+    func syncProjects(hostname: String) async throws -> ApplyActionResponse {
+        let action = configurationDirectory.appendingPathComponent("bin/nix-me-action")
+        let data = try await run(
+            action: action,
+            command: "sync-projects",
+            request: Data(),
+            additionalEnvironment: ["NIX_ME_HOSTNAME": hostname]
+        )
+
+        do {
+            return try JSONDecoder().decode(ApplyActionResponse.self, from: data)
+        } catch {
+            throw ManagementAPIError.invalidResponse(error.localizedDescription)
+        }
+    }
+
     private func run(
         action: URL,
         command: String,

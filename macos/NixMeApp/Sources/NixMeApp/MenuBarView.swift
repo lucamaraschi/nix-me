@@ -106,6 +106,9 @@ struct MenuBarView: View {
         if store.isApplying {
             return "Applying configuration…"
         }
+        if store.isSyncingProjects {
+            return "Syncing projects…"
+        }
         return store.isLoading ? "Refreshing…" : "System manager"
     }
 
@@ -132,6 +135,12 @@ struct MenuBarView: View {
     }
 
     private func configurationLabel(_ snapshot: ManagementSnapshot) -> String {
+        if snapshot.configuration.applyState == "unknown" {
+            return "Baseline needed"
+        }
+        if snapshot.configuration.applyState == "pending" {
+            return "Apply required"
+        }
         if snapshot.configuration.git?.dirty == true {
             return "Uncommitted changes"
         }
@@ -141,11 +150,7 @@ struct MenuBarView: View {
         if snapshot.configuration.git?.ahead ?? 0 > 0 {
             return "Push required"
         }
-        switch snapshot.configuration.applyState {
-        case "current": return "Applied"
-        case "pending": return "Apply required"
-        default: return "Unknown"
-        }
+        return "Applied"
     }
 
     private func updateSymbol(_ update: SoftwareUpdate) -> String {

@@ -1,8 +1,10 @@
 import SwiftUI
 
-private enum DashboardSection: String, CaseIterable, Identifiable {
+private enum DashboardSection: String, Identifiable {
     case overview = "Overview"
-    case software = "Software"
+    case managedSoftware = "Managed"
+    case installedSoftware = "Installed"
+    case configurationChanges = "Changes"
     case projects = "Projects"
     case updates = "Updates"
 
@@ -11,7 +13,9 @@ private enum DashboardSection: String, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .overview: "square.grid.2x2"
-        case .software: "shippingbox"
+        case .managedSoftware: "shippingbox"
+        case .installedSoftware: "internaldrive"
+        case .configurationChanges: "arrow.left.arrow.right"
         case .projects: "folder"
         case .updates: "arrow.triangle.2.circlepath"
         }
@@ -21,18 +25,31 @@ private enum DashboardSection: String, CaseIterable, Identifiable {
 struct DashboardView: View {
     @ObservedObject var store: DashboardStore
     @State private var selection: DashboardSection? = .overview
-    @State private var softwareMode = SoftwareMode.managed
     @State private var projectFilter = ProjectFilter.all
     @State private var selectedUpdateIDs = Set<String>()
     @State private var showingApplyConfirmation = false
 
     var body: some View {
         NavigationSplitView {
-            List(DashboardSection.allCases, selection: $selection) { section in
-                Label(section.rawValue, systemImage: section.symbol)
-                    .tag(section)
+            List(selection: $selection) {
+                SidebarRow(section: .overview)
+
+                Section("Software") {
+                    SidebarRow(section: .managedSoftware, count: store.snapshot?.desiredSoftwareCount)
+                    SidebarRow(section: .installedSoftware, count: store.snapshot?.installedSoftwareItems.count)
+                    SidebarRow(
+                        section: .configurationChanges,
+                        count: store.snapshot?.softwareDifferences.count,
+                        needsAttention: store.snapshot.map { $0.configuration.applyState != "current" } ?? false
+                    )
+                }
+
+                Section("Maintenance") {
+                    SidebarRow(section: .projects, count: store.snapshot?.projectAttentionCount)
+                    SidebarRow(section: .updates, count: store.snapshot?.softwareUpdateCount)
+                }
             }
-            .navigationTitle("nix-me")
+            .navigationTitle("Nix Me")
             .navigationSplitViewColumnWidth(min: 180, ideal: 210)
         } detail: {
             Group {
@@ -60,7 +77,9 @@ struct DashboardView: View {
                     }
                     .disabled(store.snapshot == nil)
 
-                    if store.snapshot?.configuration.applyState != "current" {
+                    if store.snapshot?.configuration.applyState != "current",
+                       selection != .overview,
+                       selection != .configurationChanges {
                         Button("Apply", systemImage: "checkmark.circle") {
                             showingApplyConfirmation = true
                         }
@@ -78,7 +97,7 @@ struct DashboardView: View {
         }
         .task { store.startMonitoring() }
         .alert(
-            "Software Updates",
+            "Nix Me",
             isPresented: Binding(
                 get: { store.updateNotice != nil },
                 set: { if !$0 { store.clearUpdateNotice() } }
@@ -103,7 +122,7 @@ struct DashboardView: View {
     }
 
     private var actionInProgress: Bool {
-        store.isLoading || store.isUpdating || store.isApplying
+        store.isLoading || store.isUpdating || store.isApplying || store.isSyncingProjects
     }
 
     @ViewBuilder
@@ -113,12 +132,10 @@ struct DashboardView: View {
             OverviewView(
                 snapshot: snapshot,
                 openManagedSoftware: {
-                    softwareMode = .managed
-                    selection = .software
+                    selection = .managedSoftware
                 },
                 openInstalledSoftware: {
-                    softwareMode = .installed
-                    selection = .software
+                    selection = .installedSoftware
                 },
                 openUpdates: {
                     selection = .updates
@@ -128,16 +145,30 @@ struct DashboardView: View {
                     selection = .projects
                 },
                 openConfigurationChanges: {
-                    softwareMode = .changes
-                    selection = .software
+                    selection = .configurationChanges
                 },
                 applyConfiguration: { showingApplyConfirmation = true },
                 isApplying: store.isApplying
             )
-        case .software:
-            SoftwareView(snapshot: snapshot, mode: $softwareMode, loadDetails: store.packageDetails)
+        case .managedSoftware:
+            SoftwareView(snapshot: snapshot, mode: .managed, loadDetails: store.packageDetails)
+        case .installedSoftware:
+            SoftwareView(snapshot: snapshot, mode: .installed, loadDetails: store.packageDetails)
+        case .configurationChanges:
+            ConfigurationChangesView(
+                snapshot: snapshot,
+                isApplying: store.isApplying,
+                loadDetails: store.packageDetails,
+                applyConfiguration: { showingApplyConfirmation = true }
+            )
         case .projects:
-            ProjectsView(snapshot: snapshot, filter: $projectFilter, openProject: store.openProject)
+            ProjectsView(
+                snapshot: snapshot,
+                filter: $projectFilter,
+                isSyncing: store.isSyncingProjects,
+                openProject: store.openProject,
+                syncProjects: { Task { await store.syncProjects() } }
+            )
         case .updates:
             UpdatesView(
                 snapshot: snapshot,
@@ -146,11 +177,38 @@ struct DashboardView: View {
                 isApplying: store.isApplying,
                 isRefreshing: store.isLoading,
                 updatingItemCount: store.updatingItemCount,
+                loadDetails: store.packageDetails,
                 updateItems: { updates in
                     Task { await store.updateSoftware(updates) }
                 }
             )
         }
+    }
+}
+
+private struct SidebarRow: View {
+    let section: DashboardSection
+    var count: Int? = nil
+    var needsAttention = false
+
+    var body: some View {
+        HStack {
+            Label(section.rawValue, systemImage: section.symbol)
+            Spacer()
+            if let count, count > 0 {
+                Text(count, format: .number)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 2)
+                    .background(.quaternary, in: Capsule())
+            } else if needsAttention {
+                Circle()
+                    .fill(.orange)
+                    .frame(width: 7, height: 7)
+            }
+        }
+        .tag(section)
     }
 }
 
@@ -181,11 +239,16 @@ private struct OverviewView: View {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: 14)], spacing: 14) {
                     MetricCard(title: "Managed software", value: snapshot.desiredSoftwareCount, symbol: "shippingbox.fill", tint: .blue, action: openManagedSoftware)
                     MetricCard(title: "Homebrew installed", value: snapshot.installedHomebrewCount, symbol: "mug.fill", tint: .orange, action: openInstalledSoftware)
-                    MetricCard(title: "Available updates", value: snapshot.softwareUpdateCount, symbol: "arrow.down.circle.fill", tint: .green, action: openUpdates)
-                    MetricCard(title: "Projects needing attention", value: snapshot.projectAttentionCount, symbol: "folder.badge.questionmark", tint: .pink, action: openProjectAttention)
+                    MetricCard(title: "Available updates", value: snapshot.softwareUpdateCount, symbol: "arrow.down.circle.fill", tint: snapshot.softwareUpdateCount == 0 ? .green : .orange, action: openUpdates)
+                    MetricCard(title: "Projects needing attention", value: snapshot.projectAttentionCount, symbol: "folder.badge.questionmark", tint: snapshot.projectAttentionCount == 0 ? .green : .orange, action: openProjectAttention)
                 }
 
-                ConfigurationDriftCard(snapshot: snapshot, action: openConfigurationChanges)
+                ConfigurationDriftCard(
+                    snapshot: snapshot,
+                    isApplying: isApplying,
+                    reviewChanges: openConfigurationChanges,
+                    applyConfiguration: applyConfiguration
+                )
 
                 SectionCard(title: "Configuration", symbol: "slider.horizontal.3") {
                     DetailRow(label: "Apply state", value: applyLabel)
@@ -200,28 +263,6 @@ private struct OverviewView: View {
                         DetailRow(label: "Lock file", value: "Repository and machine differ")
                     }
                     DetailRow(label: "Location", value: snapshot.configuration.path)
-                    if snapshot.configuration.applyState != "current" {
-                        Divider()
-                        HStack {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text("Activate pending changes")
-                                    .fontWeight(.medium)
-                                Text("Build and switch to the current Nix configuration.")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            if isApplying {
-                                ProgressView()
-                                    .controlSize(.small)
-                                Text("Applying…")
-                                    .foregroundStyle(.secondary)
-                            } else {
-                                Button("Apply Configuration", action: applyConfiguration)
-                                    .buttonStyle(.borderedProminent)
-                            }
-                        }
-                    }
                 }
 
                 SectionCard(title: "System services", symbol: "heart.text.square") {
@@ -248,7 +289,7 @@ private struct OverviewView: View {
         switch snapshot.configuration.applyState {
         case "current": "System is current"
         case "pending": "Changes need applying"
-        default: "Apply state unknown"
+        default: "Baseline needed"
         }
     }
 
@@ -256,7 +297,7 @@ private struct OverviewView: View {
         switch snapshot.configuration.applyState {
         case "current": .green
         case "pending": .orange
-        default: .secondary
+        default: .orange
         }
     }
 
@@ -285,60 +326,43 @@ private struct OverviewView: View {
 
 private struct SoftwareView: View {
     let snapshot: ManagementSnapshot
-    @Binding var mode: SoftwareMode
+    let mode: SoftwareMode
     let loadDetails: (SoftwareListItem) async throws -> PackageDetails
     @State private var selectedItem: SoftwareListItem?
     @State private var details: PackageDetails?
     @State private var detailsError: String?
     @State private var isLoadingDetails = false
+    @State private var query = ""
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("Inventory", selection: $mode) {
-                ForEach(SoftwareMode.allCases) { mode in
-                    Text(mode.rawValue).tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
-            .frame(maxWidth: 360)
-            .padding()
-
             List(selection: $selectedItem) {
-                switch mode {
-                case .managed:
-                    ForEach(SoftwareKind.allCases, id: \.self) { kind in
-                        SoftwareItemSection(title: managedTitle(kind), items: snapshot.desiredSoftwareItems.filter { $0.kind == kind })
-                    }
-                case .installed:
-                    ForEach(SoftwareKind.allCases, id: \.self) { kind in
-                        SoftwareItemSection(title: installedTitle(kind), items: snapshot.installedSoftwareItems.filter { $0.kind == kind })
-                    }
-                case .changes:
-                    if snapshot.softwareDifferences.isEmpty {
-                        Section {
-                            ContentUnavailableView(
-                                snapshot.configuration.applyState == "current" ? "Software matches this Mac" : "No package list changes",
-                                systemImage: snapshot.configuration.applyState == "current" ? "checkmark.circle" : "doc.text.magnifyingglass",
-                                description: Text(snapshot.configuration.applyState == "unknown" ? "Apply the configuration once to establish a machine baseline." : "Other configuration files or project settings differ from the applied system.")
-                            )
-                        }
-                    }
-                    ForEach(SoftwareChangeKind.allCases, id: \.self) { change in
-                        DifferenceSection(
-                            change: change,
-                            differences: snapshot.softwareDifferences.filter { $0.change == change },
-                            item: { item(for: $0) }
-                        )
-                    }
+                ForEach(SoftwareKind.allCases, id: \.self) { kind in
+                    SoftwareItemSection(
+                        title: sectionTitle(kind),
+                        items: filteredItems.filter { $0.kind == kind }
+                    )
                 }
             }
         }
-        .navigationTitle("Managed Software")
+        .navigationTitle(mode.title)
+        .searchable(text: $query, placement: .toolbar, prompt: "Search software")
+        .overlay {
+            if filteredItems.isEmpty {
+                ContentUnavailableView.search(text: query)
+            }
+        }
         .inspector(isPresented: Binding(
             get: { selectedItem != nil },
             set: { if !$0 { selectedItem = nil } }
         )) {
-            PackageDetailsPanel(item: selectedItem, details: details, error: detailsError, isLoading: isLoadingDetails)
+            PackageDetailsPanel(
+                item: selectedItem,
+                details: details,
+                error: detailsError,
+                isLoading: isLoadingDetails,
+                baselineAvailable: snapshot.configuration.applyState != "unknown"
+            )
                 .inspectorColumnWidth(min: 280, ideal: 340, max: 460)
         }
         .task(id: selectedItem?.id) {
@@ -353,54 +377,36 @@ private struct SoftwareView: View {
             }
             isLoadingDetails = false
         }
-        .onChange(of: mode) { _, _ in selectedItem = nil }
     }
 
-    private func item(for difference: SoftwareDifference) -> SoftwareListItem {
-        let id = "\(difference.kind.rawValue):\(difference.name)"
-        if let item = snapshot.desiredSoftwareItems.first(where: { $0.id == id })
-            ?? snapshot.installedSoftwareItems.first(where: { $0.id == id }) {
-            return item
-        }
-        return SoftwareListItem(
-            kind: difference.kind,
-            name: difference.name,
-            displayName: difference.name,
-            desiredVersion: difference.desiredVersion,
-            appliedVersion: difference.appliedVersion,
-            installedVersions: [],
-            storeId: difference.storeId,
-            embeddedDetails: nil,
-            isDesired: difference.change != .removed,
-            isApplied: difference.change != .added
-        )
-    }
-
-    private func managedTitle(_ kind: SoftwareKind) -> String {
-        switch kind {
-        case .nix: "Nix packages"
-        case .formula: "Homebrew formulae"
-        case .cask: "Applications"
-        case .mas: "Mac App Store"
+    private var filteredItems: [SoftwareListItem] {
+        let items = mode == .managed ? snapshot.desiredSoftwareItems : snapshot.installedSoftwareItems
+        guard !query.isEmpty else { return items }
+        return items.filter {
+            $0.displayName.localizedCaseInsensitiveContains(query)
+                || $0.kind.label.localizedCaseInsensitiveContains(query)
         }
     }
 
-    private func installedTitle(_ kind: SoftwareKind) -> String {
-        switch kind {
-        case .nix: "Active Nix packages"
-        case .formula: "Installed Homebrew formulae"
-        case .cask: "Installed applications"
-        case .mas: "Mac App Store"
+    private func sectionTitle(_ kind: SoftwareKind) -> String {
+        switch (mode, kind) {
+        case (.managed, .nix): "Nix packages"
+        case (.managed, .formula): "Homebrew formulae"
+        case (.managed, .cask): "Applications"
+        case (.managed, .mas): "Mac App Store"
+        case (.installed, .nix): "Active Nix packages"
+        case (.installed, .formula): "Installed Homebrew formulae"
+        case (.installed, .cask): "Installed applications"
+        case (.installed, .mas): "Mac App Store"
         }
     }
 }
 
-private enum SoftwareMode: String, CaseIterable, Identifiable {
+private enum SoftwareMode: String {
     case managed = "Managed"
     case installed = "Installed"
-    case changes = "Changes"
 
-    var id: String { rawValue }
+    var title: String { "\(rawValue) Software" }
 }
 
 private struct SoftwareItemSection: View {
@@ -437,6 +443,175 @@ private struct SoftwareItemRow: View {
                 .foregroundStyle(.tertiary)
         }
         .padding(.vertical, 2)
+    }
+}
+
+private struct ConfigurationChangesView: View {
+    let snapshot: ManagementSnapshot
+    let isApplying: Bool
+    let loadDetails: (SoftwareListItem) async throws -> PackageDetails
+    let applyConfiguration: () -> Void
+    @State private var selectedItem: SoftwareListItem?
+    @State private var details: PackageDetails?
+    @State private var detailsError: String?
+    @State private var isLoadingDetails = false
+    @State private var query = ""
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ChangeSummaryHeader(
+                snapshot: snapshot,
+                isApplying: isApplying,
+                applyConfiguration: applyConfiguration
+            )
+
+            if snapshot.softwareDifferences.isEmpty {
+                ContentUnavailableView {
+                    Label(emptyTitle, systemImage: emptySymbol)
+                } description: {
+                    Text(emptyDescription)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List(selection: $selectedItem) {
+                    ForEach(SoftwareChangeKind.allCases, id: \.self) { change in
+                        DifferenceSection(
+                            change: change,
+                            differences: filteredDifferences.filter { $0.change == change },
+                            item: { item(for: $0) }
+                        )
+                    }
+                }
+                .overlay {
+                    if filteredDifferences.isEmpty {
+                        ContentUnavailableView.search(text: query)
+                    }
+                }
+            }
+        }
+        .navigationTitle("Configuration Changes")
+        .searchable(text: $query, placement: .toolbar, prompt: "Search changes")
+        .inspector(isPresented: Binding(
+            get: { selectedItem != nil },
+            set: { if !$0 { selectedItem = nil } }
+        )) {
+            PackageDetailsPanel(
+                item: selectedItem,
+                details: details,
+                error: detailsError,
+                isLoading: isLoadingDetails,
+                baselineAvailable: snapshot.configuration.applyState != "unknown"
+            )
+                .inspectorColumnWidth(min: 280, ideal: 340, max: 460)
+        }
+        .task(id: selectedItem?.id) {
+            details = nil
+            detailsError = nil
+            guard let selectedItem else { return }
+            isLoadingDetails = true
+            do {
+                details = try await loadDetails(selectedItem)
+            } catch {
+                detailsError = error.localizedDescription
+            }
+            isLoadingDetails = false
+        }
+    }
+
+    private var filteredDifferences: [SoftwareDifference] {
+        guard !query.isEmpty else { return snapshot.softwareDifferences }
+        return snapshot.softwareDifferences.filter {
+            $0.name.localizedCaseInsensitiveContains(query)
+                || $0.kind.label.localizedCaseInsensitiveContains(query)
+        }
+    }
+
+    private var emptyTitle: String {
+        switch snapshot.configuration.applyState {
+        case "current": "This Mac matches the repository"
+        case "unknown": "No machine baseline yet"
+        default: "No software list changes"
+        }
+    }
+
+    private var emptyDescription: String {
+        switch snapshot.configuration.applyState {
+        case "current": "The desired software configuration is active."
+        case "unknown": "Apply once to record the configuration active on this Mac."
+        default: "Other configuration or project settings changed and are ready to apply."
+        }
+    }
+
+    private var emptySymbol: String {
+        snapshot.configuration.applyState == "current" ? "checkmark.seal.fill" : "arrow.triangle.2.circlepath"
+    }
+
+    private func item(for difference: SoftwareDifference) -> SoftwareListItem {
+        let id = "\(difference.kind.rawValue):\(difference.name)"
+        if let item = snapshot.desiredSoftwareItems.first(where: { $0.id == id })
+            ?? snapshot.installedSoftwareItems.first(where: { $0.id == id }) {
+            return item
+        }
+        return SoftwareListItem(
+            kind: difference.kind,
+            name: difference.name,
+            displayName: difference.name,
+            desiredVersion: difference.desiredVersion,
+            appliedVersion: difference.appliedVersion,
+            installedVersions: [],
+            storeId: difference.storeId,
+            embeddedDetails: nil,
+            isDesired: difference.change != .removed,
+            isApplied: difference.change != .added
+        )
+    }
+}
+
+private struct ChangeSummaryHeader: View {
+    let snapshot: ManagementSnapshot
+    let isApplying: Bool
+    let applyConfiguration: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: snapshot.configuration.applyState == "current" ? "checkmark.circle.fill" : "arrow.left.arrow.right.circle.fill")
+                .font(.title2)
+                .foregroundStyle(snapshot.configuration.applyState == "current" ? .green : .orange)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(statusTitle).font(.headline)
+                Text(statusDetail).font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            if snapshot.configuration.applyState != "current" {
+                if isApplying {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Button("Apply Configuration", action: applyConfiguration)
+                        .buttonStyle(.borderedProminent)
+                }
+            }
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
+        .background(.bar)
+    }
+
+    private var statusTitle: String {
+        switch snapshot.configuration.applyState {
+        case "current": "Configuration is current"
+        case "pending": "Changes are ready to apply"
+        default: "Establish this Mac's baseline"
+        }
+    }
+
+    private var statusDetail: String {
+        let count = snapshot.softwareDifferences.count
+        if count > 0 {
+            return "\(count) software change\(count == 1 ? "" : "s") between the repository and this Mac"
+        }
+        return snapshot.configuration.applyState == "unknown"
+            ? "The active configuration has not been recorded yet"
+            : "No software package entries changed"
     }
 }
 
@@ -505,6 +680,7 @@ private struct PackageDetailsPanel: View {
     let details: PackageDetails?
     let error: String?
     let isLoading: Bool
+    let baselineAvailable: Bool
 
     var body: some View {
         ScrollView {
@@ -542,7 +718,7 @@ private struct PackageDetailsPanel: View {
                         Divider()
                         VStack(spacing: 10) {
                             InspectorRow(label: "Repository", value: item.desiredVersion ?? (item.isDesired ? "Managed" : "Not managed"))
-                            InspectorRow(label: "On this Mac", value: item.appliedVersion ?? item.installedVersions.first ?? (item.isApplied ? "Applied" : "Not applied"))
+                            InspectorRow(label: "On this Mac", value: machineVersion(item))
                             InspectorRow(label: "Latest", value: details.version ?? "Unavailable")
                             if let license = details.license, !license.isEmpty {
                                 InspectorRow(label: "License", value: license)
@@ -577,6 +753,16 @@ private struct PackageDetailsPanel: View {
             }
         }
     }
+
+    private func machineVersion(_ item: SoftwareListItem) -> String {
+        if let version = item.appliedVersion ?? item.installedVersions.first {
+            return version
+        }
+        if item.kind == .nix && !baselineAvailable {
+            return "Baseline unavailable"
+        }
+        return item.isApplied ? "Applied" : "Not applied"
+    }
 }
 
 private struct InspectorRow: View {
@@ -596,41 +782,46 @@ private struct InspectorRow: View {
 
 private struct ConfigurationDriftCard: View {
     let snapshot: ManagementSnapshot
-    let action: () -> Void
-    @State private var isHovered = false
+    let isApplying: Bool
+    let reviewChanges: () -> Void
+    let applyConfiguration: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 16) {
-                Image(systemName: symbol)
-                    .font(.title2)
-                    .foregroundStyle(tint)
-                    .frame(width: 34)
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(title).font(.headline)
-                    Text(summary)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                if snapshot.configuration.applyState == "pending" {
-                    Text("Review Changes")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(tint)
-                }
-                Image(systemName: "chevron.right")
+        HStack(spacing: 16) {
+            Image(systemName: symbol)
+                .font(.title2)
+                .foregroundStyle(tint)
+                .frame(width: 34)
+            VStack(alignment: .leading, spacing: 5) {
+                Text(title).font(.headline)
+                Text(summary)
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
-            .padding(18)
-            .contentShape(Rectangle())
+            Spacer()
+            if isApplying {
+                ProgressView().controlSize(.small)
+            } else if snapshot.configuration.applyState == "unknown" {
+                Button("Establish Baseline", action: applyConfiguration)
+                    .buttonStyle(.borderedProminent)
+            } else if snapshot.configuration.applyState == "pending" {
+                if snapshot.softwareDifferences.isEmpty {
+                    Button("Apply", action: applyConfiguration)
+                        .buttonStyle(.borderedProminent)
+                } else {
+                    Button("Review Changes", action: reviewChanges)
+                        .buttonStyle(.bordered)
+                    Button("Apply", action: applyConfiguration)
+                        .buttonStyle(.borderedProminent)
+                }
+            }
         }
-        .buttonStyle(.plain)
-        .background(tint.opacity(isHovered ? 0.14 : 0.09), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .padding(18)
+        .background(tint.opacity(0.09), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(tint.opacity(isHovered ? 0.65 : 0.35), lineWidth: 1)
+                .stroke(tint.opacity(0.35), lineWidth: 1)
         }
-        .onHover { isHovered = $0 }
     }
 
     private var title: String {
@@ -681,18 +872,34 @@ private struct ConfigurationDriftCard: View {
 private struct ProjectsView: View {
     let snapshot: ManagementSnapshot
     @Binding var filter: ProjectFilter
+    let isSyncing: Bool
     let openProject: (Project) -> Void
+    let syncProjects: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("Projects", selection: $filter) {
-                ForEach(ProjectFilter.allCases) { filter in
-                    Text(filter.rawValue).tag(filter)
+            HStack(spacing: 12) {
+                Picker("Projects", selection: $filter) {
+                    ForEach(ProjectFilter.allCases) { filter in
+                        Text(filter.rawValue).tag(filter)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 360)
+
+                Spacer()
+
+                if isSyncing {
+                    ProgressView().controlSize(.small)
+                    Text("Syncing…").foregroundStyle(.secondary)
+                } else {
+                    Button("Sync Projects", systemImage: "arrow.triangle.2.circlepath", action: syncProjects)
+                        .buttonStyle(.borderedProminent)
                 }
             }
-            .pickerStyle(.segmented)
-            .frame(maxWidth: 360)
-            .padding()
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(.bar)
 
             List(filteredProjects) { project in
                 HStack(spacing: 14) {
@@ -713,8 +920,13 @@ private struct ProjectsView: View {
                     }
                     Spacer()
                     StatusBadge(label: projectStatus(project), color: projectColor(project), symbol: projectSymbol(project))
-                    Button("Open") { openProject(project) }
-                        .disabled(!project.present)
+                    if project.present {
+                        Button("Open") { openProject(project) }
+                    } else {
+                        Text("Sync to clone")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 .padding(.vertical, 5)
             }
@@ -784,22 +996,54 @@ private struct UpdatesView: View {
     let isApplying: Bool
     let isRefreshing: Bool
     let updatingItemCount: Int
+    let loadDetails: (SoftwareListItem) async throws -> PackageDetails
     let updateItems: ([SoftwareUpdate]) -> Void
     @State private var pendingBatch: [SoftwareUpdate] = []
     @State private var showingConfirmation = false
+    @State private var query = ""
+    @State private var selectedItem: SoftwareListItem?
+    @State private var details: PackageDetails?
+    @State private var detailsError: String?
+    @State private var isLoadingDetails = false
 
     var body: some View {
         VStack(spacing: 0) {
             updateToolbar
 
             List {
-                UpdateSection(title: "Nix inputs", symbol: "snowflake", updates: snapshot.updates.nixFlake, selectedUpdateIDs: $selectedUpdateIDs, actionsDisabled: actionsDisabled, updateOne: updateOne)
-                UpdateSection(title: "Homebrew formulae", symbol: "terminal", updates: formulaUpdates, selectedUpdateIDs: $selectedUpdateIDs, actionsDisabled: actionsDisabled, updateOne: updateOne)
-                UpdateSection(title: "Homebrew applications", symbol: "macwindow", updates: caskUpdates, selectedUpdateIDs: $selectedUpdateIDs, actionsDisabled: actionsDisabled, updateOne: updateOne)
-                UpdateSection(title: "Mac App Store", symbol: "apple.logo", updates: snapshot.updates.macAppStore, selectedUpdateIDs: $selectedUpdateIDs, actionsDisabled: actionsDisabled, updateOne: updateOne)
+                UpdateSection(title: "Nix inputs", symbol: "snowflake", updates: filtered(snapshot.updates.nixFlake), selectedUpdateIDs: $selectedUpdateIDs, actionsDisabled: actionsDisabled, inspect: inspect, updateOne: updateOne)
+                UpdateSection(title: "Homebrew formulae", symbol: "terminal", updates: formulaUpdates, selectedUpdateIDs: $selectedUpdateIDs, actionsDisabled: actionsDisabled, inspect: inspect, updateOne: updateOne)
+                UpdateSection(title: "Homebrew applications", symbol: "macwindow", updates: caskUpdates, selectedUpdateIDs: $selectedUpdateIDs, actionsDisabled: actionsDisabled, inspect: inspect, updateOne: updateOne)
+                UpdateSection(title: "Mac App Store", symbol: "apple.logo", updates: filtered(snapshot.updates.macAppStore), selectedUpdateIDs: $selectedUpdateIDs, actionsDisabled: actionsDisabled, inspect: inspect, updateOne: updateOne)
             }
         }
         .navigationTitle("Updates")
+        .searchable(text: $query, placement: .toolbar, prompt: "Search updates")
+        .inspector(isPresented: Binding(
+            get: { selectedItem != nil },
+            set: { if !$0 { selectedItem = nil } }
+        )) {
+            PackageDetailsPanel(
+                item: selectedItem,
+                details: details,
+                error: detailsError,
+                isLoading: isLoadingDetails,
+                baselineAvailable: snapshot.configuration.applyState != "unknown"
+            )
+            .inspectorColumnWidth(min: 280, ideal: 340, max: 460)
+        }
+        .task(id: selectedItem?.id) {
+            details = nil
+            detailsError = nil
+            guard let selectedItem else { return }
+            isLoadingDetails = true
+            do {
+                details = try await loadDetails(selectedItem)
+            } catch {
+                detailsError = error.localizedDescription
+            }
+            isLoadingDetails = false
+        }
         .overlay {
             if snapshot.updates.all.isEmpty {
                 ContentUnavailableView(
@@ -807,6 +1051,8 @@ private struct UpdatesView: View {
                     systemImage: "checkmark.seal.fill",
                     description: Text("No Nix, Homebrew, or Mac App Store updates are currently available.")
                 )
+            } else if allUpdates.isEmpty {
+                ContentUnavailableView.search(text: query)
             }
         }
         .confirmationDialog(
@@ -834,17 +1080,18 @@ private struct UpdatesView: View {
                 Text("Updating \(updatingItemCount) item\(updatingItemCount == 1 ? "" : "s")…")
                     .foregroundStyle(.secondary)
             } else {
-                Text("\(selectedUpdateIDs.count) selected")
+                Text("\(selectedVisibleIDs.count) selected")
                     .foregroundStyle(.secondary)
             }
 
             Spacer()
 
-            Button(selectedUpdateIDs.count == allUpdates.count ? "Clear" : "Select All") {
-                if selectedUpdateIDs.count == allUpdates.count {
-                    selectedUpdateIDs.removeAll()
+            Button(allVisibleSelected ? "Clear" : "Select All") {
+                let visibleIDs = Set(allUpdates.map(\.id))
+                if allVisibleSelected {
+                    selectedUpdateIDs.subtract(visibleIDs)
                 } else {
-                    selectedUpdateIDs = Set(allUpdates.map(\.id))
+                    selectedUpdateIDs.formUnion(visibleIDs)
                 }
             }
             .disabled(actionsDisabled || allUpdates.isEmpty)
@@ -853,9 +1100,9 @@ private struct UpdatesView: View {
                 confirm(allUpdates.filter { selectedUpdateIDs.contains($0.id) })
             }
             .buttonStyle(.borderedProminent)
-            .disabled(actionsDisabled || selectedUpdateIDs.isEmpty)
+            .disabled(actionsDisabled || selectedVisibleIDs.isEmpty)
 
-            Button("Update All") {
+            Button(query.isEmpty ? "Update All" : "Update Results") {
                 confirm(allUpdates)
             }
             .disabled(actionsDisabled || allUpdates.isEmpty)
@@ -866,7 +1113,15 @@ private struct UpdatesView: View {
     }
 
     private var allUpdates: [SoftwareUpdate] {
-        snapshot.updates.all
+        filtered(snapshot.updates.all)
+    }
+
+    private var selectedVisibleIDs: Set<String> {
+        selectedUpdateIDs.intersection(Set(allUpdates.map(\.id)))
+    }
+
+    private var allVisibleSelected: Bool {
+        !allUpdates.isEmpty && selectedVisibleIDs.count == allUpdates.count
     }
 
     private var actionsDisabled: Bool {
@@ -874,11 +1129,11 @@ private struct UpdatesView: View {
     }
 
     private var formulaUpdates: [SoftwareUpdate] {
-        snapshot.updates.homebrew.filter { $0.kind == "formula" }
+        filtered(snapshot.updates.homebrew.filter { $0.kind == "formula" })
     }
 
     private var caskUpdates: [SoftwareUpdate] {
-        snapshot.updates.homebrew.filter { $0.kind == "cask" }
+        filtered(snapshot.updates.homebrew.filter { $0.kind == "cask" })
     }
 
     private func updateOne(_ update: SoftwareUpdate) {
@@ -889,6 +1144,36 @@ private struct UpdatesView: View {
         pendingBatch = updates
         showingConfirmation = true
     }
+
+    private func inspect(_ update: SoftwareUpdate) {
+        guard let kind = SoftwareKind(rawValue: update.kind) else { return }
+        let managed = switch kind {
+        case .formula: snapshot.inventory.desired.homebrew.formulae.contains(update.name)
+        case .cask: snapshot.inventory.desired.homebrew.casks.contains(update.name)
+        case .mas: snapshot.inventory.desired.homebrew.masApps[update.name] != nil
+        case .nix: true
+        }
+        selectedItem = SoftwareListItem(
+            kind: kind,
+            name: update.name,
+            displayName: update.name,
+            desiredVersion: nil,
+            appliedVersion: nil,
+            installedVersions: update.installedVersions,
+            storeId: update.storeId,
+            embeddedDetails: nil,
+            isDesired: managed,
+            isApplied: true
+        )
+    }
+
+    private func filtered(_ updates: [SoftwareUpdate]) -> [SoftwareUpdate] {
+        guard !query.isEmpty else { return updates }
+        return updates.filter {
+            $0.name.localizedCaseInsensitiveContains(query)
+                || $0.kind.localizedCaseInsensitiveContains(query)
+        }
+    }
 }
 
 private struct UpdateSection: View {
@@ -897,6 +1182,7 @@ private struct UpdateSection: View {
     let updates: [SoftwareUpdate]
     @Binding var selectedUpdateIDs: Set<String>
     let actionsDisabled: Bool
+    let inspect: (SoftwareUpdate) -> Void
     let updateOne: (SoftwareUpdate) -> Void
 
     var body: some View {
@@ -924,6 +1210,12 @@ private struct UpdateSection: View {
                         Text(update.availableVersion ?? "Latest")
                             .fontWeight(.medium)
                             .frame(minWidth: 70, alignment: .leading)
+                        if update.kind != "nixFlake" {
+                            Button("Details", systemImage: "info.circle") { inspect(update) }
+                                .labelStyle(.iconOnly)
+                                .buttonStyle(.plain)
+                                .help("Show package details")
+                        }
                         Button("Update") { updateOne(update) }
                             .disabled(actionsDisabled)
                     }

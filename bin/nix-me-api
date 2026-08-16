@@ -114,8 +114,6 @@ if [[ -r "$APPLIED_MANIFEST" ]]; then
     applied_manifest='null'
     add_warning "The applied manifest is not valid JSON"
   fi
-else
-  add_warning "No applied manifest exists yet; run make switch once to create it"
 fi
 
 apply_state="unknown"
@@ -201,15 +199,17 @@ if command_exists nix && [[ -r "$CONFIG_DIR/flake.lock" && "${NIX_ME_SKIP_UPDATE
       --slurpfile current "$CONFIG_DIR/flake.lock" \
       --slurpfile candidate "$candidate_lock" '
         [
-          $candidate[0].nodes
+          $candidate[0].nodes.root.inputs
           | to_entries[]
-          | select(.key != "root")
-          | . as $entry
-          | ($current[0].nodes[$entry.key].locked.rev // $current[0].nodes[$entry.key].locked.narHash // "") as $installed
-          | ($entry.value.locked.rev // $entry.value.locked.narHash // "") as $available
+          | . as $input
+          | (if ($input.value | type) == "array" then $input.value[-1] else $input.value end) as $candidateNode
+          | ($current[0].nodes.root.inputs[$input.key] // null) as $currentValue
+          | (if ($currentValue | type) == "array" then $currentValue[-1] else $currentValue end) as $currentNode
+          | ($current[0].nodes[$currentNode].locked.rev // $current[0].nodes[$currentNode].locked.narHash // "") as $installed
+          | ($candidate[0].nodes[$candidateNode].locked.rev // $candidate[0].nodes[$candidateNode].locked.narHash // "") as $available
           | select($installed != $available)
           | {
-              name: $entry.key,
+              name: $input.key,
               kind: "nixFlake",
               installedVersions: [$installed[0:7]],
               availableVersion: $available[0:7]

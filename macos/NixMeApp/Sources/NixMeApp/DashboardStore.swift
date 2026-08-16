@@ -7,6 +7,7 @@ final class DashboardStore: ObservableObject {
     @Published private(set) var isLoading = false
     @Published private(set) var isUpdating = false
     @Published private(set) var isApplying = false
+    @Published private(set) var isSyncingProjects = false
     @Published private(set) var updatingItemCount = 0
     @Published private(set) var errorMessage: String?
     @Published private(set) var updateNotice: String?
@@ -114,6 +115,27 @@ final class DashboardStore: ObservableObject {
 
         await refresh()
         isApplying = false
+        updateNotice = notice
+    }
+
+    func syncProjects() async {
+        guard !isSyncingProjects, !isApplying, !isUpdating, !isLoading, let snapshot else { return }
+        isSyncingProjects = true
+        updateNotice = nil
+        var notice: String
+
+        do {
+            let managementClient = try client ?? ManagementAPIClient()
+            self.client = managementClient
+            let actionClient = ManagementActionClient(configurationDirectory: managementClient.configurationDirectory)
+            let response = try await actionClient.syncProjects(hostname: snapshot.host.hostname)
+            notice = response.success ? "Projects synchronized successfully." : "Project sync failed: \(response.message)"
+        } catch {
+            notice = "Project sync failed: \(error.localizedDescription)"
+        }
+
+        await refresh()
+        isSyncingProjects = false
         updateNotice = notice
     }
 

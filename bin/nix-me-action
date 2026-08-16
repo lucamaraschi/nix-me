@@ -64,8 +64,48 @@ run_apply() {
     '{schemaVersion: 1, action: "apply", success: $success, message: $message}'
 }
 
+run_sync_projects() {
+  local host_name home_dir sync_script log_file message succeeded
+  host_name="${NIX_ME_HOSTNAME:-$(hostname -s | tr '[:upper:]' '[:lower:]')}"
+  home_dir="${HOME:-}"
+  sync_script="$CONFIG_DIR/scripts/sync-projects.sh"
+
+  if [[ ! "$host_name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ || -z "$home_dir" ]]; then
+    jq -n '{schemaVersion: 1, action: "sync-projects", success: false, message: "The host or home directory failed validation"}'
+    return
+  fi
+
+  if [[ ! -x "$sync_script" || ! -f "$CONFIG_DIR/flake.nix" ]]; then
+    jq -n '{schemaVersion: 1, action: "sync-projects", success: false, message: "The project sync script or flake is missing"}'
+    return
+  fi
+
+  if [[ "${NIX_ME_ACTION_DRY_RUN:-0}" == "1" ]]; then
+    jq -n --arg host "$host_name" \
+      '{schemaVersion: 1, action: "sync-projects", success: true, message: ("Would sync projects for " + $host)}'
+    return
+  fi
+
+  log_file="$(mktemp "${TMPDIR:-/tmp}/nix-me-projects.XXXXXX")"
+  succeeded=true
+  if ! "$sync_script" --flake-dir "$CONFIG_DIR" --hostname "$host_name" --home "$home_dir" >"$log_file" 2>&1; then
+    succeeded=false
+  fi
+  message="$(tail -40 "$log_file" 2>/dev/null || true)"
+  rm -f -- "$log_file"
+  jq -n \
+    --argjson success "$succeeded" \
+    --arg message "${message:-Projects synchronized successfully}" \
+    '{schemaVersion: 1, action: "sync-projects", success: $success, message: $message}'
+}
+
 if [[ "$action" == "apply" ]]; then
   run_apply
+  exit 0
+fi
+
+if [[ "$action" == "sync-projects" ]]; then
+  run_sync_projects
   exit 0
 fi
 
