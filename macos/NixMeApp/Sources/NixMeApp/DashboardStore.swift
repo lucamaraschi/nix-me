@@ -10,6 +10,7 @@ final class DashboardStore: ObservableObject {
     @Published private(set) var isUpdating = false
     @Published private(set) var isApplying = false
     @Published private(set) var isSyncingProjects = false
+    @Published private(set) var isConfiguring = false
     @Published private(set) var updatingItemCount = 0
     @Published private(set) var errorMessage: String?
     @Published private(set) var updateNotice: String?
@@ -59,6 +60,51 @@ final class DashboardStore: ObservableObject {
     func openConfiguration() {
         guard let snapshot else { return }
         NSWorkspace.shared.open(URL(fileURLWithPath: snapshot.configuration.path))
+    }
+
+    func chooseConfigurationDirectory() {
+        let panel = NSOpenPanel()
+        panel.title = "Choose nix-me Configuration"
+        panel.message = "Select the folder containing flake.nix."
+        panel.prompt = "Use Configuration"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+
+        guard panel.runModal() == .OK, let directory = panel.url else { return }
+        Task { await configure(with: directory) }
+    }
+
+    func cloneDefaultConfiguration() async {
+        guard !isConfiguring else { return }
+        isConfiguring = true
+        let destination = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".config/nixpkgs", isDirectory: true)
+
+        do {
+            try await ConfigurationBootstrap.clone(to: destination)
+            await configure(with: destination)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        isConfiguring = false
+    }
+
+    private func configure(with directory: URL) async {
+        let resolved = directory.resolvingSymlinksInPath()
+        guard ManagementAPIClient.isConfigurationDirectory(resolved) else {
+            errorMessage = ConfigurationBootstrapError.invalidConfiguration(resolved.path).localizedDescription
+            return
+        }
+
+        do {
+            client = try ManagementAPIClient(configurationDirectory: resolved)
+            UserDefaults.standard.set(resolved.path, forKey: ManagementAPIClient.configurationDirectoryDefaultsKey)
+            errorMessage = nil
+            await refresh()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     func openConfigurationFile(_ path: String) {

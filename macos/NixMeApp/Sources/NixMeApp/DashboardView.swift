@@ -59,10 +59,13 @@ struct DashboardView: View {
                 if let snapshot = store.snapshot {
                     content(for: selection, snapshot: snapshot)
                 } else if let errorMessage = store.errorMessage {
-                    ContentUnavailableView(
-                        "Configuration unavailable",
-                        systemImage: "exclamationmark.triangle",
-                        description: Text(errorMessage)
+                    ConfigurationSetupView(
+                        errorMessage: errorMessage,
+                        isConfiguring: store.isConfiguring,
+                        chooseConfiguration: store.chooseConfigurationDirectory,
+                        cloneConfiguration: {
+                            Task { await store.cloneDefaultConfiguration() }
+                        }
                     )
                 } else {
                     ProgressView("Reading this Mac…")
@@ -194,6 +197,60 @@ struct DashboardView: View {
                 }
             )
         }
+    }
+}
+
+private struct ConfigurationSetupView: View {
+    let errorMessage: String
+    let isConfiguring: Bool
+    let chooseConfiguration: () -> Void
+    let cloneConfiguration: () -> Void
+
+    var body: some View {
+        VStack(spacing: 22) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(.blue.opacity(0.13))
+                Image(systemName: "snowflake")
+                    .font(.system(size: 38, weight: .medium))
+                    .foregroundStyle(.blue)
+            }
+            .frame(width: 78, height: 78)
+
+            VStack(spacing: 8) {
+                Text("Connect your configuration")
+                    .font(.title2.weight(.semibold))
+                Text("Nix Me needs its configuration repository to inspect and manage this Mac.")
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 460)
+            }
+
+            HStack(spacing: 10) {
+                Button("Choose Existing Folder", systemImage: "folder", action: chooseConfiguration)
+                    .buttonStyle(.bordered)
+                    .disabled(isConfiguring)
+                Button("Clone from GitHub", systemImage: "arrow.down.circle", action: cloneConfiguration)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(isConfiguring)
+            }
+
+            if isConfiguring {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("Cloning configuration…")
+                }
+                .foregroundStyle(.secondary)
+            } else {
+                Label(errorMessage, systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 520)
+            }
+        }
+        .padding(40)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 

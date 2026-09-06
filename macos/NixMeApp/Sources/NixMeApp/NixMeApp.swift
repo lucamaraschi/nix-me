@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct NixMeApp: App {
     @StateObject private var store = DashboardStore()
+    @StateObject private var updater = AppUpdater()
 
     var body: some Scene {
         WindowGroup("Nix Me", id: "dashboard") {
@@ -13,7 +14,7 @@ struct NixMeApp: App {
         .windowToolbarStyle(.unified)
 
         MenuBarExtra {
-            MenuBarView(store: store)
+            MenuBarView(store: store, updater: updater)
         } label: {
             if let snapshot = store.snapshot, snapshot.softwareUpdateCount > 0 {
                 HStack(spacing: 3) {
@@ -30,5 +31,13 @@ struct NixMeApp: App {
             }
         }
         .menuBarExtraStyle(.window)
+
+        .commands {
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates…") {
+                    updater.checkForUpdates()
+                }
+            }
+        }
     }
 }

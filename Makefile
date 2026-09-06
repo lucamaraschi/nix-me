@@ -14,7 +14,7 @@ USERNAME := $(shell whoami)
 # Force hostname to lowercase in all commands
 FINAL_HOSTNAME := $(shell echo "$(HOSTNAME)" | tr '[:upper:]' '[:lower:]')
 
-.PHONY: switch switch-fast build clean update check fmt help list-machines sync-projects reset-raycast-window api test-api test-actions test-details app app-run
+.PHONY: switch switch-fast build clean update check fmt help list-machines sync-projects reset-raycast-window api test-api test-actions test-details app app-run app-package
 
 # Default target
 help:
@@ -32,6 +32,7 @@ help:
 	@echo "  test-details    Validate package metadata responses"
 	@echo "  app             Build the native macOS app"
 	@echo "  app-run         Build and launch the native macOS app"
+	@echo "  app-package     Build a local DMG in dist/"
 	@echo "  sync-projects   Clone and update configured projects"
 	@echo "  reset-raycast-window  Reset Raycast window placement cache"
 	@echo "  fmt             Format nix files with nixpkgs-fmt"
@@ -172,6 +173,9 @@ app:
 
 app-run: app
 	@open "$(MAKEFILE_DIR)/build/Nix Me.app"
+
+app-package: app
+	@./scripts/package-macos-app.sh
 
 # Update flake inputs
 update:

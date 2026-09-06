@@ -3,6 +3,7 @@ import SwiftUI
 
 struct MenuBarView: View {
     @ObservedObject var store: DashboardStore
+    @ObservedObject var updater: AppUpdater
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -69,6 +70,14 @@ struct MenuBarView: View {
                 }
                 .buttonStyle(.bordered)
                 .disabled(store.isLoading)
+
+                Button {
+                    updater.checkForUpdates()
+                } label: {
+                    Image(systemName: "arrow.down.circle")
+                }
+                .buttonStyle(.bordered)
+                .help("Check for Nix Me updates")
 
                 Spacer()
 

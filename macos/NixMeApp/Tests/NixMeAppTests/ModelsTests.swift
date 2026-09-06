@@ -78,6 +78,19 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(graph.node(at: "hosts/profiles/dev.nix")?.summary, "Development profile")
     }
 
+    func testConfigurationDirectoryRequiresFlakeAndAPI() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        XCTAssertFalse(ManagementAPIClient.isConfigurationDirectory(root))
+        try write("{}", to: root.appendingPathComponent("flake.nix"))
+        XCTAssertFalse(ManagementAPIClient.isConfigurationDirectory(root))
+        try write("#!/bin/bash", to: root.appendingPathComponent("bin/nix-me-api"))
+        XCTAssertTrue(ManagementAPIClient.isConfigurationDirectory(root))
+    }
+
     private func write(_ contents: String, to url: URL) throws {
         try FileManager.default.createDirectory(
             at: url.deletingLastPathComponent(),

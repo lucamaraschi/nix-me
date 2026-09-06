@@ -8,8 +8,14 @@ let package = Package(
     products: [
         .executable(name: "NixMeApp", targets: ["NixMeApp"])
     ],
+    dependencies: [
+        .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.9.6")
+    ],
     targets: [
-        .executableTarget(name: "NixMeApp"),
+        .executableTarget(
+            name: "NixMeApp",
+            dependencies: [.product(name: "Sparkle", package: "Sparkle")]
+        ),
         .testTarget(name: "NixMeAppTests", dependencies: ["NixMeApp"])
     ]
 )

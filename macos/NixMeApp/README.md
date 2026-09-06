@@ -24,3 +24,8 @@ Apply Configuration step with native administrator approval.
 The menu bar indicator checks every 30 minutes and displays the total number of
 available Nix input, Homebrew, and Mac App Store updates. Opening it shows a
 compact system summary and supports manual refresh or opening the dashboard.
+
+Nix Me also checks for application updates through Sparkle. Production builds
+are distributed as signed and notarized DMGs from GitHub Releases, with an
+optional Homebrew cask. See [macOS distribution](../../docs/MACOS_DISTRIBUTION.md)
+for release credentials and workflow details.

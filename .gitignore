@@ -37,3 +37,4 @@ tui/*.log
 # Swift and native app builds
 macos/NixMeApp/.build/
 build/
+dist/

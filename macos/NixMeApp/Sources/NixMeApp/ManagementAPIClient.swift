@@ -18,6 +18,7 @@ enum ManagementAPIError: LocalizedError {
 }
 
 struct ManagementAPIClient {
+    static let configurationDirectoryDefaultsKey = "NixMeConfigurationDirectory"
     let configurationDirectory: URL
 
     init(configurationDirectory: URL? = nil) throws {
@@ -136,14 +137,22 @@ struct ManagementAPIClient {
             candidates.append(URL(fileURLWithPath: configuredPath))
         }
 
+        if let savedPath = UserDefaults.standard.string(forKey: configurationDirectoryDefaultsKey),
+           !savedPath.isEmpty {
+            candidates.append(URL(fileURLWithPath: savedPath))
+        }
+
         candidates.append(URL(fileURLWithPath: fileManager.currentDirectoryPath))
         candidates.append(fileManager.homeDirectoryForCurrentUser.appendingPathComponent(".config/nixpkgs"))
         candidates.append(fileManager.homeDirectoryForCurrentUser.appendingPathComponent("src/lm/nix-me"))
 
-        return candidates.first { candidate in
-            fileManager.fileExists(atPath: candidate.appendingPathComponent("flake.nix").path)
-                && fileManager.fileExists(atPath: candidate.appendingPathComponent("bin/nix-me-api").path)
-        }?.resolvingSymlinksInPath()
+        return candidates.first(where: isConfigurationDirectory)?.resolvingSymlinksInPath()
+    }
+
+    static func isConfigurationDirectory(_ directory: URL) -> Bool {
+        let fileManager = FileManager.default
+        return fileManager.fileExists(atPath: directory.appendingPathComponent("flake.nix").path)
+            && fileManager.fileExists(atPath: directory.appendingPathComponent("bin/nix-me-api").path)
     }
 }
 
