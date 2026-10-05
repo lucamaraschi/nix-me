@@ -20,30 +20,32 @@
 
   outputs = inputs@{ self, nixpkgs, nixpkgs-unstable, darwin, home-manager, ... }:
     let
-        defaultUsername = "lucamaraschi";
-        username = let
+      defaultUsername = "lucamaraschi";
+      username =
+        let
           detected = builtins.getEnv "USERNAME";
-        in if detected != "" then detected else defaultUsername;
+        in
+        if detected != "" then detected else defaultUsername;
 
-        # Check if we're running in VM mode (skip Mac App Store apps)
-        skipMasApps = builtins.getEnv "SKIP_MAS_APPS" == "1";
+      # Check if we're running in VM mode (skip Mac App Store apps)
+      skipMasApps = builtins.getEnv "SKIP_MAS_APPS" == "1";
 
-        mkUnstablePkgs =
-          system:
-          import nixpkgs-unstable {
-            inherit system;
-            config.allowUnfree = true;
-          };
+      mkUnstablePkgs =
+        system:
+        import nixpkgs-unstable {
+          inherit system;
+          config.allowUnfree = true;
+        };
 
       # Function to create a darwin configuration
-      mkDarwinSystem = {
-        hostname,
-        machineType ? null,
-        machineName ? hostname,
-        system ? "aarch64-darwin",
-        username ? "lucamaraschi",
-        extraModules ? []
-      }:
+      mkDarwinSystem =
+        { hostname
+        , machineType ? null
+        , machineName ? hostname
+        , system ? "aarch64-darwin"
+        , username ? "lucamaraschi"
+        , extraModules ? [ ]
+        }:
         darwin.lib.darwinSystem {
           inherit system;
           modules = [
@@ -51,19 +53,19 @@
             ./nix/hosts/types/shared
 
             # Machine-type specific configuration (if specified)
-            (if machineType != null then ./nix/hosts/types/${machineType} else {})
+            (if machineType != null then ./nix/hosts/types/${machineType} else { })
 
             # Host-specific configuration (if it exists)
             (if builtins.pathExists ./nix/hosts/machines/${hostname}
             then ./nix/hosts/machines/${hostname}
-            else {})
+            else { })
 
             # Set hostname, machine name, and primary user
             {
               networking = {
                 hostName = hostname;
                 computerName = machineName;
-                localHostName = machineName;
+                localHostName = hostname;
               };
 
               # Fix for primary user requirement
@@ -101,13 +103,13 @@
             }
 
             # VM mode - skip Mac App Store apps (iCloud doesn't work in VMs)
-            (if skipMasApps then ./nix/modules/darwin/vm-mode.nix else {})
+            (if skipMasApps then ./nix/modules/darwin/vm-mode.nix else { })
           ] ++ extraModules;
           specialArgs = {
             inherit inputs hostname machineType machineName username;
             unstablePkgs = mkUnstablePkgs system;
           };
-  };
+        };
     in
     {
       packages = nixpkgs.lib.genAttrs [
@@ -115,25 +117,26 @@
         "x86_64-darwin"
         "aarch64-linux"
         "x86_64-linux"
-      ] (system:
-        let pkgs = import nixpkgs { inherit system; };
-        in {
-          nix-me-apps = pkgs.rustPlatform.buildRustPackage {
-            pname = "nix-me-apps";
-            version = "0.1.0";
-            src = pkgs.lib.cleanSourceWith {
-              src = ./packages/app-state/engine;
-              filter = path: type:
-                let base = baseNameOf path;
-                in base != "target" && base != ".git";
+      ]
+        (system:
+          let pkgs = import nixpkgs { inherit system; };
+          in {
+            nix-me-apps = pkgs.rustPlatform.buildRustPackage {
+              pname = "nix-me-apps";
+              version = "0.1.0";
+              src = pkgs.lib.cleanSourceWith {
+                src = ./packages/app-state/engine;
+                filter = path: type:
+                  let base = baseNameOf path;
+                  in base != "target" && base != ".git";
+              };
+              cargoLock.lockFile = ./packages/app-state/engine/Cargo.lock;
+              cargoBuildFlags = [ "-p" "nix-me-apps" ];
+              cargoTestFlags = [ "-p" "nix-me-apps" ];
+              meta.mainProgram = "nix-me-apps";
             };
-            cargoLock.lockFile = ./packages/app-state/engine/Cargo.lock;
-            cargoBuildFlags = [ "-p" "nix-me-apps" ];
-            cargoTestFlags = [ "-p" "nix-me-apps" ];
-            meta.mainProgram = "nix-me-apps";
-          };
-          default = self.packages.${system}.nix-me-apps;
-        });
+            default = self.packages.${system}.nix-me-apps;
+          });
 
       # Define specific machine configurations
       darwinConfigurations = {
@@ -151,12 +154,12 @@
           machineName = "Nabucodonosor";
           username = "batman";
           extraModules = [
-            ./nix/hosts/profiles/dev.nix   # Development tools
-            ./nix/hosts/profiles/coding-agents.nix  # AI coding agents
-            ./nix/hosts/profiles/work.nix  # Work collaboration apps
-            ./nix/hosts/profiles/personal.nix  # Media tools for tutorials/streaming
-            ./nix/hosts/profiles/hacking.nix  # Hacking tools for on the go
-            ./nix/hosts/profiles/maker.nix  # 3D printing & CAD
+            ./nix/hosts/profiles/dev.nix # Development tools
+            ./nix/hosts/profiles/coding-agents.nix # AI coding agents
+            ./nix/hosts/profiles/work.nix # Work collaboration apps
+            ./nix/hosts/profiles/personal.nix # Media tools for tutorials/streaming
+            ./nix/hosts/profiles/hacking.nix # Hacking tools for on the go
+            ./nix/hosts/profiles/maker.nix # 3D printing & CAD
           ];
         };
 
@@ -174,12 +177,12 @@
           machineName = "Bellerofonte";
           username = "batman";
           extraModules = [
-            ./nix/hosts/profiles/dev.nix   # Development tools
-            ./nix/hosts/profiles/coding-agents.nix  # AI coding agents
-            ./nix/hosts/profiles/work.nix  # Work collaboration apps
-            ./nix/hosts/profiles/personal.nix  # Media tools for tutorials/streaming
-            ./nix/hosts/profiles/hacking.nix  # Hacking tools for on the go
-            ./nix/hosts/profiles/maker.nix  # 3D printing & CAD
+            ./nix/hosts/profiles/dev.nix # Development tools
+            ./nix/hosts/profiles/coding-agents.nix # AI coding agents
+            ./nix/hosts/profiles/work.nix # Work collaboration apps
+            ./nix/hosts/profiles/personal.nix # Media tools for tutorials/streaming
+            ./nix/hosts/profiles/hacking.nix # Hacking tools for on the go
+            ./nix/hosts/profiles/maker.nix # 3D printing & CAD
             ./nix/hosts/profiles/ai.nix
           ];
         };
@@ -198,11 +201,11 @@
           machineName = "Zion";
           username = "batman";
           extraModules = [
-            ./nix/hosts/profiles/dev.nix       # Development tools
-            ./nix/hosts/profiles/coding-agents.nix  # AI coding agents
-            ./nix/hosts/profiles/work.nix      # Work collaboration apps
-            ./nix/hosts/profiles/personal.nix  # Media tools for tutorials/streaming
-            ./nix/hosts/profiles/maker.nix  # 3D printing & CAD
+            ./nix/hosts/profiles/dev.nix # Development tools
+            ./nix/hosts/profiles/coding-agents.nix # AI coding agents
+            ./nix/hosts/profiles/work.nix # Work collaboration apps
+            ./nix/hosts/profiles/personal.nix # Media tools for tutorials/streaming
+            ./nix/hosts/profiles/maker.nix # 3D printing & CAD
           ];
         };
 
@@ -211,9 +214,9 @@
           hostname = "vm-test";
           machineType = "vm";
           machineName = "VM";
-          username = username;  # Use USERNAME env var or default
+          username = username; # Use USERNAME env var or default
           # Exercise the opt-in activation path in the disposable macOS VM.
-          extraModules = [ { apps.state.enable = true; } ];
+          extraModules = [{ apps.state.enable = true; }];
         };
 
         # Add a generic VM configuration for testing
@@ -230,6 +233,7 @@
         #   - dev.nix      → IDEs, languages, dev tools
         #   - work.nix     → Slack, Teams, Zoom, etc.
         #   - personal.nix → Spotify, OBS, media tools
+        #   - local-ai.nix → Local DeepSeek inference through DS4 and Pi
 
         # Work developer machine (dev + coding agents + work)
         "work-macbook-pro" = mkDarwinSystem {
@@ -257,6 +261,18 @@
           ];
         };
 
+        # Local AI machine (dev + private DeepSeek coding agent)
+        "local-ai-macbook-pro" = mkDarwinSystem {
+          hostname = "local-ai-macbook-pro";
+          machineType = "macbook-pro";
+          machineName = "Local AI MacBook Pro";
+          username = "batman";
+          extraModules = [
+            ./nix/hosts/profiles/dev.nix
+            ./nix/hosts/profiles/local-ai.nix
+          ];
+        };
+
         # Full-stack machine (dev + coding agents + work + personal)
         "work-macbook" = mkDarwinSystem {
           hostname = "work-macbook";
@@ -267,7 +283,7 @@
             ./nix/hosts/profiles/dev.nix
             ./nix/hosts/profiles/coding-agents.nix
             ./nix/hosts/profiles/work.nix
-            ./nix/hosts/profiles/personal.nix  # For after-hours
+            ./nix/hosts/profiles/personal.nix # For after-hours
           ];
         };
 
@@ -298,9 +314,9 @@
           machineName = "Hacking Lab";
           username = "batman";
           extraModules = [
-            ./nix/hosts/profiles/dev.nix      # Development tools
-            ./nix/hosts/profiles/coding-agents.nix  # AI coding agents
-            ./nix/hosts/profiles/hacking.nix  # Security/pentesting tools
+            ./nix/hosts/profiles/dev.nix # Development tools
+            ./nix/hosts/profiles/coding-agents.nix # AI coding agents
+            ./nix/hosts/profiles/hacking.nix # Security/pentesting tools
           ];
         };
       };
@@ -325,8 +341,7 @@
       };
 
       # Standalone home-manager configurations (for non-NixOS systems)
-      homeConfigurations = {
-      };
+      homeConfigurations = { };
 
       # packages = {
       #   aarch64-darwin = {

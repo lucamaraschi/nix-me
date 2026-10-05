@@ -1,4 +1,4 @@
-# Profiles - Work and Personal Configurations
+# Profiles - Composable Machine Configurations
 
 **Type:** Optional Configuration Layers
 **Inherits From:** N/A (applied as extra modules)
@@ -6,7 +6,9 @@
 
 ## Overview
 
-Profiles are reusable configuration modules that customize machines for specific contexts (work vs personal). They layer on top of the base machine configuration to add context-specific applications, tools, and settings.
+Profiles are reusable configuration modules that customize machines for specific
+contexts. They layer on top of the base machine configuration to add
+context-specific applications, tools, projects, and settings.
 
 ## Architecture
 
@@ -103,6 +105,21 @@ Optimizes the machine for personal use, creativity, and entertainment.
 
 **Environment Variables:**
 - `PERSONAL_PROJECTS=$HOME/Projects`
+
+### Local AI Profile (`local-ai.nix`)
+
+Provides private DeepSeek inference on Apple Silicon through DS4 and Pi.
+
+**Adds:**
+- Pi coding agent through Homebrew
+- DS4 and pi-ds4 project declarations under `~/src/ai`
+- Declarative Pi DS4 baseline settings
+- `local-ai-doctor` prerequisite and capacity checks
+- `local-ai-setup` runtime build, Pi integration, and explicit model download
+
+The profile never downloads model weights during activation. Run
+`local-ai-setup --download-model` after checking the machine with
+`local-ai-doctor`.
 
 ## Usage Examples
 

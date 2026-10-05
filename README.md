@@ -230,6 +230,17 @@ Profiles are **composable** - combine them to match your needs:
 </td>
 <td>3D printing & CAD</td>
 </tr>
+<tr>
+<td><code>local-ai</code></td>
+<td>
+
+- Pi coding agent
+- DS4 and pi-ds4 project checkouts
+- DeepSeek V4 Flash Q2 setup and diagnostics
+
+</td>
+<td>Private, local coding assistance on Apple Silicon</td>
+</tr>
 </table>
 
 ### Profile Combinations
@@ -259,6 +270,12 @@ extraModules = [
   ./nix/hosts/profiles/maker.nix
 ];
 
+# Local DeepSeek coding agent
+extraModules = [
+  ./nix/hosts/profiles/dev.nix
+  ./nix/hosts/profiles/local-ai.nix
+];
+
 # Full setup (everything)
 extraModules = [
   ./nix/hosts/profiles/dev.nix
@@ -271,6 +288,11 @@ extraModules = [
 # Minimal (no profiles - just base essentials)
 # Simply omit extraModules
 ```
+
+The `local-ai` profile intentionally does not download the large model during
+activation. After `make switch`, run `local-ai-doctor`, then
+`local-ai-setup --download-model`. Start `pi`, run `/model`, and select
+`ds4/dsv4-flash-q2`.
 
 ---
 
