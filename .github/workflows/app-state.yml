@@ -14,29 +14,32 @@ on:
         required: true
   pull_request:
     paths:
-      - "engine/**"
-      - "recipes/**"
-      - "catalog/**"
+      - "packages/app-state/engine/**"
+      - "packages/app-state/recipes/**"
+      - "packages/app-state/catalog/**"
       - "tools/update-homebrew-app-catalog.sh"
-      - "values/**"
-      - "metrics/**"
-      - "tests/vm-test.sh"
+      - "packages/app-state/values/**"
+      - "packages/app-state/metrics/**"
+      - "tests/vm/vm-test.sh"
       - "docs/APP_STATE.md"
       - "docs/CAPTURE.md"
       - "docs/REGISTRY.md"
-      - "modules/darwin/apps/nix-me.nix"
-      - "modules/home-manager/rectangle.nix"
+      - "docs/HARNESS_PLAN.md"
+      - "nix/modules/darwin/apps/nix-me.nix"
+      - "nix/modules/home-manager/rectangle.nix"
       - ".github/workflows/app-state.yml"
   push:
     branches: [main]
     paths:
-      - "engine/**"
-      - "recipes/**"
-      - "catalog/**"
+      - "packages/app-state/engine/**"
+      - "packages/app-state/recipes/**"
+      - "packages/app-state/catalog/**"
       - "tools/update-homebrew-app-catalog.sh"
-      - "values/**"
-      - "metrics/**"
-      - "tests/vm-test.sh"
+      - "packages/app-state/values/**"
+      - "packages/app-state/metrics/**"
+      - "tests/vm/vm-test.sh"
+      - "nix/modules/darwin/apps/nix-me.nix"
+      - "nix/modules/home-manager/rectangle.nix"
       - ".github/workflows/app-state.yml"
 
 permissions:
@@ -47,19 +50,19 @@ jobs:
     name: Local recipe catalog and metric
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - name: Validate every recipe
-        working-directory: engine
+        working-directory: packages/app-state/engine
         run: cargo run -p nix-me-apps -- registry validate --recipe ../recipes --json
       - name: Validate top-200 application behavior map
-        working-directory: engine
+        working-directory: packages/app-state/engine
         run: |
           cargo run -p nix-me-apps -- registry catalog-validate \
             --catalog ../catalog/homebrew-top-200-apps.json \
             --recipe ../recipes --json
       - name: Build top-200 metric artifact
-        working-directory: engine
+        working-directory: packages/app-state/engine
         run: |
           cargo run -p nix-me-apps -- registry catalog-metric \
             --catalog ../catalog/homebrew-top-200-apps.json \
@@ -73,9 +76,9 @@ jobs:
         with:
           name: local-app-state-catalog
           path: |
-            catalog/homebrew-top-200-apps.json
-            catalog/homebrew-top-200-apps.md
-            metrics/zero-click.json
+            packages/app-state/catalog/homebrew-top-200-apps.json
+            packages/app-state/catalog/homebrew-top-200-apps.md
+            packages/app-state/metrics/zero-click.json
 
   headless:
     name: T0/T1 (${{ matrix.os }})
@@ -86,9 +89,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     defaults:
       run:
-        working-directory: engine
+        working-directory: packages/app-state/engine
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
@@ -100,9 +103,9 @@ jobs:
     runs-on: macos-15
     defaults:
       run:
-        working-directory: engine
+        working-directory: packages/app-state/engine
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo test -p nix-me-apps --test macos_real -- --ignored --nocapture
 
@@ -112,18 +115,18 @@ jobs:
     runs-on: [self-hosted, macOS, ARM64, utm]
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Verify Rectangle in an ephemeral VM
         env:
           APP_STATE_BASE_VM: ${{ inputs.base_vm }}
           APP_STATE_VM_USER: ${{ inputs.vm_user }}
         run: |
-          ./tests/vm-test.sh \
+          ./tests/vm/vm-test.sh \
             --base-vm="$APP_STATE_BASE_VM" \
             --vm-user="$APP_STATE_VM_USER" \
             --source=local \
             --onsuccess=delete \
             --onfailure=keep \
-            --app-state-recipe=recipes/rectangle.yaml \
-            --app-state-values=values/rectangle.yaml \
+            --app-state-recipe=packages/app-state/recipes/rectangle.yaml \
+            --app-state-values=packages/app-state/values/rectangle.yaml \
             --app-state-only=rectangle

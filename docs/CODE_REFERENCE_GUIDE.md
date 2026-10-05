@@ -4,7 +4,7 @@
 
 ### Issue #1: Process Management Problem
 
-**File:** `/Users/batman/src/lm/nix-me/lib/package-manager.sh`
+**File:** `/Users/batman/src/lm/nix-me/apps/cli/lib/package-manager.sh`
 
 **Problem Area:**
 - Lines 50-182: `browse_homebrew_casks_fzf()` function
@@ -49,7 +49,7 @@ rm "$formatted_file"
 
 ### Issue #2: Non-Installed Package Details Problem
 
-**File:** `/Users/batman/src/lm/nix-me/lib/package-manager.sh`
+**File:** `/Users/batman/src/lm/nix-me/apps/cli/lib/package-manager.sh`
 
 **Problem Area #1 - Formatting (Lines 140-149):**
 ```bash
@@ -90,7 +90,7 @@ done < "$temp_file"
 
 ## File Structure and Function Map
 
-### Entry Point: `/Users/batman/src/lm/nix-me/bin/nix-me`
+### Entry Point: `/Users/batman/src/lm/nix-me/apps/cli/bin/nix-me`
 
 **cmd_search() - Lines 157-200:**
 ```bash
@@ -121,7 +121,7 @@ cmd_browse() {
 
 ---
 
-### Core Implementation: `/Users/batman/src/lm/nix-me/lib/package-manager.sh`
+### Core Implementation: `/Users/batman/src/lm/nix-me/apps/cli/lib/package-manager.sh`
 
 **browse_homebrew_casks_fzf() - Lines 50-182:**
 
@@ -310,16 +310,16 @@ watch -n 0.5 "ps aux | grep -E 'brew|fzf' | grep -v grep"
 cd /Users/batman/src/lm/nix-me
 
 # Start search 1
-bin/nix-me search docker
+apps/cli/bin/nix-me search docker
 # Wait for fzf to load
 # Press ESC to cancel
 
 # Start search 2
-bin/nix-me search spotify
+apps/cli/bin/nix-me search spotify
 # Watch terminal 1 - should see lingering processes from search 1
 
 # Repeat
-bin/nix-me search figma
+apps/cli/bin/nix-me search figma
 # More processes accumulate
 ```
 
@@ -329,7 +329,7 @@ bin/nix-me search figma
 cd /Users/batman/src/lm/nix-me
 
 # Start browse
-bin/nix-me browse
+apps/cli/bin/nix-me browse
 
 # Choose option 1: Browse all
 
@@ -349,7 +349,7 @@ bin/nix-me browse
 
 ### For Issue #1 (Process Management):
 
-**Location:** Lines 156-170 in `/Users/batman/src/lm/nix-me/lib/package-manager.sh`
+**Location:** Lines 156-170 in `/Users/batman/src/lm/nix-me/apps/cli/lib/package-manager.sh`
 
 **Add before launching fzf:**
 1. Trap signal handlers
@@ -364,7 +364,7 @@ bin/nix-me browse
 
 ### For Issue #2 (Token Extraction):
 
-**Location:** Lines 140-149 and 162 in `/Users/batman/src/lm/nix-me/lib/package-manager.sh`
+**Location:** Lines 140-149 and 162 in `/Users/batman/src/lm/nix-me/apps/cli/lib/package-manager.sh`
 
 **Option A: Change separator**
 ```bash
@@ -396,7 +396,7 @@ printf "%-1s %s\n" " " "$cask"   # Not installed
 ## File Dependencies
 
 ```
-bin/nix-me
+apps/cli/bin/nix-me
     ↑
     └─ sources lib/ui.sh (line 10)
     └─ sources lib/package-manager.sh (line 12)

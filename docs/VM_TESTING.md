@@ -64,7 +64,7 @@ You need a base macOS VM with:
 
 4. **Run automated setup:**
    ```bash
-   ./tests/setup-base-vm-ssh.sh --vm="macOS Tahoe - base" --user=admin
+   ./tests/vm/setup-base-vm-ssh.sh --vm="macOS Tahoe - base" --user=admin
    ```
 
 Done! The script configures system settings via SSH (no software installed - keeps VM clean).
@@ -90,7 +90,7 @@ See [Base VM Setup Guide](./BASE_VM_SETUP.md) for complete instructions.
 Test the latest version from GitHub:
 
 ```bash
-./tests/vm-test.sh --vm-user=admin
+./tests/vm/vm-test.sh --vm-user=admin
 ```
 
 **Note:** `--vm-user` is required (the username in your base VM with SSH access).
@@ -108,7 +108,7 @@ This will:
 If your base VM has a different name:
 
 ```bash
-./tests/vm-test.sh --vm-user=admin --base-vm="macOS Sonoma Clean"
+./tests/vm/vm-test.sh --vm-user=admin --base-vm="macOS Sonoma Clean"
 ```
 
 ### Custom Test VM Name
@@ -116,7 +116,7 @@ If your base VM has a different name:
 Specify a custom name for the test VM:
 
 ```bash
-./tests/vm-test.sh --vm-user=admin --name="my-test-vm"
+./tests/vm/vm-test.sh --vm-user=admin --name="my-test-vm"
 ```
 
 ### Test Local Changes
@@ -124,7 +124,7 @@ Specify a custom name for the test VM:
 Test uncommitted changes in your working directory:
 
 ```bash
-./tests/vm-test.sh --vm-user=admin --source=local
+./tests/vm/vm-test.sh --vm-user=admin --source=local
 ```
 
 This will copy your local project files to the VM via SSH and run the installation from there. Perfect for testing changes before committing!
@@ -135,16 +135,16 @@ Control VM cleanup with `--onsuccess` and `--onfailure` flags:
 
 ```bash
 # Delete VM if tests pass, keep if they fail
-./tests/vm-test.sh --vm-user=admin --onsuccess=delete --onfailure=keep
+./tests/vm/vm-test.sh --vm-user=admin --onsuccess=delete --onfailure=keep
 
 # Always keep VM for inspection
-./tests/vm-test.sh --vm-user=admin --onsuccess=keep --onfailure=keep
+./tests/vm/vm-test.sh --vm-user=admin --onsuccess=keep --onfailure=keep
 
 # Always delete (good for CI)
-./tests/vm-test.sh --vm-user=admin --onsuccess=delete --onfailure=delete
+./tests/vm/vm-test.sh --vm-user=admin --onsuccess=delete --onfailure=delete
 
 # Ask in both cases (default)
-./tests/vm-test.sh --vm-user=admin --onsuccess=ask --onfailure=ask
+./tests/vm/vm-test.sh --vm-user=admin --onsuccess=ask --onfailure=ask
 ```
 
 ### Combined Flags
@@ -153,19 +153,19 @@ Flags can be combined for precise control:
 
 ```bash
 # Test local changes, auto-delete on success
-./tests/vm-test.sh --vm-user=admin --source=local --onsuccess=delete
+./tests/vm/vm-test.sh --vm-user=admin --source=local --onsuccess=delete
 
 # Test GitHub version, keep on failure for debugging
-./tests/vm-test.sh --vm-user=admin --source=github --onfailure=keep
+./tests/vm/vm-test.sh --vm-user=admin --source=github --onfailure=keep
 
 # Use custom base VM with specific test name
-./tests/vm-test.sh --vm-user=admin --base-vm="macOS Sonoma" --name="integration-test-1"
+./tests/vm/vm-test.sh --vm-user=admin --base-vm="macOS Sonoma" --name="integration-test-1"
 
 # Test with verbose logging and custom cleanup
-./tests/vm-test.sh --vm-user=admin --verbose --source=github --onsuccess=delete --onfailure=keep
+./tests/vm/vm-test.sh --vm-user=admin --verbose --source=github --onsuccess=delete --onfailure=keep
 
 # Full custom setup with SSH key
-./tests/vm-test.sh --vm-user=admin --ssh-key=~/.ssh/id_rsa --base-vm="My Base VM" --name="test-pr-123" --source=github --onsuccess=delete
+./tests/vm/vm-test.sh --vm-user=admin --ssh-key=~/.ssh/id_rsa --base-vm="My Base VM" --name="test-pr-123" --source=github --onsuccess=delete
 ```
 
 ### Legacy Flags
@@ -173,9 +173,9 @@ Flags can be combined for precise control:
 Old flag format still works for backward compatibility (but `--vm-user` is still required):
 
 ```bash
-./tests/vm-test.sh --vm-user=admin --local    # Same as --source=local
-./tests/vm-test.sh --vm-user=admin --keep     # Keep regardless of result
-./tests/vm-test.sh --vm-user=admin --delete   # Delete regardless of result
+./tests/vm/vm-test.sh --vm-user=admin --local    # Same as --source=local
+./tests/vm/vm-test.sh --vm-user=admin --keep     # Keep regardless of result
+./tests/vm/vm-test.sh --vm-user=admin --delete   # Delete regardless of result
 ```
 
 ## Verification Tests
@@ -236,18 +236,18 @@ The script runs the following verification tests:
 
 ```bash
 # Specify base VM to clone and VM user
-./tests/vm-test.sh --vm-user=admin --base-vm="Your Base VM Name"
+./tests/vm/vm-test.sh --vm-user=admin --base-vm="Your Base VM Name"
 
 # Specify test VM name
-./tests/vm-test.sh --vm-user=admin --name="your-test-name"
+./tests/vm/vm-test.sh --vm-user=admin --name="your-test-name"
 
 # Use SSH key for authentication
-./tests/vm-test.sh --vm-user=admin --ssh-key=~/.ssh/id_rsa
+./tests/vm/vm-test.sh --vm-user=admin --ssh-key=~/.ssh/id_rsa
 ```
 
 ### Script Configuration
 
-Edit `tests/vm-test.sh` to customize timeouts:
+Edit `tests/vm/vm-test.sh` to customize timeouts:
 
 ```bash
 # Timeouts
@@ -281,7 +281,7 @@ jobs:
       - name: Setup UTM
         run: brew install --cask utm
       - name: Run VM tests
-        run: ./tests/vm-test.sh --delete
+        run: ./tests/vm/vm-test.sh --delete
 ```
 
 ## Troubleshooting
@@ -351,10 +351,10 @@ Run multiple VM tests in parallel:
 
 ```bash
 # Terminal 1
-./tests/vm-test.sh --delete &
+./tests/vm/vm-test.sh --delete &
 
 # Terminal 2
-./tests/vm-test.sh --local --delete &
+./tests/vm/vm-test.sh --local --delete &
 
 # Wait for both
 wait

@@ -14,7 +14,7 @@ USERNAME := $(shell whoami)
 # Force hostname to lowercase in all commands
 FINAL_HOSTNAME := $(shell echo "$(HOSTNAME)" | tr '[:upper:]' '[:lower:]')
 
-.PHONY: switch switch-fast build clean update check fmt help list-machines sync-projects reset-raycast-window api test-api test-actions test-details app app-run app-package
+.PHONY: switch switch-fast build clean update check fmt help list-machines sync-projects reset-raycast-window api test-api test-actions test-details test-cli test-app-state app app-run app-package tui-build
 
 # Default target
 help:
@@ -30,9 +30,12 @@ help:
 	@echo "  test-api        Validate the JSON API contract"
 	@echo "  test-actions    Validate update actions without changing the system"
 	@echo "  test-details    Validate package metadata responses"
+	@echo "  test-cli        Validate CLI syntax and management contracts"
+	@echo "  test-app-state  Run app-state formatting and tests"
 	@echo "  app             Build the native macOS app"
 	@echo "  app-run         Build and launch the native macOS app"
 	@echo "  app-package     Build a local DMG in dist/"
+	@echo "  tui-build       Build the post-install terminal UI"
 	@echo "  sync-projects   Clone and update configured projects"
 	@echo "  reset-raycast-window  Reset Raycast window placement cache"
 	@echo "  fmt             Format nix files with nixpkgs-fmt"
@@ -157,25 +160,36 @@ else
 endif
 
 api:
-	@NIX_ME_CONFIG_DIR="$(FLAKE_DIR)" ./bin/nix-me api snapshot
+	@NIX_ME_CONFIG_DIR="$(FLAKE_DIR)" ./apps/cli/bin/nix-me api snapshot
 
 test-api:
-	@./tests/test-api.sh
+	@./tests/integration/test-api.sh
 
 test-actions:
-	@./tests/test-actions.sh
+	@./tests/integration/test-actions.sh
 
 test-details:
-	@./tests/test-details.sh
+	@./tests/integration/test-details.sh
+
+test-cli:
+	@bash -n apps/cli/bin/nix-me apps/cli/lib/*.sh packages/management-api/bin/*
+	@$(MAKE) test-api test-actions test-details
+
+test-app-state:
+	@cd packages/app-state/engine && cargo fmt --all -- --check
+	@cd packages/app-state/engine && cargo test --workspace
 
 app:
-	@./scripts/build-macos-app.sh
+	@./tools/release/build-macos-app.sh
 
 app-run: app
 	@open "$(MAKEFILE_DIR)/build/Nix Me.app"
 
 app-package: app
-	@./scripts/package-macos-app.sh
+	@./tools/release/package-macos-app.sh
+
+tui-build:
+	@cd apps/post-install-tui && npm run build
 
 # Update flake inputs
 update:
@@ -183,7 +197,7 @@ update:
 ifeq ($(DRY_RUN), 1)
 	@echo "[DRY RUN] if git -C \"$(FLAKE_DIR)\" rev-parse --is-inside-work-tree >/dev/null 2>&1; then git -C \"$(FLAKE_DIR)\" pull --ff-only; fi"
 	@echo "[DRY RUN] nix flake update --flake \"$(FLAKE_DIR)\""
-	@echo "[DRY RUN] $(MAKEFILE_DIR)/scripts/sync-projects.sh --flake-dir \"$(FLAKE_DIR)\" --hostname \"$(FINAL_HOSTNAME)\" --home \"$(HOME)\""
+	@echo "[DRY RUN] $(MAKEFILE_DIR)/tools/installation/sync-projects.sh --flake-dir \"$(FLAKE_DIR)\" --hostname \"$(FINAL_HOSTNAME)\" --home \"$(HOME)\""
 else
 	@if git -C "$(FLAKE_DIR)" rev-parse --is-inside-work-tree >/dev/null 2>&1; then \
 		echo "==> Pulling latest changes in $(FLAKE_DIR)..."; \
@@ -198,16 +212,16 @@ endif
 sync-projects:
 	@echo "==> Syncing configured projects for $(FINAL_HOSTNAME)..."
 ifeq ($(DRY_RUN), 1)
-	@echo "[DRY RUN] $(MAKEFILE_DIR)/scripts/sync-projects.sh --flake-dir \"$(FLAKE_DIR)\" --hostname \"$(FINAL_HOSTNAME)\" --home \"$(HOME)\""
+	@echo "[DRY RUN] $(MAKEFILE_DIR)/tools/installation/sync-projects.sh --flake-dir \"$(FLAKE_DIR)\" --hostname \"$(FINAL_HOSTNAME)\" --home \"$(HOME)\""
 else
-	@$(MAKEFILE_DIR)/scripts/sync-projects.sh --flake-dir "$(FLAKE_DIR)" --hostname "$(FINAL_HOSTNAME)" --home "$(HOME)"
+	@$(MAKEFILE_DIR)/tools/installation/sync-projects.sh --flake-dir "$(FLAKE_DIR)" --hostname "$(FINAL_HOSTNAME)" --home "$(HOME)"
 endif
 
 reset-raycast-window:
 ifeq ($(DRY_RUN), 1)
-	@echo "[DRY RUN] $(MAKEFILE_DIR)/scripts/reset-raycast-window.sh"
+	@echo "[DRY RUN] $(MAKEFILE_DIR)/tools/development/reset-raycast-window.sh"
 else
-	@$(MAKEFILE_DIR)/scripts/reset-raycast-window.sh
+	@$(MAKEFILE_DIR)/tools/development/reset-raycast-window.sh
 endif
 
 # Format nix files
@@ -258,9 +272,9 @@ list-machines:
 
 vm-create: ## Create a new VM (auto-generates name if not provided)
 	@if [ -n "$(name)" ]; then \
-		./scripts/vm-manager.sh create $(name); \
+		./tools/development/vm-manager.sh create $(name); \
 	else \
-		./scripts/vm-manager.sh create; \
+		./tools/development/vm-manager.sh create; \
 	fi
 
 vm-start: ## Start a VM by name
@@ -269,10 +283,10 @@ vm-start: ## Start a VM by name
 		echo "Use 'make vm-list' to see available VMs"; \
 		exit 1; \
 	fi
-	@./scripts/vm-manager.sh start $(name)
+	@./tools/development/vm-manager.sh start $(name)
 
 vm-list: ## List all VMs
-	@./scripts/vm-manager.sh list
+	@./tools/development/vm-manager.sh list
 
 vm-delete: ## Delete a VM by name
 	@if [ -z "$(name)" ]; then \
@@ -280,10 +294,10 @@ vm-delete: ## Delete a VM by name
 		echo "Use 'make vm-list' to see available VMs"; \
 		exit 1; \
 	fi
-	@./scripts/vm-manager.sh delete $(name)
+	@./tools/development/vm-manager.sh delete $(name)
 
 vm-help: ## Show VM management help
-	@./scripts/vm-manager.sh help
+	@./tools/development/vm-manager.sh help
 
 # Convenience aliases
 vm: vm-create ## Alias for vm-create (quick VM creation)

@@ -13,10 +13,11 @@ Last updated: 2026-10-04
   remain on their own branch.
 - [x] Merge the native macOS application independently. Pull request #17
   preserved the ten application commits and merged them into `main`.
-- [ ] Complete and merge the configuration harness independently.
-- [ ] Refactor the repository into explicit monorepo boundaries.
-- [ ] Move code without changing behavior, then repair imports and tooling.
-- [ ] Add path-aware validation and application-specific release workflows.
+- [x] Complete and merge the configuration harness independently in pull
+  request #19. Continued harness iteration lives in `docs/HARNESS_PLAN.md`.
+- [x] Refactor the repository into explicit monorepo boundaries.
+- [x] Move code without changing behavior, then repair imports and tooling.
+- [x] Add path-aware validation and application-specific release workflows.
 
 ## Architectural boundaries
 
@@ -35,6 +36,7 @@ Last updated: 2026-10-04
 apps/
   cli/
   macos/
+  post-install-tui/
 
 packages/
   app-state/
@@ -48,8 +50,8 @@ packages/
 nix/
   hosts/
   modules/
-  profiles/
   projects/
+  overlays/
 
 tools/
   development/
@@ -75,7 +77,7 @@ the root.
 
 ### 1. Merge the configuration harness
 
-Status: pending
+Status: complete
 
 - Finish the harness on `feature/configuration-harness` without app changes.
 - Define its inputs, outputs, persistence format, and compatibility policy.
@@ -88,7 +90,7 @@ distribution changes are included in its pull request.
 
 ### 2. Establish monorepo boundaries
 
-Status: pending
+Status: complete
 
 - Create a dedicated repository-layout branch from the then-current `main`.
 - Record ownership and dependency direction before moving files.
@@ -102,7 +104,7 @@ interface, test command, and allowed dependencies.
 
 ### 3. Move files without behavior changes
 
-Status: pending
+Status: complete
 
 - Move the macOS application to `apps/macos`.
 - Move CLI entry points and CLI-only support code to `apps/cli`.
@@ -118,7 +120,7 @@ changes.
 
 ### 4. Add scoped automation
 
-Status: pending
+Status: complete
 
 - Run Swift tests and app packaging checks only when macOS app or shared API
   paths change.
@@ -140,3 +142,7 @@ has an isolated release workflow.
 - 2026-10-04: Keep the management API as the boundary between declarative Nix
   state and user-facing applications.
 - 2026-10-04: Merge features independently before beginning directory moves.
+- 2026-10-04: Keep the existing shell CLI for compatibility and isolate it in
+  `apps/cli`; future rewrites must preserve its public command surface.
+- 2026-10-04: Treat the post-install TUI as an independent application with
+  Node 26.4+, a clean build, and its own path-scoped workflow.

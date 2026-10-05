@@ -26,14 +26,14 @@ an `app` artifact. Every application retains its original analytics rank.
 ```sh
 tools/update-homebrew-app-catalog.sh
 nix-me-apps registry catalog-validate \
-  --catalog catalog/homebrew-top-200-apps.json \
+  --catalog packages/app-state/catalog/homebrew-top-200-apps.json \
   --recipe recipes --json
 ```
 
 The generator extracts preference-plist and user-configuration paths from each
 cask's zap stanza. These signals produce a reviewable initial classification:
 `defaults_dominant`, `file_driven`, `hybrid`, or `cloud_or_opaque`. Curated facts
-and local recipe links live in `catalog/homebrew-behavior-overrides.json`, so a
+and local recipe links live in `packages/app-state/catalog/homebrew-behavior-overrides.json`, so a
 refresh updates rankings and manifest evidence without erasing research.
 
 Confidence is part of the data. `high` means a curated mechanism, `medium` is a
@@ -41,8 +41,8 @@ Homebrew-path inference that capture still needs to confirm, and `low` means the
 cask exposes only an app artifact and requires direct investigation.
 
 The full ranked table is
-[`catalog/homebrew-top-200-apps.md`](../catalog/homebrew-top-200-apps.md), backed
-by JSON validated against [`catalog/catalog.schema.json`](../catalog/catalog.schema.json).
+[`packages/app-state/catalog/homebrew-top-200-apps.md`](../packages/app-state/catalog/homebrew-top-200-apps.md), backed
+by JSON validated against [`packages/app-state/catalog/catalog.schema.json`](../packages/app-state/catalog/catalog.schema.json).
 
 To choose a high-value local recipe candidate:
 
@@ -52,10 +52,10 @@ jq -r '.applications[] |
   select(.behavior.mechanism == "defaults_dominant" or
          .behavior.mechanism == "file_driven") |
   [.rank, .cask, .behavior.mechanism, .behavior.confidence] | @tsv' \
-  catalog/homebrew-top-200-apps.json
+  packages/app-state/catalog/homebrew-top-200-apps.json
 ```
 
-Capture or research that application, add `recipes/<id>.yaml` and its values,
+Capture or research that application, add `packages/app-state/recipes/<id>.yaml` and its values,
 then add a curated override containing the mechanism, note, and `local_recipe`
 link. Regenerate the catalog and metric. Everything remains in this repository;
 there is no separate recipe-registry checkout or release cycle.
@@ -64,9 +64,9 @@ there is no separate recipe-registry checkout or release cycle.
 
 ```sh
 nix-me-apps registry catalog-metric \
-  --catalog catalog/homebrew-top-200-apps.json \
+  --catalog packages/app-state/catalog/homebrew-top-200-apps.json \
   --recipe recipes \
-  --json > metrics/zero-click.json
+  --json > packages/app-state/metrics/zero-click.json
 ```
 
 An app is zero-click only when its linked local recipe has every entry declaring
@@ -93,19 +93,19 @@ primitives.
 ## UTM verification
 
 The existing VM harness accepts an optional recipe/value pair. With local source
-it streams the repository into the VM while excluding `.git` and `engine/target`,
+it streams the repository into the VM while excluding `.git` and `packages/app-state/engine/target`,
 installs nix-me, validates the recipe, applies it, and requires the immediate
 diff to return either fully converged (`0`) or manual-residue-only (`3`):
 
 ```sh
-./tests/vm-test.sh \
+./tests/vm/vm-test.sh \
   --base-vm="macOS Tahoe - base" \
   --vm-user=admin \
   --source=local \
   --onsuccess=delete \
   --onfailure=keep \
-  --app-state-recipe=recipes/rectangle.yaml \
-  --app-state-values=values/rectangle.yaml \
+  --app-state-recipe=packages/app-state/recipes/rectangle.yaml \
+  --app-state-values=packages/app-state/values/rectangle.yaml \
   --app-state-only=rectangle
 ```
 

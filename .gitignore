@@ -30,14 +30,14 @@ tests/*.log
 tests/output/
 
 # TUI
-tui/node_modules/
-tui/dist/
-tui/*.log
+apps/post-install-tui/node_modules/
+apps/post-install-tui/dist/
+apps/post-install-tui/*.log
 
 # Swift and native app builds
-macos/NixMeApp/.build/
+apps/macos/NixMeApp/.build/
 build/
 dist/
 
 # Rust app-state engine builds
-engine/target/
+packages/app-state/engine/target/

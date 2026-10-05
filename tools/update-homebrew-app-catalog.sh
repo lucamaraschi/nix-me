@@ -2,9 +2,9 @@
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-OUTPUT="$PROJECT_DIR/catalog/homebrew-top-200-apps.json"
-MARKDOWN_OUTPUT="$PROJECT_DIR/catalog/homebrew-top-200-apps.md"
-OVERRIDES="$PROJECT_DIR/catalog/homebrew-behavior-overrides.json"
+OUTPUT="$PROJECT_DIR/packages/app-state/catalog/homebrew-top-200-apps.json"
+MARKDOWN_OUTPUT="$PROJECT_DIR/packages/app-state/catalog/homebrew-top-200-apps.md"
+OVERRIDES="$PROJECT_DIR/packages/app-state/catalog/homebrew-behavior-overrides.json"
 CHECK=false
 
 if [[ "${1:-}" == "--check" ]]; then

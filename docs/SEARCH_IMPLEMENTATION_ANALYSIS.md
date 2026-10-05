@@ -7,9 +7,9 @@ This document provides a comprehensive analysis of how search and interactive pa
 
 ## 1. SEARCH HANDLING AND ENTRY POINTS
 
-### 1.1 Main Entry Point: `bin/nix-me` 
+### 1.1 Main Entry Point: `apps/cli/bin/nix-me`
 
-**File:** `/Users/batman/src/lm/nix-me/bin/nix-me` (Lines 157-200)
+**File:** `/Users/batman/src/lm/nix-me/apps/cli/bin/nix-me` (Lines 157-200)
 
 The main search handler is `cmd_search()`:
 
@@ -45,7 +45,7 @@ cmd_search() {
 
 ### 1.2 The Browse Entry Point: `cmd_browse()`
 
-**File:** `/Users/batman/src/lm/nix-me/bin/nix-me` (Lines 96-155)
+**File:** `/Users/batman/src/lm/nix-me/apps/cli/bin/nix-me` (Lines 96-155)
 
 Provides a menu-driven interface with three search modes:
 
@@ -69,7 +69,7 @@ cmd_browse() {
 
 ### 2.1 Core Search Function: `browse_homebrew_casks_fzf()`
 
-**File:** `/Users/batman/src/lm/nix-me/lib/package-manager.sh` (Lines 50-182)
+**File:** `/Users/batman/src/lm/nix-me/apps/cli/lib/package-manager.sh` (Lines 50-182)
 
 This is the main search implementation with fzf integration:
 
@@ -194,7 +194,7 @@ Looking through all files:
 
 ### 3.1 Current Preview Implementation
 
-**File:** `/Users/batman/src/lm/nix-me/lib/package-manager.sh` (Line 162)
+**File:** `/Users/batman/src/lm/nix-me/apps/cli/lib/package-manager.sh` (Line 162)
 
 The details/preview panel is implemented using fzf's `--preview` flag:
 
@@ -280,7 +280,7 @@ The `{2}` token tries to extract the 2nd column. For lines starting with "✓ ",
 
 ### 4.1 Current Status Detection
 
-**File:** `/Users/batman/src/lm/nix-me/lib/package-manager.sh` (Lines 62-63)
+**File:** `/Users/batman/src/lm/nix-me/apps/cli/lib/package-manager.sh` (Lines 62-63)
 
 ```bash
 # Get list of installed casks
@@ -303,7 +303,7 @@ fi
 
 ### 4.3 Status Information in Other Commands
 
-**In cmd_search() and cmd_browse()** (Lines 179-187 of bin/nix-me):
+**In cmd_search() and cmd_browse()** (Lines 179-187 of apps/cli/bin/nix-me):
 
 ```bash
 print_info "Selected ${#packages[@]} apps:"
@@ -333,7 +333,7 @@ The details panel (fzf preview) does NOT show:
 ### 5.1 Component Diagram
 
 ```
-nix-me CLI (bin/nix-me)
+nix-me CLI (apps/cli/bin/nix-me)
     │
     ├─→ cmd_browse()
     │   └─→ browse_homebrew_casks_fzf("")
@@ -546,7 +546,7 @@ nix-me/
 │   ├── config-builder.sh           # Configuration generation
 │   └── wizard.sh                   # Profile selection
 │
-└── hosts/
+└── nix/hosts/
     └── profiles/
         ├── work.nix
         └── personal.nix
@@ -556,9 +556,9 @@ nix-me/
 
 ```
 Entry Points:
-- nix-me search <query>         → cmd_search()          [bin/nix-me:157]
-- nix-me browse                 → cmd_browse()          [bin/nix-me:96]
-- nix-me add app <name>         → cmd_add_app()         [bin/nix-me:202]
+- nix-me search <query>         → cmd_search()          [apps/cli/bin/nix-me:157]
+- nix-me browse                 → cmd_browse()          [apps/cli/bin/nix-me:96]
+- nix-me add app <name>         → cmd_add_app()         [apps/cli/bin/nix-me:202]
 
 Implementation:
 - browse_homebrew_casks_fzf()   [lib/package-manager.sh:50]
@@ -617,7 +617,7 @@ nix-me browse
 
 | Aspect | Current State | Issue | Impact |
 |--------|---------------|-------|--------|
-| **Search Handler** | `cmd_search()` in bin/nix-me | Routes to `browse_homebrew_casks_fzf()` | Works for simple searches |
+| **Search Handler** | `cmd_search()` in apps/cli/bin/nix-me | Routes to `browse_homebrew_casks_fzf()` | Works for simple searches |
 | **Process Management** | None | No cleanup on cancellation | Accumulates zombie processes |
 | **Preview Panel** | `brew info --cask {2}` | Token extraction fails for non-installed | No details for uninstalled packages |
 | **Installed Status** | Shows ✓ in list | Formatting breaks fzf token extraction | Preview broken for non-installed |
@@ -635,4 +635,3 @@ The nix-me search functionality is well-architected but has two specific impleme
 2. **Output Formatting Gap:** Inconsistent formatting of installed vs non-installed packages breaks fzf's field extraction
 
 Both are addressable with targeted fixes in `lib/package-manager.sh` without major architectural changes.
-

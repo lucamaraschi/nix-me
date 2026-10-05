@@ -19,12 +19,12 @@ Recipes describe mechanics and values describe policy:
 
 ```sh
 nix-me apps diff \
-  --recipe recipes/rectangle.yaml \
-  --values values/rectangle.yaml
+  --recipe packages/app-state/recipes/rectangle.yaml \
+  --values packages/app-state/values/rectangle.yaml
 
 nix-me apps apply \
-  --recipe recipes/rectangle.yaml \
-  --values values/rectangle.yaml --yes
+  --recipe packages/app-state/recipes/rectangle.yaml \
+  --values packages/app-state/values/rectangle.yaml --yes
 ```
 
 Multiple `--values` arguments are merged in order with later files winning by
@@ -39,10 +39,10 @@ their non-prompting system APIs, and checks readable sandbox container roots for
 Full Disk Access. A missing grant stops the whole plan with the exact System
 Settings pane; the engine never requests a grant midway through apply.
 
-Rectangle is the migration example: `modules/home-manager/rectangle.nix` keeps
+Rectangle is the migration example: `nix/modules/home-manager/rectangle.nix` keeps
 its legacy defaults activation while app state is disabled, but steps aside when
 `apps.state.enable` is true. Installation remains in the existing package layer;
-`recipes/rectangle.yaml` and `values/rectangle.yaml` then own configuration.
+`packages/app-state/recipes/rectangle.yaml` and `packages/app-state/values/rectangle.yaml` then own configuration.
 
 Recipes without a CI-produced `verified` stamp warn by default. Use
 `--require-verified` in stricter environments. Real application UI verification
@@ -55,13 +55,13 @@ aggregation used by CI:
 ```sh
 nix-me-apps registry validate --recipe recipes --json
 nix-me-apps registry catalog-validate \
-  --catalog catalog/homebrew-top-200-apps.json --recipe recipes --json
+  --catalog packages/app-state/catalog/homebrew-top-200-apps.json --recipe recipes --json
 nix-me-apps registry catalog-metric \
-  --catalog catalog/homebrew-top-200-apps.json --recipe recipes --json
+  --catalog packages/app-state/catalog/homebrew-top-200-apps.json --recipe recipes --json
 nix-me-apps registry codec-smoke --json
 ```
 
-The checked-in [zero-click metric](../metrics/zero-click.json) is regenerated in
+The checked-in [zero-click metric](../packages/app-state/metrics/zero-click.json) is regenerated in
 CI and fails validation when it becomes stale. See [Local catalog operations](REGISTRY.md)
 for VM verification and trust-boundary details. Continued T3 verification,
 recipe expansion, capture UX, and compatibility work is tracked separately in

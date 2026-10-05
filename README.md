@@ -107,9 +107,9 @@ values, capture, command auditing, and migration behavior.
 The local recipe catalog currently reports **1.5% zero-click coverage of the
 top-200 Homebrew application denominator** (3 zero-click recipes, 1 one-click
 recipe, 196 uncovered). Configuration behavior is mapped for all 200 applications
-in the [readable catalog](catalog/homebrew-top-200-apps.md) and its
-[machine-readable source](catalog/homebrew-top-200-apps.json); the coverage result lives in
-[metrics/zero-click.json](metrics/zero-click.json).
+in the [readable catalog](packages/app-state/catalog/homebrew-top-200-apps.md) and its
+[machine-readable source](packages/app-state/catalog/homebrew-top-200-apps.json); the coverage result lives in
+[packages/app-state/metrics/zero-click.json](packages/app-state/metrics/zero-click.json).
 
 > **Time:** 30-60 minutes (mostly package downloads)
 
@@ -237,35 +237,35 @@ Profiles are **composable** - combine them to match your needs:
 ```nix
 # Work developer (most common)
 extraModules = [
-  ./hosts/profiles/dev.nix
-  ./hosts/profiles/work.nix
+  ./nix/hosts/profiles/dev.nix
+  ./nix/hosts/profiles/work.nix
 ];
 
 # Personal dev machine
 extraModules = [
-  ./hosts/profiles/dev.nix
-  ./hosts/profiles/personal.nix
+  ./nix/hosts/profiles/dev.nix
+  ./nix/hosts/profiles/personal.nix
 ];
 
 # Security researcher / pentester
 extraModules = [
-  ./hosts/profiles/dev.nix
-  ./hosts/profiles/hacking.nix
+  ./nix/hosts/profiles/dev.nix
+  ./nix/hosts/profiles/hacking.nix
 ];
 
 # Maker / 3D printing station
 extraModules = [
-  ./hosts/profiles/dev.nix
-  ./hosts/profiles/maker.nix
+  ./nix/hosts/profiles/dev.nix
+  ./nix/hosts/profiles/maker.nix
 ];
 
 # Full setup (everything)
 extraModules = [
-  ./hosts/profiles/dev.nix
-  ./hosts/profiles/work.nix
-  ./hosts/profiles/personal.nix
-  ./hosts/profiles/hacking.nix
-  ./hosts/profiles/maker.nix
+  ./nix/hosts/profiles/dev.nix
+  ./nix/hosts/profiles/work.nix
+  ./nix/hosts/profiles/personal.nix
+  ./nix/hosts/profiles/hacking.nix
+  ./nix/hosts/profiles/maker.nix
 ];
 
 # Minimal (no profiles - just base essentials)
@@ -311,55 +311,59 @@ nix-me doctor          # Diagnose issues
 
 ```
 nix-me/
-├── flake.nix                 # Machine definitions & inputs
-├── install.sh                # Interactive installer
-│
-├── bin/
-│   └── nix-me                # CLI tool
-│
-├── hosts/
-│   ├── types/
-│   │   ├── shared/           # Common settings (all machines)
-│   │   ├── macbook/          # MacBook optimizations
-│   │   ├── macbook-pro/      # MacBook Pro optimizations
-│   │   ├── macmini/          # Mac Mini optimizations
-│   │   └── vm/               # VM optimizations
+├── apps/
+│   ├── cli/                  # Shell CLI and interactive helpers
+│   ├── macos/NixMeApp/       # Native SwiftUI management app
+│   └── post-install-tui/     # React terminal UI
+├── packages/
+│   ├── app-state/            # Rust engine, recipes, values, and catalog
+│   └── management-api/       # Versioned JSON process boundary
+├── nix/
+│   ├── hosts/
+│   │   ├── types/
+│   │   │   ├── shared/       # Common settings (all machines)
+│   │   │   ├── macbook/      # MacBook optimizations
+│   │   │   ├── macbook-pro/  # MacBook Pro optimizations
+│   │   │   ├── macmini/      # Mac Mini optimizations
+│   │   │   └── vm/           # VM optimizations
 │   │
-│   ├── profiles/             # Composable profiles
-│   │   ├── dev.nix           # Development tools
-│   │   ├── work.nix          # Work/collaboration apps
-│   │   ├── personal.nix      # Entertainment/personal
-│   │   ├── hacking.nix       # Security/pentesting tools
-│   │   └── maker.nix         # 3D printing & CAD
+│   │   ├── profiles/         # Composable profiles
+│   │   │   ├── dev.nix       # Development tools
+│   │   │   ├── work.nix      # Work/collaboration apps
+│   │   │   ├── personal.nix  # Entertainment/personal
+│   │   │   ├── hacking.nix   # Security/pentesting tools
+│   │   │   └── maker.nix     # 3D printing & CAD
 │   │
-│   └── machines/
-│       └── [hostname]/       # Machine-specific overrides
-│
-├── modules/
-│   ├── darwin/               # System-level (nix-darwin)
-│   │   ├── apps/
-│   │   │   └── installations.nix  # Base package lists
-│   │   ├── core.nix
-│   │   ├── system.nix
-│   │   └── ...
+│   │   └── machines/
+│   │       └── [hostname]/   # Machine-specific overrides
+│   ├── modules/
+│   │   ├── darwin/           # System-level (nix-darwin)
+│   │   │   ├── apps/
+│   │   │   │   └── installations.nix  # Base package lists
+│   │   │   ├── core.nix
+│   │   │   ├── system.nix
+│   │   │   └── ...
 │   │
-│   └── home-manager/         # User-level (home-manager)
-│       ├── apps/
-│       │   ├── claude-code.nix   # Claude Code global settings
-│       │   ├── git.nix
-│       │   ├── ssh.nix
-│       │   └── ...
-│       └── shell/
-│           └── fish.nix
-│
-├── lib/                      # Shell libraries
-│   ├── ui.sh
-│   ├── wizard.sh             # Setup wizard with clone support
-│   ├── config-builder.sh     # Config generation
-│   └── ...
-│
-└── tui/                      # React TUI (Configuration Inspector)
-    └── src/
+│   │   └── home-manager/     # User-level (home-manager)
+│   │       ├── apps/
+│   │       │   ├── claude-code.nix   # Claude Code global settings
+│   │       │   ├── git.nix
+│   │       │   ├── ssh.nix
+│   │       │   └── ...
+│   │       └── shell/
+│   │           └── fish.nix
+│   ├── projects/             # Declarative project sets
+│   └── overlays/             # Local Nix overlays
+├── tools/
+│   ├── development/
+│   ├── installation/
+│   └── release/
+├── tests/
+│   ├── integration/
+│   └── vm/
+├── flake.nix                 # Workspace and Nix entry point
+├── Makefile                  # Cross-component commands
+└── install.sh                # Stable bootstrap entry point
 ```
 
 ---
@@ -437,15 +441,15 @@ Add to `flake.nix`:
   machineName = "My MacBook";
   username = "yourusername";
   extraModules = [
-    ./hosts/profiles/dev.nix   # Development tools
-    ./hosts/profiles/work.nix  # Work apps
+    ./nix/hosts/profiles/dev.nix   # Development tools
+    ./nix/hosts/profiles/work.nix  # Work apps
   ];
 };
 ```
 
 ### Customizing Packages
 
-**Per-machine customization** in `hosts/machines/[hostname]/default.nix`:
+**Per-machine customization** in `nix/hosts/machines/[hostname]/default.nix`:
 
 ```nix
 { ... }:
@@ -479,7 +483,7 @@ Add to `flake.nix`:
 A Mac Mini configured for 3D printing and creative work:
 
 ```nix
-# hosts/machines/zion/default.nix
+# nix/hosts/machines/zion/default.nix
 { ... }:
 {
   imports = [ ../../types/macmini/default.nix ];
@@ -504,9 +508,9 @@ Then in `flake.nix`:
   machineName = "Zion";
   username = "youruser";
   extraModules = [
-    ./hosts/profiles/dev.nix
-    ./hosts/profiles/work.nix
-    ./hosts/profiles/personal.nix
+    ./nix/hosts/profiles/dev.nix
+    ./nix/hosts/profiles/work.nix
+    ./nix/hosts/profiles/personal.nix
   ];
 };
 ```
@@ -563,7 +567,7 @@ nix-me configures [Claude Code](https://github.com/anthropics/claude-code) with 
 
 ### Customizing
 
-Edit `modules/home-manager/apps/claude-code.nix` to modify global permissions:
+Edit `nix/modules/home-manager/apps/claude-code.nix` to modify global permissions:
 
 ```nix
 permissions = {
@@ -711,9 +715,9 @@ git add . && git commit -m "My customizations" && git push
 Yes! Profiles are composable. Combine dev + work, dev + personal, or all three:
 ```nix
 extraModules = [
-  ./hosts/profiles/dev.nix
-  ./hosts/profiles/work.nix
-  ./hosts/profiles/personal.nix
+  ./nix/hosts/profiles/dev.nix
+  ./nix/hosts/profiles/work.nix
+  ./nix/hosts/profiles/personal.nix
 ];
 ```
 </details>

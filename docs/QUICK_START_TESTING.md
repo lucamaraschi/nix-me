@@ -8,16 +8,16 @@ Your nix-me CLI is ready. Here's how to test each feature:
 
 ```bash
 # Display help
-bin/nix-me help
+apps/cli/bin/nix-me help
 
 # Show system status
-bin/nix-me status
+apps/cli/bin/nix-me status
 
 # Run diagnostics
-bin/nix-me doctor
+apps/cli/bin/nix-me doctor
 
 # List installed packages
-bin/nix-me list
+apps/cli/bin/nix-me list
 ```
 
 Expected: Colorful output, no errors.
@@ -28,7 +28,7 @@ Expected: Colorful output, no errors.
 
 ```bash
 # Search for Docker apps
-bin/nix-me search docker
+apps/cli/bin/nix-me search docker
 ```
 
 **What you'll see:**
@@ -53,7 +53,7 @@ bin/nix-me search docker
 ## 3. Test Browse Command (5 minutes)
 
 ```bash
-bin/nix-me browse
+apps/cli/bin/nix-me browse
 ```
 
 **You'll see menu:**
@@ -89,7 +89,7 @@ Choice [1]:
 **SAFE MODE** - Creates test config, doesn't touch your real one:
 
 ```bash
-./tests/test-wizard.sh
+./tests/integration/test-wizard.sh
 ```
 
 **Follow prompts:**
@@ -109,7 +109,7 @@ Choice [1]:
 If you want to create an actual test configuration:
 
 ```bash
-bin/nix-me create
+apps/cli/bin/nix-me create
 ```
 
 **This will:**
@@ -125,7 +125,7 @@ bin/nix-me create
 
 **To clean up after:**
 ```bash
-rm -rf ~/.config/nixpkgs/hosts/test-config
+rm -rf ~/.config/nixpkgs/nix/hosts/machines/test-config
 # Remove from flake.nix
 ```
 
@@ -133,7 +133,7 @@ rm -rf ~/.config/nixpkgs/hosts/test-config
 
 ### Example 1: Search for Spotify
 ```bash
-bin/nix-me search spotify
+apps/cli/bin/nix-me search spotify
 ```
 
 ```
@@ -150,7 +150,7 @@ spotify: Music streaming service
 
 ### Example 2: Browse Development Category
 ```bash
-bin/nix-me browse
+apps/cli/bin/nix-me browse
 # Choose 2: Browse by category
 ```
 
@@ -184,13 +184,13 @@ View the profile configurations:
 
 ```bash
 # Work profile
-cat hosts/profiles/work.nix
+cat nix/hosts/profiles/work.nix
 
 # Personal profile
-cat hosts/profiles/personal.nix
+cat nix/hosts/profiles/personal.nix
 
 # MacBook Pro settings
-cat hosts/macbook-pro/default.nix
+cat nix/hosts/types/macbook-pro/default.nix
 ```
 
 ## 8. Test Documentation
@@ -220,18 +220,18 @@ Copy this and check off as you test:
 
 ```
 Basic Commands:
-[ ] bin/nix-me help - Displays colored help
-[ ] bin/nix-me status - Shows system info
-[ ] bin/nix-me doctor - Runs diagnostics
-[ ] bin/nix-me list - Lists packages
+[ ] apps/cli/bin/nix-me help - Displays colored help
+[ ] apps/cli/bin/nix-me status - Shows system info
+[ ] apps/cli/bin/nix-me doctor - Runs diagnostics
+[ ] apps/cli/bin/nix-me list - Lists packages
 
 Search & Browse:
-[ ] bin/nix-me search docker - Opens fzf with results
+[ ] apps/cli/bin/nix-me search docker - Opens fzf with results
 [ ] Type to filter - Filters work
 [ ] Arrow keys - Navigate works
 [ ] TAB key - Selects/deselects
 [ ] ESC - Cancels safely
-[ ] bin/nix-me browse - Shows menu
+[ ] apps/cli/bin/nix-me browse - Shows menu
 [ ] Option 1 - Browse all apps
 [ ] Option 2 - Browse by category
 [ ] Option 3 - Search specific apps
@@ -242,7 +242,7 @@ Category Browse:
 [ ] Preview pane - Shows descriptions
 
 Wizard:
-[ ] ./tests/test-wizard.sh - Safe test mode works
+[ ] ./tests/integration/test-wizard.sh - Safe test mode works
 [ ] Hostname prompt - Accepts input
 [ ] Machine type - Shows options
 [ ] Profile selection - Shows 4 profiles
@@ -278,7 +278,7 @@ Documentation:
 brew install fzf
 
 # Or use Nix temporarily
-nix-shell -p fzf --run "bin/nix-me browse"
+nix-shell -p fzf --run "apps/cli/bin/nix-me browse"
 ```
 
 ### Colors not showing
@@ -290,25 +290,25 @@ Your terminal may not support ANSI colors. Try:
 ```bash
 # Check permissions
 chmod +x lib/*.sh
-chmod +x bin/nix-me
+chmod +x apps/cli/bin/nix-me
 ```
 
 ## What's Safe vs What Changes Things
 
 ### ✅ SAFE (Read-only):
-- `bin/nix-me help`
-- `bin/nix-me status`
-- `bin/nix-me doctor`
-- `bin/nix-me list`
-- `bin/nix-me diff`
-- `bin/nix-me search <query>` + ESC
-- `bin/nix-me browse` + ESC
-- `./tests/test-wizard.sh` (uses /tmp)
+- `apps/cli/bin/nix-me help`
+- `apps/cli/bin/nix-me status`
+- `apps/cli/bin/nix-me doctor`
+- `apps/cli/bin/nix-me list`
+- `apps/cli/bin/nix-me diff`
+- `apps/cli/bin/nix-me search <query>` + ESC
+- `apps/cli/bin/nix-me browse` + ESC
+- `./tests/integration/test-wizard.sh` (uses /tmp)
 
 ### ⚠️ CREATES/MODIFIES:
-- `bin/nix-me create` - Creates config files
-- `bin/nix-me switch` - Applies configuration
-- `bin/nix-me reconfigure` - Modifies configs
+- `apps/cli/bin/nix-me create` - Creates config files
+- `apps/cli/bin/nix-me switch` - Applies configuration
+- `apps/cli/bin/nix-me reconfigure` - Modifies configs
 - Selecting apps and choosing "Add" (not ESC)
 
 ## Quick Demo Flow
@@ -317,23 +317,23 @@ chmod +x bin/nix-me
 
 ```bash
 # 1. Show help (5 seconds)
-bin/nix-me help
+apps/cli/bin/nix-me help
 
 # 2. Search for app (15 seconds)
-bin/nix-me search spotify
+apps/cli/bin/nix-me search spotify
 # Navigate, press ESC
 
 # 3. Browse categories (20 seconds)
-bin/nix-me browse
+apps/cli/bin/nix-me browse
 # Choose option 2
 # Select Development
 # See apps, press ESC
 
 # 4. Show status (10 seconds)
-bin/nix-me status
+apps/cli/bin/nix-me status
 
 # 5. Run doctor (10 seconds)
-bin/nix-me doctor
+apps/cli/bin/nix-me doctor
 ```
 
 **Done!** You've seen all the interactive features.
@@ -344,20 +344,20 @@ After testing, if everything works:
 
 1. **Try creating a real config:**
    ```bash
-   bin/nix-me create
+   apps/cli/bin/nix-me create
    ```
 
 2. **Browse and add some apps:**
    ```bash
-   bin/nix-me browse
+   apps/cli/bin/nix-me browse
    # Select a few apps
    # Say yes to apply
    ```
 
 3. **Check the results:**
    ```bash
-   bin/nix-me status
-   bin/nix-me list
+   apps/cli/bin/nix-me status
+   apps/cli/bin/nix-me list
    ```
 
 ## Need Help?
