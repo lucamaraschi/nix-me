@@ -13,6 +13,8 @@
     # macOS: Add Homebrew to PATH
     fish_add_path /opt/homebrew/bin
     fish_add_path /opt/homebrew/sbin
+    # Prefer user-installed tools over Homebrew wrappers when both exist.
+    fish_add_path ~/.local/bin
 
     # Claude Code shell integration (macOS app path)
     if test -d "/Applications/Claude Code.app/Contents/Resources/app/bin"
