@@ -200,11 +200,6 @@ run_mas_updates() {
   items="$(jq -c '[.items[] | select(.kind == "mas")]' <<<"$payload")"
   [[ "$(jq 'length' <<<"$items")" -eq 0 ]] && return
 
-  if ! mas_path="$(command -v mas)"; then
-    append_results "$items" false "mas is not installed"
-    return
-  fi
-
   while IFS= read -r store_id; do
     ids+=("$store_id")
   done < <(jq -r '.[].storeId' <<<"$items")
@@ -213,6 +208,9 @@ run_mas_updates() {
   succeeded=true
   if [[ "${NIX_ME_ACTION_DRY_RUN:-0}" == "1" ]]; then
     printf 'Would update Mac App Store IDs: %s\n' "${ids[*]}" >"$log_file"
+  elif ! mas_path="$(command -v mas)"; then
+    append_results "$items" false "mas is not installed"
+    return
   elif ! /usr/bin/osascript \
     -e 'on run argv' \
     -e 'set commandText to quoted form of (item 1 of argv) & " update"' \
