@@ -75,7 +75,7 @@ bdca3a4 Add maker profile with 3D printing and CAD tools
 
 ```
 nix-me/
-├── bin/nix-me              # Main CLI (712 lines) - entry point for all commands
+├── apps/cli/bin/nix-me              # Main CLI (712 lines) - entry point for all commands
 ├── lib/                    # Shell libraries (4,189 lines)
 │   ├── tui.sh              # TUI menu system (757 lines)
 │   ├── vm-manager.sh       # UTM VM lifecycle (882 lines)
@@ -86,18 +86,18 @@ nix-me/
 │   ├── config-builder.sh   # Config file generation (270 lines)
 │   ├── create-utm-vm.sh    # UTM VM creation (187 lines)
 │   └── ui.sh               # Shared UI helpers (60 lines)
-├── modules/
+├── nix/modules/
 │   ├── darwin/              # macOS system config (core, system, keyboard, display, shell, fonts)
 │   │   └── apps/installations.nix  # Base package lists (brew formulas, casks, MAS apps)
 │   ├── home-manager/        # User config (git, ssh, claude-code, fish, rectangle)
 │   ├── nixos/               # NixOS support (fish)
 │   └── shared/              # Cross-platform (fish-base)
-├── hosts/
+├── nix/hosts/
 │   ├── types/               # Hardware templates (shared, macbook, macbook-pro, macmini, vm)
 │   ├── profiles/            # Composable profiles (dev, work, personal, hacking, maker)
 │   └── machines/            # Per-machine overrides (bellerofonte, nabucodonosor, zion, nixos-vm)
-├── overlays/                # Nix overlays (nodejs 22.14, airjack)
-├── tui/                     # React/Ink TUI (minimal - entry point + fallback)
+├── nix/overlays/                # Nix overlays (nodejs 22.14, airjack)
+├── apps/post-install-tui/                     # React/Ink TUI (minimal - entry point + fallback)
 ├── flake.nix                # Main Nix config (289 lines, 15+ host definitions)
 ├── Makefile                 # Build system (make switch, build, update, check, clean)
 └── install.sh               # One-line installer with wizard
@@ -113,16 +113,16 @@ make switch                  # Build and activate (auto-backups /etc)
 make build                   # Test build without applying
 
 # CLI
-./bin/nix-me browse          # fzf-powered package browser
-./bin/nix-me search <query>  # Search packages
-./bin/nix-me add app <name>  # Add GUI app
-./bin/nix-me add tool <name> # Add CLI tool
-./bin/nix-me list            # Show installed packages
-./bin/nix-me status          # System overview
-./bin/nix-me doctor          # Diagnostics (8 checks)
-./bin/nix-me diff            # Preview changes
-./bin/nix-me rollback        # Undo last change
-./bin/nix-me vm              # VM management menu
+./apps/cli/bin/nix-me browse          # fzf-powered package browser
+./apps/cli/bin/nix-me search <query>  # Search packages
+./apps/cli/bin/nix-me add app <name>  # Add GUI app
+./apps/cli/bin/nix-me add tool <name> # Add CLI tool
+./apps/cli/bin/nix-me list            # Show installed packages
+./apps/cli/bin/nix-me status          # System overview
+./apps/cli/bin/nix-me doctor          # Diagnostics (8 checks)
+./apps/cli/bin/nix-me diff            # Preview changes
+./apps/cli/bin/nix-me rollback        # Undo last change
+./apps/cli/bin/nix-me vm              # VM management menu
 
 # Nix
 nix flake check              # Validate configuration
@@ -193,10 +193,10 @@ projects = {
 |----------------------|-----------------|
 | Full project overview | `README.md` |
 | Nix configuration | `flake.nix` |
-| Package lists | `modules/darwin/apps/installations.nix` |
-| Machine overrides | `hosts/machines/*/default.nix` |
-| Profile definitions | `hosts/profiles/*.nix` |
-| CLI implementation | `bin/nix-me` |
+| Package lists | `nix/modules/darwin/apps/installations.nix` |
+| Machine overrides | `nix/hosts/machines/*/default.nix` |
+| Profile definitions | `nix/hosts/profiles/*.nix` |
+| CLI implementation | `apps/cli/bin/nix-me` |
 | Known bugs | `docs/ISSUES_SUMMARY.txt` |
 | Build system | `Makefile` |
 

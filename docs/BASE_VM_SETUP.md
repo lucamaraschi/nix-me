@@ -17,7 +17,7 @@ Complete guide for setting up a base macOS VM for nix-me testing.
 
 ```bash
 # From your host machine (not inside the VM)
-./tests/setup-base-vm-ssh.sh --vm="macOS Tahoe - base" --user=admin
+./tests/vm/setup-base-vm-ssh.sh --vm="macOS Tahoe - base" --user=admin
 ```
 
 That's it! The script will:
@@ -59,23 +59,23 @@ sudo shutdown -h now
 ### Basic Usage
 
 ```bash
-./tests/setup-base-vm-ssh.sh --vm="VM Name" --user=username
+./tests/vm/setup-base-vm-ssh.sh --vm="VM Name" --user=username
 ```
 
 ### Advanced Options
 
 ```bash
 # Disable SSH after setup (more secure)
-./tests/setup-base-vm-ssh.sh --vm="My VM" --user=admin --disable-ssh
+./tests/vm/setup-base-vm-ssh.sh --vm="My VM" --user=admin --disable-ssh
 
 # Keep VM running after setup
-./tests/setup-base-vm-ssh.sh --vm="My VM" --user=admin --no-shutdown
+./tests/vm/setup-base-vm-ssh.sh --vm="My VM" --user=admin --no-shutdown
 
 # Specify IP manually (if auto-detection fails)
-./tests/setup-base-vm-ssh.sh --vm="My VM" --user=admin --ip=192.168.64.5
+./tests/vm/setup-base-vm-ssh.sh --vm="My VM" --user=admin --ip=192.168.64.5
 
 # Use SSH key
-./tests/setup-base-vm-ssh.sh --vm="My VM" --user=admin --ssh-key=~/.ssh/id_rsa
+./tests/vm/setup-base-vm-ssh.sh --vm="My VM" --user=admin --ssh-key=~/.ssh/id_rsa
 ```
 
 ### All Options
@@ -149,7 +149,7 @@ Now automated setup won't prompt for password.
 ### 4. Run Automated Setup
 
 ```bash
-./tests/setup-base-vm-ssh.sh --vm="macOS Tahoe - base" --user=yourusername
+./tests/vm/setup-base-vm-ssh.sh --vm="macOS Tahoe - base" --user=yourusername
 ```
 
 ### 5. Verify
@@ -212,7 +212,7 @@ ifconfig | grep "inet " | grep -v 127.0.0.1
 
 Then use `--ip` flag:
 ```bash
-./tests/setup-base-vm-ssh.sh --vm="My VM" --user=admin --ip=192.168.64.X
+./tests/vm/setup-base-vm-ssh.sh --vm="My VM" --user=admin --ip=192.168.64.X
 ```
 
 ### "VM not found"
@@ -249,20 +249,20 @@ You can maintain multiple base VMs for different scenarios:
 
 ```bash
 # Clean macOS only
-./tests/setup-base-vm-ssh.sh --vm="macOS Clean" --user=admin
+./tests/vm/setup-base-vm-ssh.sh --vm="macOS Clean" --user=admin
 
 # With development tools pre-installed
-./tests/setup-base-vm-ssh.sh --vm="macOS Dev Base" --user=admin
+./tests/vm/setup-base-vm-ssh.sh --vm="macOS Dev Base" --user=admin
 
 # Different macOS version
-./tests/setup-base-vm-ssh.sh --vm="macOS Sonoma Base" --user=admin
+./tests/vm/setup-base-vm-ssh.sh --vm="macOS Sonoma Base" --user=admin
 ```
 
 Then use specific base VMs for testing:
 
 ```bash
-./tests/vm-test.sh --base-vm="macOS Clean"
-./tests/vm-test.sh --base-vm="macOS Dev Base"
+./tests/vm/vm-test.sh --base-vm="macOS Clean"
+./tests/vm/vm-test.sh --base-vm="macOS Dev Base"
 ```
 
 ---
@@ -272,7 +272,7 @@ Then use specific base VMs for testing:
 ### Disable SSH After Setup
 
 ```bash
-./tests/setup-base-vm-ssh.sh --vm="My VM" --user=admin --disable-ssh
+./tests/vm/setup-base-vm-ssh.sh --vm="My VM" --user=admin --disable-ssh
 ```
 
 This is more secure but means you can't SSH in again without re-enabling.
@@ -307,7 +307,7 @@ After base VM is set up:
 
 1. **Verify it works:**
    ```bash
-   ./tests/vm-test.sh --base-vm="Your Base VM"
+   ./tests/vm/vm-test.sh --base-vm="Your Base VM"
    ```
 
 2. **Create snapshots** for different test scenarios

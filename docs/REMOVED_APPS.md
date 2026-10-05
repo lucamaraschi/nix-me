@@ -6,7 +6,7 @@ Apps removed from nix-me config due to issues, with manual installation instruct
 
 ## Metasploit
 
-**Removed from:** `hosts/profiles/hacking.nix`
+**Removed from:** `nix/hosts/profiles/hacking.nix`
 **Reason:** Deprecated by Homebrew (doesn't pass macOS Gatekeeper). Will be disabled on 2026-09-01.
 **Date removed:** 2025-02-13
 

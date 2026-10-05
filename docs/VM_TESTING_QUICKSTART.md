@@ -28,7 +28,7 @@ brew install --cask utm
 4. **From your host machine**, run:
 
 ```bash
-./tests/setup-base-vm-ssh.sh --vm="macOS Tahoe - base" --user=admin
+./tests/vm/setup-base-vm-ssh.sh --vm="macOS Tahoe - base" --user=admin
 ```
 
 **Done!** The script handles everything automatically.
@@ -41,7 +41,7 @@ Follow steps in [Base VM Setup Guide](./BASE_VM_SETUP.md)
 
 ```bash
 cd /path/to/nix-me
-./tests/vm-test.sh --vm-user=admin
+./tests/vm/vm-test.sh --vm-user=admin
 ```
 
 **Note:** Replace `admin` with the username in your base VM.
@@ -56,7 +56,7 @@ That's it! The script will:
 **If your base VM has a different name:**
 
 ```bash
-./tests/vm-test.sh --vm-user=admin --base-vm="Your VM Name"
+./tests/vm/vm-test.sh --vm-user=admin --base-vm="Your VM Name"
 ```
 
 ## Usage Examples
@@ -64,13 +64,13 @@ That's it! The script will:
 ### Test Latest Release
 
 ```bash
-./tests/vm-test.sh --vm-user=admin
+./tests/vm/vm-test.sh --vm-user=admin
 ```
 
 ### Test Local Changes
 
 ```bash
-./tests/vm-test.sh --vm-user=admin --source=local
+./tests/vm/vm-test.sh --vm-user=admin --source=local
 ```
 
 This copies your local project files to the VM via SCP and runs the installation from there.
@@ -79,31 +79,31 @@ This copies your local project files to the VM via SCP and runs the installation
 
 ```bash
 # Delete on success, keep on failure (recommended for development)
-./tests/vm-test.sh --vm-user=admin --onsuccess=delete --onfailure=keep
+./tests/vm/vm-test.sh --vm-user=admin --onsuccess=delete --onfailure=keep
 
 # Always keep for inspection
-./tests/vm-test.sh --vm-user=admin --onsuccess=keep --onfailure=keep
+./tests/vm/vm-test.sh --vm-user=admin --onsuccess=keep --onfailure=keep
 
 # Always delete (good for CI)
-./tests/vm-test.sh --vm-user=admin --onsuccess=delete --onfailure=delete
+./tests/vm/vm-test.sh --vm-user=admin --onsuccess=delete --onfailure=delete
 ```
 
 ### Combined Examples
 
 ```bash
 # Test local changes, auto-delete if successful
-./tests/vm-test.sh --vm-user=admin --source=local --onsuccess=delete
+./tests/vm/vm-test.sh --vm-user=admin --source=local --onsuccess=delete
 
 # Test with verbose output, keep on failure
-./tests/vm-test.sh --vm-user=admin --verbose --onfailure=keep
+./tests/vm/vm-test.sh --vm-user=admin --verbose --onfailure=keep
 ```
 
 ### Legacy Flags (Still Supported)
 
 ```bash
-./tests/vm-test.sh --vm-user=admin --local    # Same as --source=local
-./tests/vm-test.sh --vm-user=admin --keep     # Keep regardless of result
-./tests/vm-test.sh --vm-user=admin --delete   # Delete regardless of result
+./tests/vm/vm-test.sh --vm-user=admin --local    # Same as --source=local
+./tests/vm/vm-test.sh --vm-user=admin --keep     # Keep regardless of result
+./tests/vm/vm-test.sh --vm-user=admin --delete   # Delete regardless of result
 ```
 
 ## What Gets Tested
@@ -120,7 +120,7 @@ This copies your local project files to the VM via SCP and runs the installation
 
 Make sure your VM is named exactly: `macOS Tahoe - base`
 
-Or edit `tests/vm-test.sh` and change:
+Or edit `tests/vm/vm-test.sh` and change:
 
 ```bash
 BASE_VM_NAME="Your VM Name Here"
@@ -146,7 +146,7 @@ Or use System Settings → General → Sharing → Remote Login
 First installation can take 30+ minutes. To increase timeout:
 
 ```bash
-# Edit tests/vm-test.sh
+# Edit tests/vm/vm-test.sh
 INSTALL_TIMEOUT=3600  # 60 minutes
 ```
 

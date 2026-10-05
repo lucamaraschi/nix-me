@@ -48,14 +48,14 @@
           inherit system;
           modules = [
             # Base shared configuration
-            ./hosts/types/shared
+            ./nix/hosts/types/shared
 
             # Machine-type specific configuration (if specified)
-            (if machineType != null then ./hosts/types/${machineType} else {})
+            (if machineType != null then ./nix/hosts/types/${machineType} else {})
 
             # Host-specific configuration (if it exists)
-            (if builtins.pathExists ./hosts/machines/${hostname}
-            then ./hosts/machines/${hostname}
+            (if builtins.pathExists ./nix/hosts/machines/${hostname}
+            then ./nix/hosts/machines/${hostname}
             else {})
 
             # Set hostname, machine name, and primary user
@@ -89,19 +89,19 @@
                 inherit inputs username;
                 unstablePkgs = mkUnstablePkgs system;
               };
-              home-manager.users.${username} = import ./modules/home-manager;
+              home-manager.users.${username} = import ./nix/modules/home-manager;
             }
 
             # Overlays
             {
               nixpkgs.overlays = [
-                (import ./overlays/airjack.nix)
+                (import ./nix/overlays/airjack.nix)
                 # Add other overlays here
               ];
             }
 
             # VM mode - skip Mac App Store apps (iCloud doesn't work in VMs)
-            (if skipMasApps then ./modules/darwin/vm-mode.nix else {})
+            (if skipMasApps then ./nix/modules/darwin/vm-mode.nix else {})
           ] ++ extraModules;
           specialArgs = {
             inherit inputs hostname machineType machineName username;
@@ -122,12 +122,12 @@
             pname = "nix-me-apps";
             version = "0.1.0";
             src = pkgs.lib.cleanSourceWith {
-              src = ./engine;
+              src = ./packages/app-state/engine;
               filter = path: type:
                 let base = baseNameOf path;
                 in base != "target" && base != ".git";
             };
-            cargoLock.lockFile = ./engine/Cargo.lock;
+            cargoLock.lockFile = ./packages/app-state/engine/Cargo.lock;
             cargoBuildFlags = [ "-p" "nix-me-apps" ];
             cargoTestFlags = [ "-p" "nix-me-apps" ];
             meta.mainProgram = "nix-me-apps";
@@ -151,12 +151,12 @@
           machineName = "Nabucodonosor";
           username = "batman";
           extraModules = [
-            ./hosts/profiles/dev.nix   # Development tools
-            ./hosts/profiles/coding-agents.nix  # AI coding agents
-            ./hosts/profiles/work.nix  # Work collaboration apps
-            ./hosts/profiles/personal.nix  # Media tools for tutorials/streaming
-            ./hosts/profiles/hacking.nix  # Hacking tools for on the go
-            ./hosts/profiles/maker.nix  # 3D printing & CAD
+            ./nix/hosts/profiles/dev.nix   # Development tools
+            ./nix/hosts/profiles/coding-agents.nix  # AI coding agents
+            ./nix/hosts/profiles/work.nix  # Work collaboration apps
+            ./nix/hosts/profiles/personal.nix  # Media tools for tutorials/streaming
+            ./nix/hosts/profiles/hacking.nix  # Hacking tools for on the go
+            ./nix/hosts/profiles/maker.nix  # 3D printing & CAD
           ];
         };
 
@@ -174,13 +174,13 @@
           machineName = "Bellerofonte";
           username = "batman";
           extraModules = [
-            ./hosts/profiles/dev.nix   # Development tools
-            ./hosts/profiles/coding-agents.nix  # AI coding agents
-            ./hosts/profiles/work.nix  # Work collaboration apps
-            ./hosts/profiles/personal.nix  # Media tools for tutorials/streaming
-            ./hosts/profiles/hacking.nix  # Hacking tools for on the go
-            ./hosts/profiles/maker.nix  # 3D printing & CAD
-            ./hosts/profiles/ai.nix
+            ./nix/hosts/profiles/dev.nix   # Development tools
+            ./nix/hosts/profiles/coding-agents.nix  # AI coding agents
+            ./nix/hosts/profiles/work.nix  # Work collaboration apps
+            ./nix/hosts/profiles/personal.nix  # Media tools for tutorials/streaming
+            ./nix/hosts/profiles/hacking.nix  # Hacking tools for on the go
+            ./nix/hosts/profiles/maker.nix  # 3D printing & CAD
+            ./nix/hosts/profiles/ai.nix
           ];
         };
 
@@ -198,11 +198,11 @@
           machineName = "Zion";
           username = "batman";
           extraModules = [
-            ./hosts/profiles/dev.nix       # Development tools
-            ./hosts/profiles/coding-agents.nix  # AI coding agents
-            ./hosts/profiles/work.nix      # Work collaboration apps
-            ./hosts/profiles/personal.nix  # Media tools for tutorials/streaming
-            ./hosts/profiles/maker.nix  # 3D printing & CAD
+            ./nix/hosts/profiles/dev.nix       # Development tools
+            ./nix/hosts/profiles/coding-agents.nix  # AI coding agents
+            ./nix/hosts/profiles/work.nix      # Work collaboration apps
+            ./nix/hosts/profiles/personal.nix  # Media tools for tutorials/streaming
+            ./nix/hosts/profiles/maker.nix  # 3D printing & CAD
           ];
         };
 
@@ -238,9 +238,9 @@
           machineName = "Work MacBook Pro";
           username = "batman";
           extraModules = [
-            ./hosts/profiles/dev.nix
-            ./hosts/profiles/coding-agents.nix
-            ./hosts/profiles/work.nix
+            ./nix/hosts/profiles/dev.nix
+            ./nix/hosts/profiles/coding-agents.nix
+            ./nix/hosts/profiles/work.nix
           ];
         };
 
@@ -251,9 +251,9 @@
           machineName = "Personal MacBook Pro";
           username = "batman";
           extraModules = [
-            ./hosts/profiles/dev.nix
-            ./hosts/profiles/coding-agents.nix
-            ./hosts/profiles/personal.nix
+            ./nix/hosts/profiles/dev.nix
+            ./nix/hosts/profiles/coding-agents.nix
+            ./nix/hosts/profiles/personal.nix
           ];
         };
 
@@ -264,10 +264,10 @@
           machineName = "Work MacBook";
           username = "batman";
           extraModules = [
-            ./hosts/profiles/dev.nix
-            ./hosts/profiles/coding-agents.nix
-            ./hosts/profiles/work.nix
-            ./hosts/profiles/personal.nix  # For after-hours
+            ./nix/hosts/profiles/dev.nix
+            ./nix/hosts/profiles/coding-agents.nix
+            ./nix/hosts/profiles/work.nix
+            ./nix/hosts/profiles/personal.nix  # For after-hours
           ];
         };
 
@@ -278,7 +278,7 @@
           machineName = "Home Studio";
           username = "batman";
           extraModules = [
-            ./hosts/profiles/personal.nix
+            ./nix/hosts/profiles/personal.nix
           ];
         };
 
@@ -298,9 +298,9 @@
           machineName = "Hacking Lab";
           username = "batman";
           extraModules = [
-            ./hosts/profiles/dev.nix      # Development tools
-            ./hosts/profiles/coding-agents.nix  # AI coding agents
-            ./hosts/profiles/hacking.nix  # Security/pentesting tools
+            ./nix/hosts/profiles/dev.nix      # Development tools
+            ./nix/hosts/profiles/coding-agents.nix  # AI coding agents
+            ./nix/hosts/profiles/hacking.nix  # Security/pentesting tools
           ];
         };
       };
@@ -310,13 +310,13 @@
           system = "aarch64-linux";
           specialArgs = { inherit inputs username; };
           modules = [
-            ./hosts/machines/nixos-vm/default.nix
+            ./nix/hosts/machines/nixos-vm/default.nix
             home-manager.nixosModules.home-manager
             {
               home-manager = {
                 useGlobalPkgs = true;
                 useUserPackages = true;
-                users.dev = import ./hosts/machines/nixos-vm/home.nix;
+                users.dev = import ./nix/hosts/machines/nixos-vm/home.nix;
                 extraSpecialArgs = { inherit inputs username; };
               };
             }
@@ -332,7 +332,7 @@
       #   aarch64-darwin = {
       #     vm-manager = pkgs.writeShellApplication {
       #       name = "vm-manager";
-      #       text = builtins.readFile ./scripts/vm-manager.sh;
+      #       text = builtins.readFile ./tools/development/vm-manager.sh;
       #     };
       #   };
       # };

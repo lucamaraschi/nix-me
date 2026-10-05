@@ -54,7 +54,7 @@ This directory contains a comprehensive analysis of the search functionality in 
 - Section 10: Summary Table
 
 **Key Information:**
-- How `cmd_search()` works (bin/nix-me lines 157-200)
+- How `cmd_search()` works (apps/cli/bin/nix-me lines 157-200)
 - How `browse_homebrew_casks_fzf()` works (lib/package-manager.sh lines 50-182)
 - Complete process flow from user input to config update
 - Component architecture and interaction diagrams
@@ -112,7 +112,7 @@ This directory contains a comprehensive analysis of the search functionality in 
 ### Issue #1: Process Accumulation During Multiple Searches
 
 **Severity:** HIGH
-**Location:** `/Users/batman/src/lm/nix-me/lib/package-manager.sh`, lines 156-170
+**Location:** `/Users/batman/src/lm/nix-me/apps/cli/lib/package-manager.sh`, lines 156-170
 **Function:** `browse_homebrew_casks_fzf()`
 **Problem Type:** Missing process tracking and cleanup
 
@@ -142,7 +142,7 @@ This directory contains a comprehensive analysis of the search functionality in 
 ### Issue #2: Non-Installed Packages Missing Details
 
 **Severity:** MEDIUM
-**Location:** `/Users/batman/src/lm/nix-me/lib/package-manager.sh`, lines 140-149 and 162
+**Location:** `/Users/batman/src/lm/nix-me/apps/cli/lib/package-manager.sh`, lines 140-149 and 162
 **Function:** `browse_homebrew_casks_fzf()`
 **Problem Type:** Output formatting incompatible with fzf token extraction
 
@@ -196,14 +196,14 @@ This directory contains a comprehensive analysis of the search functionality in 
 ### Source Files
 ```
 Primary Problem Location:
-  /Users/batman/src/lm/nix-me/lib/package-manager.sh
+  /Users/batman/src/lm/nix-me/apps/cli/lib/package-manager.sh
   Lines 50-182: browse_homebrew_casks_fzf() function
     Lines 140-149: Issue #2 (formatting problem)
     Lines 156-170: Issue #1 (process management)
     Line 162: Issue #2 (preview token problem)
 
 Entry Points:
-  /Users/batman/src/lm/nix-me/bin/nix-me
+  /Users/batman/src/lm/nix-me/apps/cli/bin/nix-me
   Lines 96-155: cmd_browse() - interactive menu
   Lines 157-200: cmd_search() - search command
 ```
@@ -242,9 +242,9 @@ Entry Points:
 
 ### General Testing:
 
-- [ ] Run: `bin/nix-me browse` and test option 1
-- [ ] Run: `bin/nix-me search docker`
-- [ ] Run: `bin/nix-me search <non-installed-package>`
+- [ ] Run: `apps/cli/bin/nix-me browse` and test option 1
+- [ ] Run: `apps/cli/bin/nix-me search docker`
+- [ ] Run: `apps/cli/bin/nix-me search <non-installed-package>`
 - [ ] Check preview pane shows details for all packages
 - [ ] Do multiple searches and check no process accumulation
 - [ ] Press ESC during search and verify clean exit
@@ -286,14 +286,14 @@ watch -n 0.5 "ps aux | grep -E 'brew|fzf' | grep -v grep"
 
 # Terminal 2: Trigger issue
 cd /Users/batman/src/lm/nix-me
-bin/nix-me search docker     # ESC to cancel
-bin/nix-me search spotify    # Watch accumulation in Terminal 1
+apps/cli/bin/nix-me search docker     # ESC to cancel
+apps/cli/bin/nix-me search spotify    # Watch accumulation in Terminal 1
 ```
 
 ### Reproduce Issue #2 (Missing Preview)
 ```bash
 cd /Users/batman/src/lm/nix-me
-bin/nix-me browse
+apps/cli/bin/nix-me browse
 # Choose 1: Browse all
 # Search for "zoom" (or other non-installed)
 # Check preview pane (should be empty, should show details)

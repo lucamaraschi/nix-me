@@ -1,0 +1,35 @@
+name: Native macOS app
+
+on:
+  pull_request:
+    paths:
+      - "apps/macos/**"
+      - "packages/management-api/**"
+      - "tools/release/**"
+      - "Makefile"
+      - ".github/workflows/macos-app-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/macos/**"
+      - "packages/management-api/**"
+      - "tools/release/**"
+      - "Makefile"
+      - ".github/workflows/macos-app-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-package:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Test Swift package
+        run: swift test --package-path apps/macos/NixMeApp
+      - name: Build ad-hoc signed application
+        env:
+          NIX_ME_ARCHS: arm64
+        run: tools/release/build-macos-app.sh
+      - name: Package local DMG
+        run: tools/release/package-macos-app.sh

@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lucamaraschi/nix-me/packages/management-api/schema/snapshot-v1.schema.json",
+  "title": "nix-me management snapshot v1",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "host",
+    "configuration",
+    "inventory",
+    "updates",
+    "projects",
+    "warnings"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "generatedAt": { "type": "string" },
+    "host": { "type": "object" },
+    "configuration": { "type": "object" },
+    "inventory": { "type": "object" },
+    "updates": { "type": "object" },
+    "projects": { "type": "array" },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "additionalProperties": true
+}

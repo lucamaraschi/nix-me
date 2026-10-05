@@ -193,7 +193,7 @@ Build configuration without applying (test mode).
 **Example:**
 ```bash
 # Make changes to config
-vim ~/.config/nixpkgs/hosts/myhost/default.nix
+vim ~/.config/nixpkgs/nix/hosts/myhost/default.nix
 
 # Test the build
 nix-me build
@@ -373,7 +373,7 @@ nix-me create
 #   - Select additional apps
 
 # 2. Configuration is generated
-# Location: ~/.config/nixpkgs/hosts/work-macbook-pro
+# Location: ~/.config/nixpkgs/nix/hosts/machines/work-macbook-pro
 
 # 3. Build and apply
 nix-me switch
@@ -405,8 +405,8 @@ nix-me switch
 vim ~/.config/nixpkgs/flake.nix
 
 # 2. Change extraModules:
-#    FROM: ./hosts/profiles/work.nix
-#    TO:   ./hosts/profiles/personal.nix
+#    FROM: ./nix/hosts/profiles/work.nix
+#    TO:   ./nix/hosts/profiles/personal.nix
 
 # 3. Apply
 nix-me switch
@@ -524,14 +524,14 @@ nix search nixpkgs ripgrep
 ```
 ~/.config/nixpkgs/
 ├── flake.nix                          # Machine definitions
-├── hosts/
+├── nix/hosts/
 │   ├── <hostname>/
 │   │   └── default.nix                # Your machine config
 │   ├── profiles/
 │   │   ├── work.nix                   # Work profile
 │   │   └── personal.nix               # Personal profile
 │   └── macbook-pro/default.nix        # Machine type defaults
-└── modules/
+└── nix/modules/
     └── darwin/
         └── apps/
             └── installations.nix       # Base app list

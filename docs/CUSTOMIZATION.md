@@ -9,25 +9,25 @@ The configuration system uses a layered approach:
 ```
 ┌─────────────────────────────────────────┐
 │  Individual Host Config                  │
-│  hosts/<hostname>/default.nix            │
+│  nix/hosts/machines/<hostname>/default.nix            │
 │  (Machine-specific overrides)            │
 └─────────────────────────────────────────┘
                   ↓ overrides
 ┌─────────────────────────────────────────┐
 │  Profile Modules (Optional)              │
-│  hosts/profiles/{work,personal}.nix      │
+│  nix/hosts/profiles/{work,personal}.nix      │
 │  (Environment-specific settings)         │
 └─────────────────────────────────────────┘
                   ↓ overrides
 ┌─────────────────────────────────────────┐
 │  Machine Type                            │
-│  hosts/{macbook,macbook-pro,macmini,vm}  │
+│  nix/hosts/{macbook,macbook-pro,macmini,vm}  │
 │  (Hardware-specific optimizations)       │
 └─────────────────────────────────────────┘
                   ↓ inherits
 ┌─────────────────────────────────────────┐
 │  Shared Base Configuration               │
-│  hosts/shared/default.nix                │
+│  nix/hosts/types/shared/default.nix                │
 │  (Common to all machines)                │
 └─────────────────────────────────────────┘
 ```
@@ -38,7 +38,7 @@ The configuration system uses a layered approach:
 
 Profiles are reusable modules that can be mixed into any machine type.
 
-**Example: Work Profile** (`hosts/profiles/work.nix`)
+**Example: Work Profile** (`nix/hosts/profiles/work.nix`)
 
 ```nix
 { config, pkgs, lib, ... }:
@@ -67,7 +67,7 @@ Profiles are reusable modules that can be mixed into any machine type.
 }
 ```
 
-**Example: Personal Profile** (`hosts/profiles/personal.nix`)
+**Example: Personal Profile** (`nix/hosts/profiles/personal.nix`)
 
 ```nix
 { config, pkgs, lib, ... }:
@@ -103,7 +103,7 @@ darwinConfigurations = {
     machineName = "Work MacBook Pro";
     username = "yourusername";
     extraModules = [
-      ./hosts/profiles/work.nix
+      ./nix/hosts/profiles/work.nix
     ];
   };
 
@@ -113,7 +113,7 @@ darwinConfigurations = {
     machineName = "Personal MacBook Pro";
     username = "yourusername";
     extraModules = [
-      ./hosts/profiles/personal.nix
+      ./nix/hosts/profiles/personal.nix
     ];
   };
 };
@@ -123,7 +123,7 @@ darwinConfigurations = {
 
 ### Example: MacBook Pro Type
 
-Create `hosts/macbook-pro/default.nix`:
+Create `nix/hosts/types/macbook-pro/default.nix`:
 
 ```nix
 { pkgs, config, lib, ... }:
@@ -216,7 +216,7 @@ apps = {
   machineName = "Dev MacBook";
   username = "developer";
   extraModules = [
-    ./hosts/profiles/work.nix
+    ./nix/hosts/profiles/work.nix
     {
       # Additional work-specific customizations
       apps = {
@@ -246,7 +246,7 @@ apps = {
   machineName = "Creative MacBook";
   username = "artist";
   extraModules = [
-    ./hosts/profiles/personal.nix
+    ./nix/hosts/profiles/personal.nix
     {
       apps = {
         casksToAdd = [
@@ -275,7 +275,7 @@ apps = {
   machineName = "Home Studio";
   username = "producer";
   extraModules = [
-    ./hosts/profiles/personal.nix
+    ./nix/hosts/profiles/personal.nix
     {
       apps = {
         casksToAdd = [
@@ -303,8 +303,8 @@ apps = {
   username = "freelancer";
   extraModules = [
     # Import both profiles - later overrides earlier
-    ./hosts/profiles/work.nix
-    ./hosts/profiles/personal.nix
+    ./nix/hosts/profiles/work.nix
+    ./nix/hosts/profiles/personal.nix
     {
       # Fine-tune the combination
       apps = {
@@ -321,7 +321,7 @@ apps = {
 
 ## Per-Machine Overrides
 
-Create `hosts/<hostname>/default.nix` for machine-specific settings:
+Create `nix/hosts/machines/<hostname>/default.nix` for machine-specific settings:
 
 ```nix
 { config, pkgs, lib, ... }:
@@ -359,7 +359,7 @@ nix-me setup
 1. **Create your profile** (optional):
    ```bash
    # Create a new profile
-   cp hosts/profiles/work.nix hosts/profiles/myprofile.nix
+   cp nix/hosts/profiles/work.nix nix/hosts/profiles/myprofile.nix
    # Edit as needed
    ```
 
@@ -371,7 +371,7 @@ nix-me setup
      machineName = "My Machine";
      username = "myuser";
      extraModules = [
-       ./hosts/profiles/myprofile.nix
+       ./nix/hosts/profiles/myprofile.nix
      ];
    };
    ```
@@ -414,15 +414,15 @@ apps = {
 ```nix
 # Solution: Order matters - later modules override earlier ones
 extraModules = [
-  ./hosts/profiles/work.nix      # Applied first
-  ./hosts/profiles/personal.nix  # Overrides work
+  ./nix/hosts/profiles/work.nix      # Applied first
+  ./nix/hosts/profiles/personal.nix  # Overrides work
   { /* your overrides */ }       # Overrides both
 ];
 ```
 
 ## Next Steps
 
-- Create your first profile: `cp hosts/profiles/work.nix hosts/profiles/myprofile.nix`
+- Create your first profile: `cp nix/hosts/profiles/work.nix nix/hosts/profiles/myprofile.nix`
 - Add it to flake.nix
 - Run `make build` to test
 - Run `make switch` to activate

@@ -76,7 +76,7 @@ jobs:
           echo "keychain=$keychain" >>"$GITHUB_OUTPUT"
 
       - name: Test
-        run: swift test --package-path macos/NixMeApp
+        run: swift test --package-path apps/macos/NixMeApp
 
       - name: Build signed universal app
         env:
@@ -87,7 +87,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          APP_VERSION="${APP_VERSION#v}" ./scripts/build-macos-app.sh
+          APP_VERSION="${APP_VERSION#v}" ./tools/release/build-macos-app.sh
           file "build/Nix Me.app/Contents/MacOS/NixMeApp" | grep -q 'arm64.*x86_64\|x86_64.*arm64'
 
       - name: Package signed DMG
@@ -97,22 +97,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          APP_VERSION="${APP_VERSION#v}" ./scripts/package-macos-app.sh
+          APP_VERSION="${APP_VERSION#v}" ./tools/release/package-macos-app.sh
 
       - name: Notarize and staple
         shell: bash
         run: |
           set -euo pipefail
           version="${RELEASE_TAG#v}"
-          ./scripts/notarize-macos-app.sh "dist/Nix-Me-$version.dmg"
+          ./tools/release/notarize-macos-app.sh "dist/Nix-Me-$version.dmg"
 
       - name: Generate signed appcast and cask
         shell: bash
         run: |
           set -euo pipefail
           version="${RELEASE_TAG#v}"
-          ./scripts/generate-appcast.sh "$version" "dist/Nix-Me-$version.dmg" dist
-          ./scripts/generate-homebrew-cask.sh "$version" "dist/Nix-Me-$version.dmg" dist/nix-me.rb
+          ./tools/release/generate-appcast.sh "$version" "dist/Nix-Me-$version.dmg" dist
+          ./tools/release/generate-homebrew-cask.sh "$version" "dist/Nix-Me-$version.dmg" dist/nix-me.rb
           shasum -a 256 "dist/Nix-Me-$version.dmg" >"dist/Nix-Me-$version.dmg.sha256"
 
       - name: Publish GitHub Release

@@ -37,7 +37,7 @@ The committed Sparkle public key belongs to the Keychain account
 `com.nix-me.manager`. Export its private key on this Mac without printing it:
 
 ```bash
-macos/NixMeApp/.build/artifacts/sparkle/Sparkle/bin/generate_keys \
+apps/macos/NixMeApp/.build/artifacts/sparkle/Sparkle/bin/generate_keys \
   --account com.nix-me.manager \
   -x /tmp/nix-me-sparkle-private-key
 gh secret set SPARKLE_PRIVATE_KEY < /tmp/nix-me-sparkle-private-key
@@ -80,4 +80,4 @@ make app-package
 To exercise a Developer ID build locally, set `CODE_SIGN_IDENTITY`,
 `APP_VERSION`, `BUILD_NUMBER`, and optionally `NIX_ME_ARCHS` before running the
 build and package scripts. Notarization additionally requires the App Store
-Connect API variables accepted by `scripts/notarize-macos-app.sh`.
+Connect API variables accepted by `tools/release/notarize-macos-app.sh`.

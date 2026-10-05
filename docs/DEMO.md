@@ -146,15 +146,15 @@ Target machine: work-macbook-pro
 
 Where should these apps be added?
 
-  1) Host-specific config (hosts/work-macbook-pro/default.nix)
-  2) Base configuration (modules/darwin/apps/installations.nix)
+  1) Host-specific config (nix/hosts/machines/work-macbook-pro/default.nix)
+  2) Base configuration (nix/modules/darwin/apps/installations.nix)
 
 Choice [1]: 1
 
 Apps to add:
   • docker-desktop
 
-Add these apps to hosts/work-macbook-pro/default.nix? (Y/n): y
+Add these apps to nix/hosts/machines/work-macbook-pro/default.nix? (Y/n): y
 ✓ Configuration updated!
 
 Apply changes now? (Y/n): y
@@ -246,7 +246,7 @@ Diagnostics Complete
 
 ```bash
 # Had to manually edit files
-vim ~/.config/nixpkgs/modules/darwin/apps/installations.nix
+vim ~/.config/nixpkgs/nix/modules/darwin/apps/installations.nix
 # Find the casks array
 # Add "docker"
 # Save
@@ -390,7 +390,7 @@ User selects apps (TAB)
     ↓
 add_casks_to_config
     ↓
-Updates hosts/<hostname>/default.nix
+Updates nix/hosts/machines/<hostname>/default.nix
     ↓
 Optionally applies with switch
 ```

@@ -1,0 +1,36 @@
+name: Nix configuration
+
+on:
+  pull_request:
+    paths:
+      - "flake.nix"
+      - "flake.lock"
+      - "nix/**"
+      - "packages/app-state/engine/**"
+      - "tools/installation/**"
+      - "Makefile"
+      - ".github/workflows/nix-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "flake.nix"
+      - "flake.lock"
+      - "nix/**"
+      - "packages/app-state/engine/**"
+      - "tools/installation/**"
+      - "Makefile"
+      - ".github/workflows/nix-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  evaluate:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: cachix/install-nix-action@v31
+      - name: Check flake outputs
+        run: nix flake check --no-build
+      - name: Build app-state package
+        run: nix build .#nix-me-apps --no-link

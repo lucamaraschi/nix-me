@@ -53,7 +53,7 @@ author and CI cannot accept a hand-authored verification stamp.
 
 Priority: ongoing
 
-- Select candidates from `catalog/homebrew-top-200-apps.json` by rank,
+- Select candidates from `packages/app-state/catalog/homebrew-top-200-apps.json` by rank,
   configurability, and confidence.
 - Capture or research the real persistence mechanism before writing a recipe.
 - Add recipe, values, catalog override, tests, and regenerated metric together.
@@ -94,7 +94,7 @@ Priority: before changing either version-1 format
 ## Development commands
 
 ```sh
-cd engine
+cd packages/app-state/engine
 cargo fmt --all -- --check
 cargo test --workspace
 cargo run -p nix-me-apps -- registry validate --recipe ../recipes --json

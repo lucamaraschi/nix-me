@@ -141,7 +141,7 @@ lib/
 
 ### Configuration
 ```
-hosts/
+nix/hosts/
 ├── profiles/
 │   ├── work.nix          # Work profile
 │   └── personal.nix      # Personal profile
@@ -163,7 +163,7 @@ NEW_FEATURES.md          # This file
 
 ### Updated
 ```
-bin/nix-me               # Rewritten with new features
+apps/cli/bin/nix-me               # Rewritten with new features
 flake.nix                # Added example profile configurations
 ```
 

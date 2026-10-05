@@ -39,7 +39,7 @@ darwinConfigurations = {
     machineName = "My Work Mac";
     username = "yourusername";
     extraModules = [
-      ./hosts/profiles/work.nix  # ← Profile here
+      ./nix/hosts/profiles/work.nix  # ← Profile here
     ];
   };
 };
@@ -52,7 +52,7 @@ make switch HOST=my-work-mac
 
 ## What Each Profile Includes
 
-### Work Profile (`hosts/profiles/work.nix`)
+### Work Profile (`nix/hosts/profiles/work.nix`)
 
 **Adds:**
 - Microsoft Teams, Slack, Zoom
@@ -69,7 +69,7 @@ make switch HOST=my-work-mac
 - Disabled analytics
 - Work environment variables
 
-### Personal Profile (`hosts/profiles/personal.nix`)
+### Personal Profile (`nix/hosts/profiles/personal.nix`)
 
 **Adds:**
 - Spotify, OBS, Steam
@@ -93,7 +93,7 @@ make switch HOST=my-work-mac
 Even with a profile, you can customize individual machines:
 
 ```nix
-# hosts/my-work-mac/default.nix
+# nix/hosts/machines/my-work-mac/default.nix
 { config, pkgs, lib, ... }:
 {
   # Profile: work (from extraModules)
@@ -117,7 +117,7 @@ Even with a profile, you can customize individual machines:
 Copy and modify an existing one:
 
 ```bash
-cp hosts/profiles/work.nix hosts/profiles/myprofile.nix
+cp nix/hosts/profiles/work.nix nix/hosts/profiles/myprofile.nix
 # Edit as needed
 ```
 
@@ -125,7 +125,7 @@ Then use it:
 
 ```nix
 extraModules = [
-  ./hosts/profiles/myprofile.nix
+  ./nix/hosts/profiles/myprofile.nix
 ];
 ```
 
@@ -140,8 +140,8 @@ You can layer multiple profiles (later ones override earlier):
   machineName = "Hybrid Machine";
   username = "freelancer";
   extraModules = [
-    ./hosts/profiles/work.nix      # Base: work apps
-    ./hosts/profiles/personal.nix  # Add: personal apps
+    ./nix/hosts/profiles/work.nix      # Base: work apps
+    ./nix/hosts/profiles/personal.nix  # Add: personal apps
     {
       # Fine-tune the combination
       apps.casksToRemove = [
@@ -176,14 +176,14 @@ Example combinations:
 "freelance-work" = mkDarwinSystem {
   hostname = "freelance-work";
   machineType = "macbook-pro";
-  extraModules = [ ./hosts/profiles/work.nix ];
+  extraModules = [ ./nix/hosts/profiles/work.nix ];
 };
 
 # Personal machine
 "freelance-personal" = mkDarwinSystem {
   hostname = "freelance-personal";
   machineType = "macbook";
-  extraModules = [ ./hosts/profiles/personal.nix ];
+  extraModules = [ ./nix/hosts/profiles/personal.nix ];
 };
 ```
 
@@ -194,7 +194,7 @@ Example combinations:
   hostname = "dev-machine";
   machineType = "macbook-pro";
   extraModules = [
-    ./hosts/profiles/work.nix
+    ./nix/hosts/profiles/work.nix
     {
       apps.casksToAdd = [
         "tableplus"
@@ -218,7 +218,7 @@ Example combinations:
   hostname = "creative-studio";
   machineType = "macmini";
   extraModules = [
-    ./hosts/profiles/personal.nix
+    ./nix/hosts/profiles/personal.nix
     {
       apps.casksToAdd = [
         "adobe-creative-cloud"
@@ -234,7 +234,7 @@ Example combinations:
 ## Next Steps
 
 1. **Choose your profile** during wizard setup
-2. **Customize** in `hosts/<hostname>/default.nix`
+2. **Customize** in `nix/hosts/machines/<hostname>/default.nix`
 3. **Test**: `make build HOST=<hostname>`
 4. **Apply**: `make switch HOST=<hostname>`
 

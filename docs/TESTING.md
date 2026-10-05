@@ -52,23 +52,23 @@ nix-shell -p fzf
 cd /Users/batman/src/lm/nix-me
 
 # Test help
-bin/nix-me help
+apps/cli/bin/nix-me help
 # Expected: Colored help text with all commands
 
 # Test status
-bin/nix-me status
+apps/cli/bin/nix-me status
 # Expected: System status display
 
 # Test doctor
-bin/nix-me doctor
+apps/cli/bin/nix-me doctor
 # Expected: 8 diagnostic checks
 
 # Test list
-bin/nix-me list
+apps/cli/bin/nix-me list
 # Expected: List of installed packages
 
 # Test diff (if git repo)
-bin/nix-me diff
+apps/cli/bin/nix-me diff
 # Expected: Shows uncommitted changes
 ```
 
@@ -77,7 +77,7 @@ bin/nix-me diff
 **Test 1: Search functionality**
 ```bash
 # Run the test script
-./tests/test-browse.sh
+./tests/integration/test-browse.sh
 
 # OR manually:
 source lib/ui.sh
@@ -94,7 +94,7 @@ browse_homebrew_casks_fzf "docker"
 
 **Test 2: Browse all apps**
 ```bash
-bin/nix-me browse
+apps/cli/bin/nix-me browse
 
 # Menu appears:
 #   1) Browse all applications
@@ -106,7 +106,7 @@ bin/nix-me browse
 
 **Test 3: Category browsing**
 ```bash
-bin/nix-me browse
+apps/cli/bin/nix-me browse
 
 # Choose option 2: Browse by category
 # Select a category (e.g., "Development")
@@ -117,15 +117,15 @@ bin/nix-me browse
 
 ```bash
 # Search for specific apps
-bin/nix-me search spotify
+apps/cli/bin/nix-me search spotify
 # Expected: fzf browser with spotify results
 # Press ESC to cancel
 
-bin/nix-me search docker
+apps/cli/bin/nix-me search docker
 # Expected: fzf browser with docker results
 # Press ESC to cancel
 
-bin/nix-me search figma
+apps/cli/bin/nix-me search figma
 # Expected: fzf browser with design apps
 # Press ESC to cancel
 ```
@@ -135,7 +135,7 @@ bin/nix-me search figma
 Use the safe test script:
 
 ```bash
-./tests/test-wizard.sh
+./tests/integration/test-wizard.sh
 
 # Follow the prompts:
 # 1. Enter test hostname (e.g., "test-machine")
@@ -157,15 +157,15 @@ source lib/config-wizard.sh
 # This will show the profile selection UI
 # (it's just display, won't apply anything)
 
-cat hosts/profiles/work.nix
-cat hosts/profiles/personal.nix
+cat nix/hosts/profiles/work.nix
+cat nix/hosts/profiles/personal.nix
 ```
 
 ### 6. Reconfigure Command (Read-Only Test - 3 minutes)
 
 ```bash
 # This will fail gracefully if config doesn't exist
-bin/nix-me reconfigure
+apps/cli/bin/nix-me reconfigure
 
 # Expected: Menu showing:
 #   1) Add applications
@@ -189,16 +189,16 @@ mkdir -p "$TEST_CONFIG"
 cp -r lib "$TEST_CONFIG/../lib"
 cp flake.nix "$TEST_CONFIG/"
 mkdir -p "$TEST_CONFIG/hosts"
-cp -r hosts/profiles "$TEST_CONFIG/hosts/"
-cp -r hosts/macbook "$TEST_CONFIG/hosts/"
-cp -r hosts/shared "$TEST_CONFIG/hosts/"
+cp -r nix/hosts/profiles "$TEST_CONFIG/nix/hosts/"
+cp -r nix/hosts/macbook "$TEST_CONFIG/nix/hosts/"
+cp -r nix/hosts/types/shared "$TEST_CONFIG/nix/hosts/"
 
 # 3. Run wizard pointing to test directory
-CONFIG_DIR="$TEST_CONFIG" bin/nix-me create
+CONFIG_DIR="$TEST_CONFIG" apps/cli/bin/nix-me create
 
 # 4. Review generated config
-ls -la "$TEST_CONFIG/hosts/"
-cat "$TEST_CONFIG/hosts/*/default.nix"
+ls -la "$TEST_CONFIG/nix/hosts/"
+cat "$TEST_CONFIG/nix/hosts/*/default.nix"
 
 # 5. Clean up when done
 rm -rf "$TEST_CONFIG"
@@ -312,7 +312,7 @@ Select [1]: 1
 ```bash
 brew install fzf
 # OR
-nix-shell -p fzf --run "bin/nix-me browse"
+nix-shell -p fzf --run "apps/cli/bin/nix-me browse"
 ```
 
 ### Homebrew not found
@@ -353,16 +353,16 @@ Run all basic tests at once:
 echo "🧪 Running nix-me tests..."
 
 echo "1. Testing help..."
-bin/nix-me help > /dev/null && echo "✓ Help works"
+apps/cli/bin/nix-me help > /dev/null && echo "✓ Help works"
 
 echo "2. Testing status..."
-bin/nix-me status > /dev/null && echo "✓ Status works"
+apps/cli/bin/nix-me status > /dev/null && echo "✓ Status works"
 
 echo "3. Testing doctor..."
-bin/nix-me doctor > /dev/null && echo "✓ Doctor works"
+apps/cli/bin/nix-me doctor > /dev/null && echo "✓ Doctor works"
 
 echo "4. Testing list..."
-bin/nix-me list > /dev/null && echo "✓ List works"
+apps/cli/bin/nix-me list > /dev/null && echo "✓ List works"
 
 echo "5. Checking libraries..."
 source lib/ui.sh && echo "✓ ui.sh loads"
@@ -373,8 +373,8 @@ echo ""
 echo "✅ Basic tests passed!"
 echo ""
 echo "To test interactive features:"
-echo "  ./tests/test-browse.sh    # Test fzf browser"
-echo "  ./tests/test-wizard.sh    # Test wizard"
+echo "  ./tests/integration/test-browse.sh    # Test fzf browser"
+echo "  ./tests/integration/test-wizard.sh    # Test wizard"
 ```
 
 Save this as `run-tests.sh` and execute it.
@@ -415,7 +415,7 @@ Once you've verified everything works:
 If you encounter issues during testing:
 
 1. Check this document's troubleshooting section
-2. Run `bin/nix-me doctor`
+2. Run `apps/cli/bin/nix-me doctor`
 3. Check `docs/CLI_GUIDE.md` for detailed help
 4. Review error messages carefully
 

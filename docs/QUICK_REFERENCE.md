@@ -111,8 +111,8 @@ nix-me rollback   # Revert if needed
 ```
 ~/.config/nixpkgs/                      # Main config
 ├── flake.nix                           # Machine list
-├── hosts/<hostname>/default.nix        # Your config
-└── modules/darwin/apps/installations.nix  # Base apps
+├── nix/hosts/machines/<hostname>/default.nix        # Your config
+└── nix/modules/darwin/apps/installations.nix  # Base apps
 ```
 
 ## Tips

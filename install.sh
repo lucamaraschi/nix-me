@@ -362,9 +362,9 @@ run_simple_wizard() {
         print_info "Existing configuration detected"
         if ask_yes_no "Would you like to modify an existing machine configuration?"; then
             # For updates, try to use the full wizard if available
-            if [ -f "$repo_dir/lib/wizard.sh" ]; then
-                source "$repo_dir/lib/ui.sh" 2>/dev/null || true
-                source "$repo_dir/lib/wizard.sh"
+            if [ -f "$repo_dir/apps/cli/lib/wizard.sh" ]; then
+                source "$repo_dir/apps/cli/lib/ui.sh" 2>/dev/null || true
+                source "$repo_dir/apps/cli/lib/wizard.sh"
 
                 if run_setup_wizard "$repo_dir" && [ "$WIZARD_SUCCESS" == "1" ]; then
                     if [ "${WIZARD_MODIFY_ONLY:-0}" == "1" ]; then
@@ -546,9 +546,9 @@ main() {
     print_step "4/7" "Configuration Wizard"
     if [ $# -eq 0 ] && [ "$NON_INTERACTIVE" != "1" ] && [ "$USE_WIZARD" == "1" ]; then
         # Use full wizard if available (it can see existing hosts now)
-        if [ -f "$REPO_DIR/lib/wizard.sh" ] && [ -f "$REPO_DIR/lib/ui.sh" ]; then
-            source "$REPO_DIR/lib/ui.sh"
-            source "$REPO_DIR/lib/wizard.sh"
+        if [ -f "$REPO_DIR/apps/cli/lib/wizard.sh" ] && [ -f "$REPO_DIR/apps/cli/lib/ui.sh" ]; then
+            source "$REPO_DIR/apps/cli/lib/ui.sh"
+            source "$REPO_DIR/apps/cli/lib/wizard.sh"
             if run_setup_wizard "$REPO_DIR"; then
                 HOST_NAME=${WIZARD_HOSTNAME}
                 MACHINE_TYPE=${WIZARD_MACHINE_TYPE}
@@ -649,9 +649,9 @@ main() {
     # Generate config only if creating new (not selecting existing host)
     if [ -n "$WIZARD_SELECTED_HOST" ]; then
         log "Using existing configuration: $WIZARD_SELECTED_HOST"
-    elif [ -f "$REPO_DIR/lib/config-builder.sh" ]; then
+    elif [ -f "$REPO_DIR/apps/cli/lib/config-builder.sh" ]; then
         log "Generating machine configuration..."
-        source "$REPO_DIR/lib/config-builder.sh"
+        source "$REPO_DIR/apps/cli/lib/config-builder.sh"
         generate_machine_config "$HOST_NAME" "$MACHINE_TYPE" "$MACHINE_NAME" "$NIXOS_USERNAME" "$REPO_DIR" "0"
     else
         warn "Config builder not available, ensure machine is in flake.nix"
