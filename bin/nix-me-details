@@ -1,0 +1,135 @@
+#!/bin/bash
+
+# Lazy package metadata backend for native and third-party nix-me clients.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+CONFIG_DIR="${NIX_ME_CONFIG_DIR:-$REPO_DIR}"
+HOST_NAME="${NIX_ME_HOSTNAME:-$(hostname -s | tr '[:upper:]' '[:lower:]')}"
+KIND="${1:-}"
+NAME="${2:-}"
+STORE_ID="${3:-}"
+
+export PATH="/run/current-system/sw/bin:/etc/profiles/per-user/${USER:-$(id -un)}/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/usr/local/bin:${PATH:-/usr/bin:/bin:/usr/sbin:/sbin}"
+
+error_json() {
+  jq -n --arg code "$1" --arg message "$2" \
+    '{schemaVersion: 1, error: {code: $code, message: $message}}'
+}
+
+if ! command -v jq >/dev/null 2>&1; then
+  printf '{"schemaVersion":1,"error":{"code":"missing_dependency","message":"jq is required"}}\n'
+  exit 69
+fi
+
+if [[ -z "$KIND" || -z "$NAME" ]]; then
+  error_json "invalid_arguments" "Usage: nix-me details <nix|formula|cask|mas> <name> [store-id]"
+  exit 64
+fi
+
+if [[ ! "$NAME" =~ ^[[:alnum:]@._+/-]+$ && "$KIND" != "mas" ]]; then
+  error_json "invalid_name" "The package name contains unsupported characters"
+  exit 64
+fi
+
+case "$KIND" in
+  nix)
+    if [[ -n "${NIX_ME_DETAILS_MANIFEST:-}" ]]; then
+      manifest="$(cat "$NIX_ME_DETAILS_MANIFEST")"
+    else
+      manifest="$(nix eval --json "$CONFIG_DIR#darwinConfigurations.$HOST_NAME.config.nixMe.manifest")"
+    fi
+    if ! jq -e --arg name "$NAME" '.software.nixPackageDetails[]? | select(.name == $name or .fullName == $name)' >/dev/null <<<"$manifest"; then
+      error_json "not_found" "No Nix package metadata was found for $NAME"
+      exit 66
+    fi
+    jq --arg name "$NAME" '
+      .software.nixPackageDetails
+      | map(select(.name == $name or .fullName == $name))[0]
+      | {
+          schemaVersion: 1,
+          kind: "nix",
+          name,
+          displayName: .name,
+          description,
+          version,
+          installedVersions: [],
+          homepage,
+          license,
+          publisher: null,
+          dependencies: []
+        }
+    ' <<<"$manifest"
+    ;;
+  formula)
+    metadata="$(brew info --json=v2 --formula "$NAME")"
+    jq '
+      .formulae[0]
+      | {
+          schemaVersion: 1,
+          kind: "formula",
+          name,
+          displayName: .full_name,
+          description: .desc,
+          version: .versions.stable,
+          installedVersions: [.installed[]?.version],
+          homepage,
+          license,
+          publisher: null,
+          dependencies: (.dependencies // [])
+        }
+    ' <<<"$metadata"
+    ;;
+  cask)
+    metadata="$(brew info --json=v2 --cask "$NAME")"
+    jq '
+      .casks[0]
+      | {
+          schemaVersion: 1,
+          kind: "cask",
+          name: .token,
+          displayName: ((.name // [.token]) | join(", ")),
+          description: .desc,
+          version,
+          installedVersions: (if .installed == null then [] elif (.installed | type) == "array" then .installed else [.installed] end),
+          homepage,
+          license: null,
+          publisher: null,
+          dependencies: []
+        }
+    ' <<<"$metadata"
+    ;;
+  mas)
+    if [[ ! "$STORE_ID" =~ ^[0-9]+$ ]]; then
+      error_json "invalid_store_id" "A numeric Mac App Store ID is required"
+      exit 64
+    fi
+    metadata="$(curl -fsSL "https://itunes.apple.com/lookup?id=$STORE_ID")"
+    if ! jq -e '.resultCount > 0' >/dev/null <<<"$metadata"; then
+      error_json "not_found" "No Mac App Store metadata was found for $NAME"
+      exit 66
+    fi
+    jq --arg name "$NAME" --argjson storeId "$STORE_ID" '
+      .results[0]
+      | {
+          schemaVersion: 1,
+          kind: "mas",
+          name: $name,
+          displayName: (.trackName // $name),
+          description,
+          version,
+          installedVersions: [],
+          homepage: .trackViewUrl,
+          license: null,
+          publisher: .artistName,
+          dependencies: [],
+          storeId: $storeId
+        }
+    ' <<<"$metadata"
+    ;;
+  *)
+    error_json "invalid_kind" "Unsupported package kind: $KIND"
+    exit 64
+    ;;
+esac

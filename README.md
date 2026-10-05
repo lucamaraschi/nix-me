@@ -25,6 +25,22 @@
 
 **nix-me** transforms macOS system configuration into a reproducible, version-controlled experience. Whether you're setting up a new machine or keeping multiple Macs in sync, nix-me makes it effortless.
 
+### Native dashboard (preview)
+
+The SwiftUI dashboard shows desired and installed software, pending Homebrew
+updates, configuration drift, Git synchronization, and project repository
+health. Its menu bar indicator checks Nix, Homebrew, and Mac App Store updates
+every 30 minutes. Updates can be applied individually, as a selection, or all
+at once. Nix changes remain separate from system activation until the user
+chooses Apply Configuration and approves the native administrator prompt.
+
+```bash
+make app-run
+```
+
+The app is built at `build/Nix Me.app` and reads the versioned JSON interface
+documented in [`docs/MANAGEMENT_API.md`](docs/MANAGEMENT_API.md).
+
 <table>
 <tr>
 <td width="50%">

@@ -15,6 +15,22 @@ else
     CONFIG_DIR="${HOME}/.config/nixpkgs"  # Default even if doesn't exist
 fi
 
+# JSON API calls bypass the interactive libraries and always write JSON to stdout.
+if [[ "${1:-}" == "api" ]]; then
+    shift
+    exec "$SCRIPT_DIR/nix-me-api" "$@"
+fi
+
+if [[ "${1:-}" == "action" ]]; then
+    shift
+    exec "$SCRIPT_DIR/nix-me-action" "$@"
+fi
+
+if [[ "${1:-}" == "details" ]]; then
+    shift
+    exec "$SCRIPT_DIR/nix-me-details" "$@"
+fi
+
 # Source libraries
 source "$LIB_DIR/ui.sh"
 source "$LIB_DIR/config-builder.sh" 2>/dev/null || true
@@ -50,6 +66,8 @@ ${CYAN}System Management:${NC}
   ${GREEN}build${NC}               Build configuration (test only)
   ${GREEN}update${NC}              Update packages
   ${GREEN}rollback${NC}            Rollback to previous configuration
+  ${GREEN}action${NC} <action>     Validated action API for native clients
+  ${GREEN}details${NC} <kind> <id> Package metadata API for native clients
 
 ${CYAN}VM Management:${NC}
   ${GREEN}vm${NC}                  Interactive VM management menu
@@ -60,6 +78,7 @@ ${CYAN}VM Management:${NC}
   ${GREEN}vm delete${NC}           Delete a VM
 
 ${CYAN}Information:${NC}
+  ${GREEN}api${NC} [endpoint]      Machine-readable JSON API (default: snapshot)
   ${GREEN}status${NC}              Show system status
   ${GREEN}doctor${NC}              Diagnose configuration issues
   ${GREEN}list${NC}                List installed packages
