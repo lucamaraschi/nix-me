@@ -29,6 +29,7 @@ select_profile() {
         local profiles=(
             "work:Work environment (Teams, Slack, Office, Docker, Dev tools)"
             "personal:Personal setup (Spotify, Creative apps, Entertainment)"
+            "local-ai:Local DeepSeek inference with DS4 and Pi"
             "minimal:Clean slate - choose your own apps"
             "custom:Create a custom profile"
         )
@@ -54,17 +55,19 @@ select_profile() {
         # Fallback to simple selection
         echo "  ${CYAN}1${NC}) Work - Productivity and collaboration tools"
         echo "  ${CYAN}2${NC}) Personal - Entertainment and creative apps"
-        echo "  ${CYAN}3${NC}) Minimal - Start with basics, add as needed"
-        echo "  ${CYAN}4${NC}) Custom - Create your own profile"
+        echo "  ${CYAN}3${NC}) Local AI - DeepSeek inference with DS4 and Pi"
+        echo "  ${CYAN}4${NC}) Minimal - Start with basics, add as needed"
+        echo "  ${CYAN}5${NC}) Custom - Create your own profile"
         echo ""
 
-        read -p "Select profile [1-4]: " choice
+        read -p "Select profile [1-5]: " choice
 
         case $choice in
             1) WIZARD_PROFILE="work" ;;
             2) WIZARD_PROFILE="personal" ;;
-            3) WIZARD_PROFILE="minimal" ;;
-            4) WIZARD_PROFILE="custom" ;;
+            3) WIZARD_PROFILE="local-ai" ;;
+            4) WIZARD_PROFILE="minimal" ;;
+            5) WIZARD_PROFILE="custom" ;;
             *)
                 print_error "Invalid selection"
                 return 1

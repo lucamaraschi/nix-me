@@ -1,10 +1,36 @@
 # Configuration Harness Plan
 
-This document tracks the declarative application-state harness independently
-from the repository-wide monorepo plan. Update it whenever the engine contract,
-recipe catalog, verification authority, or rollout policy changes.
+This document is the delivery plan and backlog for the declarative
+application-state harness. Keep it separate from the repository-wide monorepo
+plan and update it whenever scope, priority, or verification status changes.
 
-Last updated: 2026-10-04
+Last updated: 2026-10-05
+
+## Product outcome
+
+The harness should let a user understand and safely converge application state
+without learning where every application stores its preferences. The CLI and
+macOS app must answer four questions from one versioned management contract:
+
+1. What state is managed?
+2. What differs from the declared configuration?
+3. What will change if I apply it?
+4. Did the application visibly accept the change?
+
+The engine owns planning, validation, convergence, and evidence. Clients own
+presentation and explicit user actions; they must not parse engine state files
+or implement application-specific behavior.
+
+## Guardrails
+
+- Snapshot and diff operations are read-only.
+- Every mutation requires an explicit apply action.
+- Unowned state is preserved unless a recipe declares otherwise.
+- Secret-like values are redacted by default and never captured implicitly.
+- Unknown recipe, plan, and persisted-state versions are rejected.
+- A recipe is not marked verified until visible behavior passes T3.
+- Large or mutable artifacts such as local model weights are referenced and
+  inspected, not copied into Nix or harness state.
 
 ## Current release boundary
 
@@ -20,8 +46,7 @@ Version 0.1 provides an opt-in, runtime-free `nix-me-apps` engine. It can:
 - measure local recipe coverage against the mapped Homebrew top-200 catalog;
 - run through `nix-me apps` and optional nix-darwin post-activation convergence.
 
-The persisted state format and JSON plan surface are version 1. Unknown future
-versions must be rejected rather than interpreted as version 1. Recipes remain
+The persisted state format and JSON plan surface are version 1. Recipes remain
 local to this repository and are treated as untrusted until schema and semantic
 validation pass.
 
@@ -33,63 +58,91 @@ validation pass.
 - [ ] T3: visible application behavior and generated-import acceptance.
 
 Only T3 evidence may replace a recipe's `verified: null` value. A verification
-stamp records the macOS version, application version, date, and harness revision.
+record must contain the macOS version, application version, date, harness
+revision, procedure version, result, and retained evidence references.
 
-## Iteration backlog
+## Delivery roadmap
 
-### 1. Complete T3 verification
+### Phase 1: Establish trust
 
-Priority: next
+Complete H-001 through H-004. The outcome is a repeatable T3 workflow that
+cannot be satisfied with a hand-edited stamp.
 
-- Verify Rectangle preference changes in a disposable macOS VM.
-- Verify Raycast accepts a generated import and reflects its settings.
-- Record reproducible evidence and stamp only the recipes actually observed.
-- Keep failed VMs and emitted plans as diagnostic artifacts.
+### Phase 2: Publish one status contract
 
-Complete when the T3 procedure is repeatable by someone other than the recipe
-author and CI cannot accept a hand-authored verification stamp.
+Complete H-010 through H-012. The management API becomes the sole integration
+point for the CLI and macOS app, including availability, drift, residue, and
+last-apply state.
 
-### 2. Expand high-value recipe coverage
+### Phase 3: Make capture reviewable
 
-Priority: ongoing
+Complete H-020 through H-022. Users can discover candidate state, review a
+redacted diff, and generate recipe/value fragments without directly editing
+engine data.
 
-- Select candidates from `packages/app-state/catalog/homebrew-top-200-apps.json` by rank,
-  configurability, and confidence.
-- Capture or research the real persistence mechanism before writing a recipe.
-- Add recipe, values, catalog override, tests, and regenerated metric together.
-- Prefer zero-click convergence; represent unavoidable interaction honestly as
-  `one_click` or `full_manual` residue.
+### Phase 4: Grow recipe coverage
 
-Initial candidates should prioritize installed applications shared by multiple
-nix-me profiles rather than optimizing the percentage in isolation.
+Complete H-030 and H-031, then repeat the scored batch process. Coverage is
+driven by installed use and confidence, not by percentage alone.
 
-### 3. Improve capture ergonomics
+### Phase 5: Prepare versioned upgrades
 
-Priority: after T3
+Complete H-040 and H-041 before introducing any version-2 recipe, plan, or
+persisted-state format.
 
-- Add a guided application/domain discovery flow.
-- Produce reviewable diffs before writing recipe or values fragments.
-- Explain omitted secret-like values and require explicit inclusion.
-- Add fixtures for every newly supported container or encryption pipeline.
+## Prioritized backlog
 
-### 4. Expose app-state status to clients
+| ID | Priority | Status | Depends on | Deliverable and acceptance criteria |
+|---|---|---|---|---|
+| H-001 | P0 | Ready | - | Define a machine-readable T3 evidence manifest and JSON Schema. Validation rejects missing environment, procedure, result, or artifact metadata. |
+| H-002 | P0 | Ready | H-001 | Run Rectangle T3 in a disposable macOS VM. A second operator can follow the documented procedure and reproduce the visible window-management behavior. |
+| H-003 | P0 | Ready | H-001 | Run Raycast generated-import T3. Evidence proves the import was accepted and the corresponding setting is visible in Raycast. |
+| H-004 | P0 | Ready | H-001 | Add verification-stamp generation and CI validation. Stamps are derived from passing evidence and cannot be accepted when hand-authored or stale. |
+| H-010 | P1 | Ready | H-004 | Define an internal status model covering engine availability, configured recipes, drift, manual residue, last apply, and verification. Unit tests cover every state. |
+| H-011 | P1 | Ready | H-010 | Expose the status model through a versioned, read-only management API. Contract tests lock response shape and error semantics. |
+| H-012 | P1 | Ready | H-011 | Render harness status, diffs, residue, and apply results in the macOS app and CLI without reading engine files directly. Mutations remain explicit. |
+| H-020 | P1 | Ready | H-012 | Add guided application/domain discovery. Output names each source, confidence level, unsupported container, and next safe action. |
+| H-021 | P1 | Ready | H-020 | Add a reviewable capture diff that separates additions, changes, deletions, ignored keys, and uncertain values before writing files. |
+| H-022 | P1 | Ready | H-021 | Add default secret redaction and explicit inclusion controls. Fixtures cover tokens, credentials, encrypted containers, and false positives. |
+| H-030 | P2 | Ready | H-012 | Score recipe candidates by installed-profile frequency, configurability, impact, implementation confidence, and T3 cost. Publish the ranked queue. |
+| H-031 | P2 | Ready | H-030 | Deliver the first scored recipe batch with values, catalog mapping, tests, metrics, documentation, and either T3 evidence or `verified: null`. |
+| H-040 | P2 | Ready | H-012 | Create forward/backward migration fixtures for recipes, plans, and persisted state before any version-2 implementation starts. |
+| H-041 | P2 | Ready | H-040 | Add atomic backup, migration rollback, and failure reporting. Tests prove the prior state remains usable after an interrupted migration. |
 
-Priority: after the management API package boundary is established
+## Local AI pilot
 
-- Add a versioned management API response for engine availability, configured
-  recipes, drift counts, manual residue, and last apply status.
-- Keep mutation behind explicit action endpoints; snapshot reads stay read-only.
-- Make the macOS app consume the API contract rather than engine files or state
-  files directly.
+The local-AI profile is a pilot for external runtimes whose installation is
+declarative but whose large data and runtime lifecycle remain user-controlled.
+Nix owns Pi, project declarations, commands, and baseline settings. DS4 model
+weights remain outside the Nix store and require an explicit download.
 
-### 5. Harden upgrades and recovery
+| ID | Priority | Status | Depends on | Deliverable and acceptance criteria |
+|---|---|---|---|---|
+| LAI-001 | P0 | Done | - | Add a composable `local-ai` profile that installs Pi and syncs the public DS4 and pi-ds4 repositories under `~/src/ai`. It is not assigned to an existing host implicitly. |
+| LAI-002 | P0 | Done | LAI-001 | Provide `local-ai-doctor` and `local-ai-setup`. Setup builds DS4, links Pi, and downloads DeepSeek V4 Flash Q2 only with `--download-model`; doctor reports prerequisites, memory, disk, runtime, extension, and model state. |
+| LAI-003 | P1 | Ready | H-020, LAI-002 | Model Pi/DS4 settings as a harness recipe. Capture excludes model binaries and secrets; plan/apply converges settings without disrupting a running server. |
+| LAI-004 | P1 | Ready | H-011, LAI-003 | Add local-AI status to the management API and macOS app: checkout health, runtime build, model presence, server state, configuration drift, and actionable remediation. |
+| LAI-005 | P2 | Ready | LAI-004 | Add explicit model lifecycle actions with progress, disk preflight, checksum/error reporting, cancellation, and cleanup of partial downloads. |
 
-Priority: before changing either version-1 format
+## Release gates
 
-- Reject unsupported recipe, plan, and persisted-state versions explicitly.
-- Define fixture-backed migrations before introducing a version 2.
-- Add backup and rollback behavior for state migrations.
-- Document compatibility between CLI, engine, recipes, and management clients.
+### Harness 0.2
+
+- H-001 through H-004 are complete.
+- Rectangle and Raycast retain reproducible T3 evidence.
+- CI rejects invalid or stale verification records.
+
+### Management integration beta
+
+- H-010 through H-012 are complete.
+- CLI and macOS app consume the same API fixtures.
+- Read-only refresh cannot trigger an apply or application launch.
+
+### Capture beta
+
+- H-020 through H-022 are complete.
+- No secret-like value is emitted without explicit confirmation.
+- Generated fragments pass registry validation before they are offered for use.
 
 ## Development commands
 
@@ -108,6 +161,10 @@ The manual VM command and trust model are documented in `docs/REGISTRY.md`.
 
 ## Decision log
 
+- 2026-10-05: Use stable backlog IDs and release gates so engine, API, CLI, and
+  macOS app work can reference the same deliverables.
+- 2026-10-05: Treat local AI as an external-runtime pilot. Declare tools and
+  settings, but keep model downloads explicit and model weights out of Nix.
 - 2026-10-04: Keep the harness in the nix-me monorepo because recipes, Nix
   activation, the CLI, and management clients share one versioned contract.
 - 2026-10-04: Merge the tested v0.1 engine with recipes unverified rather than

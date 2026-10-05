@@ -21,7 +21,7 @@ let
 
       # Nix tooling
       "nixpkgs-fmt"
-      "nil"  # Nix language server
+      "nil" # Nix language server
       "comma"
 
       # Development languages & tools
@@ -50,7 +50,7 @@ let
       "raycast"
       "rectangle"
       "hammerspoon"
-      "ghostty"           # Modern terminal
+      "ghostty" # Modern terminal
 
       # Privacy
       "proton-mail"
@@ -91,13 +91,13 @@ in
 
     systemPackagesToRemove = lib.mkOption {
       type = lib.types.listOf lib.types.str;
-      default = [];
+      default = [ ];
       description = "System packages to remove from base list";
     };
 
     systemPackagesToAdd = lib.mkOption {
       type = lib.types.listOf lib.types.str;
-      default = [];
+      default = [ ];
       description = "Additional system packages to install";
     };
 
@@ -132,37 +132,37 @@ in
 
     casksToRemove = lib.mkOption {
       type = lib.types.listOf lib.types.str;
-      default = [];
+      default = [ ];
       description = "List of casks to remove from the base list";
     };
 
     casksToAdd = lib.mkOption {
       type = lib.types.listOf lib.types.str;
-      default = [];
+      default = [ ];
       description = "List of additional casks to install";
     };
 
     brewsToRemove = lib.mkOption {
       type = lib.types.listOf lib.types.str;
-      default = [];
+      default = [ ];
       description = "List of brews to remove from the base list";
     };
 
     brewsToAdd = lib.mkOption {
       type = lib.types.listOf lib.types.str;
-      default = [];
+      default = [ ];
       description = "List of additional brews to install";
     };
 
     masAppsToRemove = lib.mkOption {
       type = lib.types.listOf lib.types.str;
-      default = [];
+      default = [ ];
       description = "List of MAS app names to remove from the base list";
     };
 
     masAppsToAdd = lib.mkOption {
       type = lib.types.attrsOf lib.types.int;
-      default = {};
+      default = { };
       description = "Additional MAS apps to install (name = appStoreId)";
     };
   };
@@ -171,7 +171,8 @@ in
     # System packages configuration
     environment.systemPackages =
       let
-        packageNames = if config.apps.useBaseLists
+        packageNames =
+          if config.apps.useBaseLists
           then (lib.subtractLists config.apps.systemPackagesToRemove config.apps.baseSystemPackages) ++ config.apps.systemPackagesToAdd
           else config.apps.baseSystemPackages;
 
@@ -187,11 +188,11 @@ in
             topLevelPkg = lib.attrByPath [ topLevelName ] null pkgs;
             legacyPkg = lib.attrByPath legacyPath null pkgs;
           in
-            if topLevelPkg != null then topLevelPkg
-            else if legacyPkg != null then legacyPkg
-            else throw "Unknown package '${name}'";
+          if topLevelPkg != null then topLevelPkg
+          else if legacyPkg != null then legacyPkg
+          else throw "Unknown package '${name}'";
       in
-        map resolvePackage packageNames;
+      map resolvePackage packageNames;
 
     # Environment variables
     environment.variables = lib.mkDefault {
@@ -213,27 +214,28 @@ in
         cleanup = lib.mkDefault "none";
       };
 
-      taps = lib.mkDefault [];
+      taps = lib.mkDefault [ ];
 
       casks = lib.mkDefault (
         if config.apps.useBaseLists
-        then (lib.subtractLists config.apps.casksToRemove config.apps.baseCasks) ++ config.apps.casksToAdd
+        then lib.unique ((lib.subtractLists config.apps.casksToRemove config.apps.baseCasks) ++ config.apps.casksToAdd)
         else config.apps.baseCasks
       );
 
       brews = (
         if config.apps.useBaseLists
-        then (lib.subtractLists config.apps.brewsToRemove config.apps.baseBrews) ++ config.apps.brewsToAdd
+        then lib.unique ((lib.subtractLists config.apps.brewsToRemove config.apps.baseBrews) ++ config.apps.brewsToAdd)
         else config.apps.baseBrews
       );
 
       masApps = lib.mkDefault (
         let
-          finalMasApps = if config.apps.useBaseLists
+          finalMasApps =
+            if config.apps.useBaseLists
             then (config.apps.baseMasApps // config.apps.masAppsToAdd) // (lib.genAttrs config.apps.masAppsToRemove (_: null))
             else config.apps.baseMasApps;
         in
-          lib.filterAttrs (name: id: id != null) finalMasApps
+        lib.filterAttrs (name: id: id != null) finalMasApps
       );
     };
   };

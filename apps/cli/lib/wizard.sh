@@ -368,6 +368,7 @@ create_new_configuration() {
         "dev       Development tools (VS Code, Node, Python, Docker...)"
         "work      Work apps (Slack, Teams, Zoom, Office...)"
         "personal  Personal apps (Spotify, OBS, media tools...)"
+        "local-ai  Local DeepSeek inference with DS4 and Pi"
     )
     select_multiple "${profile_options[@]}"
 
@@ -377,6 +378,7 @@ create_new_configuration() {
             0) [ -n "$WIZARD_PROFILES" ] && WIZARD_PROFILES="$WIZARD_PROFILES dev" || WIZARD_PROFILES="dev" ;;
             1) [ -n "$WIZARD_PROFILES" ] && WIZARD_PROFILES="$WIZARD_PROFILES work" || WIZARD_PROFILES="work" ;;
             2) [ -n "$WIZARD_PROFILES" ] && WIZARD_PROFILES="$WIZARD_PROFILES personal" || WIZARD_PROFILES="personal" ;;
+            3) [ -n "$WIZARD_PROFILES" ] && WIZARD_PROFILES="$WIZARD_PROFILES local-ai" || WIZARD_PROFILES="local-ai" ;;
         esac
     done
 

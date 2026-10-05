@@ -6,6 +6,7 @@ Profiles are pre-configured templates that customize your Mac for specific use c
 
 - **Work Profile**: Productivity tools, collaboration apps, corporate security settings
 - **Personal Profile**: Entertainment, creative tools, relaxed settings
+- **Local AI Profile**: Private DeepSeek inference through DS4 and Pi
 - **Minimal Profile**: Clean slate, add only what you need
 
 ## Creating a New Machine with a Profile
@@ -86,6 +87,26 @@ make switch HOST=my-work-mac
 - Larger dock (48px)
 - Personal environment variables
 
+### Local AI Profile (`nix/hosts/profiles/local-ai.nix`)
+
+**Adds:**
+- Pi coding agent
+- Public DS4 and pi-ds4 checkouts under `~/src/ai`
+- `local-ai-setup` and `local-ai-doctor` commands
+- Pi DS4 settings for the OpenAI Responses protocol
+
+**First-time setup:**
+```bash
+local-ai-doctor
+local-ai-setup --download-model
+pi
+```
+
+Inside Pi, run `/model` and select `ds4/dsv4-flash-q2`. The DeepSeek V4 Flash
+Q2 model is about 81 GiB and is never downloaded by `make switch`. DS4 is for
+Apple Silicon; approximately 96 GiB of unified memory is recommended for this
+model, while lower-memory systems may rely on slower SSD streaming.
+
 ## Customizing Your Profile
 
 ### Per-Machine Overrides
@@ -165,6 +186,7 @@ Example combinations:
 - `macbook-pro` + `work` = Work laptop with Pro performance
 - `macbook` + `personal` = Personal laptop with battery optimization
 - `macmini` + `personal` = Home studio/desktop setup
+- `macbook-pro` + `local-ai` = Private local coding agent
 - `vm` + `minimal` = Clean VM for testing
 
 ## Real-World Examples
