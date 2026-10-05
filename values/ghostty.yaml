@@ -1,0 +1,10 @@
+ghostty:
+  config: |
+    font-family = JetBrainsMono Nerd Font
+    font-size = 13
+    window-decoration = false
+    window-padding-x = 10
+    window-padding-y = 10
+    background = #1a1b26
+    foreground = #c0caf5
+    keybind = shift+enter=text:\x1b[13;2u

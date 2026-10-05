@@ -1,0 +1,35 @@
+schema_version: 1
+id: rectangle
+name: Rectangle
+bundle_id: com.knollsoft.Rectangle
+install:
+  cask: rectangle
+detect:
+  app_path: /Applications/Rectangle.app
+sandboxed: false
+requires: []
+config:
+  - kind: defaults
+    domain: com.knollsoft.Rectangle
+    keys:
+      SUEnableAutomaticChecks: {type: bool, ui: "Settings > About > Automatically check for updates"}
+      launchOnLogin: {type: bool, ui: "Settings > General > Launch on login"}
+      hideMenubarIcon: {type: bool, ui: "Settings > General > Hide menu bar icon"}
+      alternateDefaultShortcuts: {type: bool, ui: "Settings > Shortcuts > Alternate defaults"}
+      allowAnyShortcut: {type: bool, ui: "Settings > Shortcuts > Allow any shortcut"}
+      gapSize: {type: float, ui: "Settings > Layout > Gaps"}
+      snapEdgeMarginTop: {type: int, ui: "Settings > Layout > Top snap margin"}
+      snapEdgeMarginBottom: {type: int, ui: "Settings > Layout > Bottom snap margin"}
+      snapEdgeMarginLeft: {type: int, ui: "Settings > Layout > Left snap margin"}
+      snapEdgeMarginRight: {type: int, ui: "Settings > Layout > Right snap margin"}
+      windowSnapping: {type: int, ui: "Settings > Snap Areas"}
+      almostMaximizeHeight: {type: float, ui: "Settings > Layout > Almost maximize height"}
+      almostMaximizeWidth: {type: float, ui: "Settings > Layout > Almost maximize width"}
+      subsequentExecutionMode: {type: int, ui: "Settings > General > Repeated commands"}
+    unknown_keys: reject
+    confirm: none
+apply:
+  poke: restart_app
+  unsafe_to_kill: false
+verified: null
+maintainers: ["@lucamaraschi"]

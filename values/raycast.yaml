@@ -1,0 +1,13 @@
+raycast:
+  defaults:
+    raycastGlobalHotkey: Command-49
+    NSStatusItem Visible raycastIcon: true
+    raycastPreferredWindowMode: default
+    openAtLogin: true
+    ToggleClipboardHistoryHotkey: Command-Shift-86
+    ToggleFloatingNotesHotkey: Command-Shift-78
+  import:
+    settings: {}
+    extensions: []
+    snippets: []
+    scriptDirectories: []

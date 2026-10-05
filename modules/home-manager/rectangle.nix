@@ -1,12 +1,15 @@
 # modules/home-manager/rectangle.nix
 # Rectangle window manager configuration for macOS
 # Uses macOS defaults system (plist) instead of JSON config
-{ config, lib, pkgs, ... }:
+{ config, lib, pkgs, osConfig ? {}, ... }:
 
 {
   # Rectangle preferences via activation script
   # Rectangle stores settings in ~/Library/Preferences/com.knollsoft.Rectangle.plist
-  home.activation.rectangleConfig = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+  # Keep the legacy path for existing machines. Once app state is enabled,
+  # recipes/rectangle.yaml owns these preferences instead.
+  home.activation.rectangleConfig = lib.mkIf (!(osConfig.apps.state.enable or false))
+    (lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     # General settings
     $DRY_RUN_CMD /usr/bin/defaults write com.knollsoft.Rectangle SUEnableAutomaticChecks -bool true
     $DRY_RUN_CMD /usr/bin/defaults write com.knollsoft.Rectangle launchOnLogin -bool true
@@ -30,6 +33,6 @@
 
     # Cycling behavior
     $DRY_RUN_CMD /usr/bin/defaults write com.knollsoft.Rectangle subsequentExecutionMode -int 1
-  '';
+  '');
 
 }

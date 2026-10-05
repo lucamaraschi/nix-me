@@ -15,6 +15,12 @@ generate_machine_config_multi_profile() {
     local repo_dir="$5"
     shift 5
     local profiles=("$@")  # Remaining args are profiles
+    local app_state_enable="${WIZARD_APP_STATE_ENABLE:-false}"
+
+    case "$app_state_enable" in
+        true|false) ;;
+        *) app_state_enable="false" ;;
+    esac
 
     print_info "Generating configuration for $hostname"
     if [ ${#profiles[@]} -gt 0 ]; then
@@ -54,6 +60,10 @@ generate_machine_config_multi_profile() {
 
   # Machine-specific customizations
   # Profiles are configured in flake.nix extraModules
+
+  # Declarative application preferences are opt-in. The setup wizard records
+  # this explicitly so existing machines retain their prior activation behavior.
+  apps.state.enable = $app_state_enable;
 
   # Add any machine-specific overrides here:
   # apps = {

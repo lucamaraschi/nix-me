@@ -1,0 +1,3 @@
+{"command":"code --list-extensions","stdout":"dbaeumer.vscode-eslint\nrust-lang.rust-analyzer\n","exit_code":0}
+{"command":"code --install-extension github.copilot","stdout":"","exit_code":0}
+{"command":"code --uninstall-extension dbaeumer.vscode-eslint","stdout":"","exit_code":0}

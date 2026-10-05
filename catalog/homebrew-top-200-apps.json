@@ -1,0 +1,6269 @@
+{
+  "version": 1,
+  "source": {
+    "provider": "Homebrew Formulae Analytics",
+    "analytics_endpoint": "https://formulae.brew.sh/api/analytics/cask-install/365d.json",
+    "metadata_endpoint": "https://formulae.brew.sh/api/cask.json",
+    "window_days": 365,
+    "start_date": "2025-09-08",
+    "end_date": "2026-09-08",
+    "total_cask_events": 25371569
+  },
+  "selection": {
+    "denominator": 200,
+    "rule": "First 200 analytics-ranked Homebrew/homebrew-cask entries whose current metadata contains an app artifact",
+    "excludes": "CLI-only tools, fonts, runtimes, drivers, and third-party tap entries without official Formulae metadata"
+  },
+  "mechanisms": {
+    "defaults_dominant": "CFPreferences is the leading recipe candidate",
+    "file_driven": "User-owned structured or text files are the leading candidate",
+    "hybrid": "More than one mechanism is expected",
+    "cloud_or_opaque": "Cask metadata exposes no stable local configuration surface"
+  },
+  "applications": [
+    {
+      "analytics_rank": 4,
+      "cask": "docker-desktop",
+      "name": "Docker Desktop",
+      "description": "App to build and share containerised applications and microservices",
+      "homepage": "https://www.docker.com/products/docker-desktop",
+      "installs": 540991,
+      "percent": 2.13,
+      "artifact_kinds": [
+        "app",
+        "bash_completion",
+        "binary",
+        "fish_completion",
+        "postflight_steps",
+        "target",
+        "uninstall",
+        "zap",
+        "zsh_completion"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.docker.docker.plist",
+          "~/Library/Preferences/com.electron.docker-frontend.plist",
+          "~/Library/Preferences/com.electron.dockerdesktop.plist"
+        ],
+        "config_paths": [
+          "~/.docker",
+          "~/.docker/bin",
+          "~/Library/Application Support/Docker Desktop",
+          "~/Library/Application Support/com.bugsnag.Bugsnag/com.docker.docker",
+          "~/Library/Application Support/docker-secrets-engine"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 1
+    },
+    {
+      "analytics_rank": 5,
+      "cask": "visual-studio-code",
+      "name": "Microsoft Visual Studio Code",
+      "description": "Open-source code editor",
+      "homepage": "https://code.visualstudio.com/",
+      "installs": 496266,
+      "percent": 1.96,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/ByHost/com.microsoft.VSCode.ShipIt.*.plist",
+          "~/Library/Preferences/com.microsoft.VSCode.helper.plist",
+          "~/Library/Preferences/com.microsoft.VSCode.plist"
+        ],
+        "config_paths": [
+          "~/.vscode",
+          "~/Library/Application Support/Code"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "high",
+        "evidence": "curated",
+        "note": "Settings are JSON/JSONC files; extensions converge through the code CLI."
+      },
+      "local_recipe": "vscode",
+      "rank": 2
+    },
+    {
+      "analytics_rank": 6,
+      "cask": "google-chrome",
+      "name": "Google Chrome",
+      "description": "Web browser",
+      "homepage": "https://www.google.com/chrome/",
+      "installs": 450410,
+      "percent": 1.78,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.google.Chrome.plist",
+          "~/Library/Preferences/com.google.Keystone.Agent.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Google",
+          "~/Library/Application Support/Google/Chrome"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 3
+    },
+    {
+      "analytics_rank": 10,
+      "cask": "ghostty",
+      "name": "Ghostty",
+      "description": "Terminal emulator that uses platform-native UI and GPU acceleration",
+      "homepage": "https://ghostty.org/",
+      "installs": 370796,
+      "percent": 1.46,
+      "artifact_kinds": [
+        "app",
+        "bash_completion",
+        "fish_completion",
+        "manpage",
+        "target",
+        "zap",
+        "zsh_completion"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.mitchellh.ghostty.plist"
+        ],
+        "config_paths": [
+          "~/.cache/ghostty",
+          "~/.config/ghostty",
+          "~/Library/Application Support/com.mitchellh.ghostty"
+        ]
+      },
+      "behavior": {
+        "mechanism": "file_driven",
+        "confidence": "high",
+        "evidence": "curated",
+        "note": "User-owned text configuration under ~/.config/ghostty."
+      },
+      "local_recipe": "ghostty",
+      "rank": 4
+    },
+    {
+      "analytics_rank": 13,
+      "cask": "libreoffice",
+      "name": "LibreOffice",
+      "description": "Free cross-platform office suite, fresh version",
+      "homepage": "https://www.libreoffice.org/",
+      "installs": 343209,
+      "percent": 1.35,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "command_wrapper",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/org.libreoffice.script.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/LibreOffice"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 5
+    },
+    {
+      "analytics_rank": 14,
+      "cask": "iterm2",
+      "name": "iTerm2",
+      "description": "Terminal emulator as alternative to Apple's Terminal app",
+      "homepage": "https://iterm2.com/",
+      "installs": 325452,
+      "percent": 1.28,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.googlecode.iterm2.plist",
+          "~/Library/Preferences/com.googlecode.iterm2.private.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/iTerm",
+          "~/Library/Application Support/iTerm2"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 6
+    },
+    {
+      "analytics_rank": 19,
+      "cask": "claude",
+      "name": "Claude",
+      "description": "Anthropic's official Claude AI desktop app",
+      "homepage": "https://claude.com/download",
+      "installs": 211785,
+      "percent": 0.83,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.anthropic.claudefordesktop.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Claude"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 7
+    },
+    {
+      "analytics_rank": 20,
+      "cask": "firefox",
+      "name": "Mozilla Firefox",
+      "description": "Web browser",
+      "homepage": "https://www.mozilla.org/firefox/",
+      "installs": 196871,
+      "percent": 0.78,
+      "artifact_kinds": [
+        "app",
+        "command_wrapper",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/org.mozilla.crashreporter.plist",
+          "~/Library/Preferences/org.mozilla.firefox.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/CrashReporter/firefox_*",
+          "~/Library/Application Support/Firefox",
+          "~/Library/Application Support/Mozilla"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 8
+    },
+    {
+      "analytics_rank": 22,
+      "cask": "obsidian",
+      "name": "Obsidian",
+      "description": "Knowledge base that works on top of a local folder of plain text Markdown files",
+      "homepage": "https://obsidian.md/",
+      "installs": 191010,
+      "percent": 0.75,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/md.obsidian.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/obsidian"
+        ]
+      },
+      "behavior": {
+        "mechanism": "file_driven",
+        "confidence": "high",
+        "evidence": "curated",
+        "note": "Vault settings and plugins are files under each vault's .obsidian directory."
+      },
+      "local_recipe": null,
+      "rank": 9
+    },
+    {
+      "analytics_rank": 23,
+      "cask": "orbstack",
+      "name": "OrbStack",
+      "description": "Replacement for Docker Desktop",
+      "homepage": "https://orbstack.dev/",
+      "installs": 181521,
+      "percent": 0.72,
+      "artifact_kinds": [
+        "app",
+        "bash_completion",
+        "binary",
+        "fish_completion",
+        "postflight_steps",
+        "target",
+        "uninstall",
+        "zap",
+        "zsh_completion"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/dev.kdrag0n.MacVirt.plist"
+        ],
+        "config_paths": [
+          "~/.orbstack"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 10
+    },
+    {
+      "analytics_rank": 25,
+      "cask": "warp",
+      "name": "Warp",
+      "description": "Rust-based terminal",
+      "homepage": "https://www.warp.dev/terminal",
+      "installs": 150902,
+      "percent": 0.59,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/dev.warp.Warp-Stable.plist"
+        ],
+        "config_paths": [
+          "~/.warp",
+          "~/Library/Application Support/dev.warp.Warp-Stable"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 11
+    },
+    {
+      "analytics_rank": 26,
+      "cask": "postman",
+      "name": "Postman",
+      "description": "Collaboration platform for API development",
+      "homepage": "https://www.postman.com/",
+      "installs": 149052,
+      "percent": 0.59,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/ByHost/com.postmanlabs.mac.ShipIt.*.plist",
+          "~/Library/Preferences/com.postmanlabs.mac.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Postman",
+          "~/Library/Application Support/com.postmanlabs.mac.ShipIt"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 12
+    },
+    {
+      "analytics_rank": 28,
+      "cask": "stats",
+      "name": "Stats",
+      "description": "System monitor for the menu bar",
+      "homepage": "https://github.com/exelban/stats",
+      "installs": 145425,
+      "percent": 0.57,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/eu.exelban.Stats.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Stats"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 13
+    },
+    {
+      "analytics_rank": 31,
+      "cask": "dbeaver-community",
+      "name": "DBeaver Community Edition",
+      "description": "Universal database tool and SQL client",
+      "homepage": "https://dbeaver.io/",
+      "installs": 137264,
+      "percent": 0.54,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/org.jkiss.dbeaver.core.product.plist"
+        ],
+        "config_paths": []
+      },
+      "behavior": {
+        "mechanism": "defaults_dominant",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 14
+    },
+    {
+      "analytics_rank": 33,
+      "cask": "cursor",
+      "name": "Cursor",
+      "description": "Write, edit, and chat about your code with AI",
+      "homepage": "https://www.cursor.com/",
+      "installs": 125747,
+      "percent": 0.50,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/ByHost/com.todesktop.*.ShipIt.*.plist",
+          "~/Library/Preferences/com.todesktop.*.plist"
+        ],
+        "config_paths": [
+          "~/.cursor",
+          "~/.cursor-tutor",
+          "~/Library/Application Support/Cursor"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 15
+    },
+    {
+      "analytics_rank": 34,
+      "cask": "wine-stable",
+      "name": "WineHQ-stable",
+      "description": "Compatibility layer to run Windows applications",
+      "homepage": "https://wiki.winehq.org/MacOS",
+      "installs": 123239,
+      "percent": 0.49,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [],
+        "config_paths": [
+          "~/.local/share/applications",
+          "~/.local/share/applications/wine*",
+          "~/.local/share/icons",
+          "~/.local/share/icons/hicolor/**/application-x-wine*",
+          "~/.local/share/mime",
+          "~/.local/share/mime/application/x-wine*",
+          "~/.local/share/mime/packages/x-wine*",
+          "~/.wine",
+          "~/.wine32"
+        ]
+      },
+      "behavior": {
+        "mechanism": "file_driven",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 16
+    },
+    {
+      "analytics_rank": 35,
+      "cask": "vlc",
+      "name": "VLC media player",
+      "description": "Multimedia player",
+      "homepage": "https://www.videolan.org/vlc/",
+      "installs": 123171,
+      "percent": 0.49,
+      "artifact_kinds": [
+        "app",
+        "command_wrapper",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/org.videolan.vlc.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/VLC",
+          "~/Library/Application Support/org.videolan.vlc"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 17
+    },
+    {
+      "analytics_rank": 37,
+      "cask": "android-studio",
+      "name": "Android Studio",
+      "description": "Tools for building Android applications",
+      "homepage": "https://developer.android.com/studio/",
+      "installs": 120078,
+      "percent": 0.47,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.android.Emulator.plist",
+          "~/Library/Preferences/com.google.android.studio.plist"
+        ],
+        "config_paths": [
+          "~/.android",
+          "~/Library/Application Support/Google/AndroidStudio2026.1"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 18
+    },
+    {
+      "analytics_rank": 38,
+      "cask": "raycast",
+      "name": "Raycast",
+      "description": "Control your tools with a few keystrokes",
+      "homepage": "https://raycast.com/",
+      "installs": 119083,
+      "percent": 0.47,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.raycast.macos.plist"
+        ],
+        "config_paths": [
+          "~/.config/raycast",
+          "~/Library/Application Support/com.raycast.macos"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "high",
+        "evidence": "curated",
+        "note": "CFPreferences plus a generated .rayconfig import artifact."
+      },
+      "local_recipe": "raycast",
+      "rank": 19
+    },
+    {
+      "analytics_rank": 41,
+      "cask": "rectangle",
+      "name": "Rectangle",
+      "description": "Move and resize windows using keyboard shortcuts or snap areas",
+      "homepage": "https://rectangleapp.com/",
+      "installs": 116192,
+      "percent": 0.46,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.knollsoft.Rectangle.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Rectangle"
+        ]
+      },
+      "behavior": {
+        "mechanism": "defaults_dominant",
+        "confidence": "high",
+        "evidence": "curated",
+        "note": "Typed settings in the com.knollsoft.Rectangle CFPreferences domain."
+      },
+      "local_recipe": "rectangle",
+      "rank": 20
+    },
+    {
+      "analytics_rank": 42,
+      "cask": "maccy",
+      "name": "Maccy",
+      "description": "Clipboard manager",
+      "homepage": "https://maccy.app/",
+      "installs": 114242,
+      "percent": 0.45,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/org.p0deje.Maccy.plist"
+        ],
+        "config_paths": []
+      },
+      "behavior": {
+        "mechanism": "defaults_dominant",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 21
+    },
+    {
+      "analytics_rank": 43,
+      "cask": "zed",
+      "name": "Zed",
+      "description": "Multiplayer code editor",
+      "homepage": "https://zed.dev/",
+      "installs": 113842,
+      "percent": 0.45,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "generate_completions_from_executable",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/dev.zed.Zed.plist"
+        ],
+        "config_paths": [
+          "~/.config/zed",
+          "~/Library/Application Support/Zed"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 22
+    },
+    {
+      "analytics_rank": 45,
+      "cask": "cc-switch",
+      "name": "CC Switch",
+      "description": "Configuration manager for AI coding agents",
+      "homepage": "https://github.com/farion1231/cc-switch",
+      "installs": 108902,
+      "percent": 0.43,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.ccswitch.desktop.plist"
+        ],
+        "config_paths": [
+          "~/.cc-switch",
+          "~/Library/Application Support/com.ccswitch.desktop"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 23
+    },
+    {
+      "analytics_rank": 49,
+      "cask": "spotify",
+      "name": "Spotify",
+      "description": "Music streaming service",
+      "homepage": "https://www.spotify.com/",
+      "installs": 98080,
+      "percent": 0.39,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.spotify.client.helper.plist",
+          "~/Library/Preferences/com.spotify.client.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Spotify"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 24
+    },
+    {
+      "analytics_rank": 51,
+      "cask": "discord",
+      "name": "Discord",
+      "description": "Voice and text chat software",
+      "homepage": "https://discord.com/",
+      "installs": 97188,
+      "percent": 0.38,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/ByHost/com.discord.discord.ShipIt.*.plist",
+          "~/Library/Preferences/com.hnc.Discord.helper.plist",
+          "~/Library/Preferences/com.hnc.Discord.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/discord"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 25
+    },
+    {
+      "analytics_rank": 52,
+      "cask": "brave-browser",
+      "name": "Brave",
+      "description": "Web browser focusing on privacy",
+      "homepage": "https://brave.com/",
+      "installs": 93401,
+      "percent": 0.37,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.brave.Browser.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/BraveSoftware",
+          "~/Library/Application Support/BraveSoftware/Brave-Browser"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 26
+    },
+    {
+      "analytics_rank": 53,
+      "cask": "betterdisplay",
+      "name": "BetterDisplay",
+      "description": "Display management tool",
+      "homepage": "https://betterdisplay.pro/",
+      "installs": 90075,
+      "percent": 0.36,
+      "artifact_kinds": [
+        "app",
+        "command_wrapper",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/pro.betterdisplay.BetterDisplay.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/BetterDisplay",
+          "~/Library/Application Support/BetterDummy"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 27
+    },
+    {
+      "analytics_rank": 57,
+      "cask": "slack",
+      "name": "Slack",
+      "description": "Team communication and collaboration software",
+      "homepage": "https://slack.com/",
+      "installs": 86336,
+      "percent": 0.34,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/ByHost/com.tinyspeck.slackmacgap.ShipIt.*.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Slack"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 28
+    },
+    {
+      "analytics_rank": 58,
+      "cask": "chatgpt",
+      "name": "ChatGPT",
+      "description": "OpenAI's official ChatGPT desktop app",
+      "homepage": "https://chatgpt.com/",
+      "installs": 84696,
+      "percent": 0.33,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.openai.codex.plist",
+          "~/Library/Preferences/com.openai.sky.CUAService.cli.plist",
+          "~/Library/Preferences/com.openai.sky.CUAService.plist"
+        ],
+        "config_paths": [
+          "~/.codex",
+          "~/Library/Application Support/Codex",
+          "~/Library/Application Support/OpenAI/Codex",
+          "~/Library/Application Support/com.openai.codex"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 29
+    },
+    {
+      "analytics_rank": 59,
+      "cask": "ollama-app",
+      "name": "Ollama",
+      "description": "Get up and running with large language models locally",
+      "homepage": "https://ollama.com/",
+      "installs": 84243,
+      "percent": 0.33,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.electron.ollama.plist"
+        ],
+        "config_paths": [
+          "~/.ollama",
+          "~/Library/Application Support/Ollama"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 30
+    },
+    {
+      "analytics_rank": 61,
+      "cask": "bruno",
+      "name": "Bruno",
+      "description": "Open source IDE for exploring and testing APIs",
+      "homepage": "https://www.usebruno.com/",
+      "installs": 81326,
+      "percent": 0.32,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.usebruno.app.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/bruno"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 31
+    },
+    {
+      "analytics_rank": 64,
+      "cask": "opencode-desktop",
+      "name": "OpenCode",
+      "description": "AI coding agent desktop client",
+      "homepage": "https://opencode.ai/",
+      "installs": 77363,
+      "percent": 0.30,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/ai.opencode.desktop.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/ai.opencode.desktop"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 32
+    },
+    {
+      "analytics_rank": 68,
+      "cask": "iina",
+      "name": "IINA",
+      "description": "Free and open-source media player",
+      "homepage": "https://iina.io/",
+      "installs": 71365,
+      "percent": 0.28,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.colliderli.iina.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/CrashReporter/IINA*.plist",
+          "~/Library/Application Support/com.colliderli.iina"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 33
+    },
+    {
+      "analytics_rank": 69,
+      "cask": "alt-tab",
+      "name": "AltTab",
+      "description": "Enable Windows-like alt-tab",
+      "homepage": "https://alt-tab.app/",
+      "installs": 68058,
+      "percent": 0.27,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.lwouis.alt-tab-macos.license.plist",
+          "~/Library/Preferences/com.lwouis.alt-tab-macos.plist",
+          "~/Library/Preferences/com.lwouis.alt-tab-macos.usage.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/com.lwouis.alt-tab-macos"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 34
+    },
+    {
+      "analytics_rank": 72,
+      "cask": "localsend",
+      "name": "LocalSend",
+      "description": "Open-source cross-platform alternative to AirDrop",
+      "homepage": "https://localsend.org/",
+      "installs": 65621,
+      "percent": 0.26,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/org.localsend.localsendApp.plist"
+        ],
+        "config_paths": []
+      },
+      "behavior": {
+        "mechanism": "defaults_dominant",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 35
+    },
+    {
+      "analytics_rank": 73,
+      "cask": "utm",
+      "name": "UTM",
+      "description": "Virtual machines UI using QEMU",
+      "homepage": "https://mac.getutm.app/",
+      "installs": 64973,
+      "percent": 0.26,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.utmapp.UTM.plist"
+        ],
+        "config_paths": []
+      },
+      "behavior": {
+        "mechanism": "defaults_dominant",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 36
+    },
+    {
+      "analytics_rank": 74,
+      "cask": "sublime-text",
+      "name": "Sublime Text",
+      "description": "Text editor for code, markup and prose",
+      "homepage": "https://www.sublimetext.com/",
+      "installs": 63979,
+      "percent": 0.25,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.sublimetext.3.plist",
+          "~/Library/Preferences/com.sublimetext.4.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Sublime Text",
+          "~/Library/Application Support/Sublime Text (Safe Mode)",
+          "~/Library/Application Support/Sublime Text 3"
+        ]
+      },
+      "behavior": {
+        "mechanism": "file_driven",
+        "confidence": "high",
+        "evidence": "curated",
+        "note": "Preferences, keymaps, and packages are files under Application Support/Sublime Text."
+      },
+      "local_recipe": null,
+      "rank": 37
+    },
+    {
+      "analytics_rank": 76,
+      "cask": "whatsapp",
+      "name": "WhatsApp",
+      "description": "Native desktop client for WhatsApp",
+      "homepage": "https://www.whatsapp.com/",
+      "installs": 63080,
+      "percent": 0.25,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [],
+        "config_paths": []
+      },
+      "behavior": {
+        "mechanism": "cloud_or_opaque",
+        "confidence": "low",
+        "evidence": "homebrew_app_artifact",
+        "note": "No configuration path is exposed by the cask metadata; inspect with capture and export sniffing."
+      },
+      "local_recipe": null,
+      "rank": 38
+    },
+    {
+      "analytics_rank": 77,
+      "cask": "notion",
+      "name": "Notion",
+      "description": "App to write, plan, collaborate, and get organised",
+      "homepage": "https://www.notion.com/",
+      "installs": 62661,
+      "percent": 0.25,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [],
+        "config_paths": [
+          "~/Library/Application Support/Notion"
+        ]
+      },
+      "behavior": {
+        "mechanism": "file_driven",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 39
+    },
+    {
+      "analytics_rank": 78,
+      "cask": "blender",
+      "name": "Blender",
+      "description": "3D creation suite",
+      "homepage": "https://www.blender.org/",
+      "installs": 62061,
+      "percent": 0.24,
+      "artifact_kinds": [
+        "app",
+        "command_wrapper",
+        "preflight_steps",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [],
+        "config_paths": [
+          "~/Library/Application Support/Blender"
+        ]
+      },
+      "behavior": {
+        "mechanism": "file_driven",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 40
+    },
+    {
+      "analytics_rank": 79,
+      "cask": "jordanbaird-ice",
+      "name": "Ice",
+      "description": "Menu bar manager",
+      "homepage": "https://icemenubar.app/",
+      "installs": 61693,
+      "percent": 0.24,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.jordanbaird.Ice.plist"
+        ],
+        "config_paths": []
+      },
+      "behavior": {
+        "mechanism": "defaults_dominant",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 41
+    },
+    {
+      "analytics_rank": 81,
+      "cask": "1password",
+      "name": "1Password",
+      "description": "Password manager that keeps all passwords secure behind one password",
+      "homepage": "https://1password.com/",
+      "installs": 59888,
+      "percent": 0.24,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.1password.1password.plist",
+          "~/Library/Preferences/group.com.1password.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/1Password",
+          "~/Library/Application Support/Arc/User Data/NativeMessagingHosts/com.1password.1password.json",
+          "~/Library/Application Support/CrashReporter/1Password*",
+          "~/Library/Application Support/Google/Chrome Beta/NativeMessagingHosts/com.1password.1password.json",
+          "~/Library/Application Support/Google/Chrome Canary/NativeMessagingHosts/com.1password.1password.json",
+          "~/Library/Application Support/Google/Chrome Dev/NativeMessagingHosts/com.1password.1password.json",
+          "~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.1password.1password.json",
+          "~/Library/Application Support/Microsoft Edge Beta/NativeMessagingHosts/com.1password.1password.json",
+          "~/Library/Application Support/Microsoft Edge Canary/NativeMessagingHosts/com.1password.1password.json",
+          "~/Library/Application Support/Microsoft Edge Dev/NativeMessagingHosts/com.1password.1password.json",
+          "~/Library/Application Support/Microsoft Edge/NativeMessagingHosts/com.1password.1password.json",
+          "~/Library/Application Support/Mozilla/NativeMessagingHosts/com.1password.1password.json",
+          "~/Library/Application Support/Vivaldi/NativeMessagingHosts/com.1password.1password.json"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 42
+    },
+    {
+      "analytics_rank": 84,
+      "cask": "antigravity",
+      "name": "Google Antigravity",
+      "description": "Agent orchestration platform",
+      "homepage": "https://antigravity.google/product/antigravity-2",
+      "installs": 57739,
+      "percent": 0.23,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/ByHost/com.google.antigravity.ShipIt.*.plist",
+          "~/Library/Preferences/com.google.antigravity.plist"
+        ],
+        "config_paths": [
+          "~/.antigravity",
+          "~/.gemini/antigravity",
+          "~/Library/Application Support/Antigravity"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 43
+    },
+    {
+      "analytics_rank": 85,
+      "cask": "bitwarden",
+      "name": "Bitwarden",
+      "description": "Desktop password and login vault",
+      "homepage": "https://bitwarden.com/",
+      "installs": 56357,
+      "percent": 0.22,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/ByHost/com.bitwarden.desktop.ShipIt.*.plist",
+          "~/Library/Preferences/com.bitwarden.desktop.helper.plist",
+          "~/Library/Preferences/com.bitwarden.desktop.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Bitwarden"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 44
+    },
+    {
+      "analytics_rank": 86,
+      "cask": "chromium",
+      "name": "Chromium",
+      "description": "Free and open-source web browser",
+      "homepage": "https://www.chromium.org/Home",
+      "installs": 55801,
+      "percent": 0.22,
+      "artifact_kinds": [
+        "app",
+        "command_wrapper",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/org.chromium.Chromium.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Chromium",
+          "~/Library/Application Support/CrashReporter/Chromium_*.plist"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 45
+    },
+    {
+      "analytics_rank": 87,
+      "cask": "kitty",
+      "name": "kitty",
+      "description": "GPU-based terminal emulator",
+      "homepage": "https://github.com/kovidgoyal/kitty",
+      "installs": 55520,
+      "percent": 0.22,
+      "artifact_kinds": [
+        "app",
+        "command_wrapper",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/net.kovidgoyal.kitty.plist"
+        ],
+        "config_paths": [
+          "~/.config/kitty"
+        ]
+      },
+      "behavior": {
+        "mechanism": "file_driven",
+        "confidence": "high",
+        "evidence": "curated",
+        "note": "Primary configuration is a user-owned kitty.conf file."
+      },
+      "local_recipe": null,
+      "rank": 46
+    },
+    {
+      "analytics_rank": 89,
+      "cask": "pgadmin4",
+      "name": "pgAdmin4",
+      "description": "Administration and development platform for PostgreSQL",
+      "homepage": "https://www.pgadmin.org/",
+      "installs": 55500,
+      "percent": 0.22,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/org.pgadmin.pgadmin4.plist"
+        ],
+        "config_paths": [
+          "~/.pgadmin",
+          "~/Library/Application Support/pgAdmin 4"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 47
+    },
+    {
+      "analytics_rank": 91,
+      "cask": "lm-studio",
+      "name": "LM Studio",
+      "description": "Discover, download, and run local LLMs",
+      "homepage": "https://lmstudio.ai/",
+      "installs": 53966,
+      "percent": 0.21,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/ai.elementlabs.lmstudio.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/LM Studio"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 48
+    },
+    {
+      "analytics_rank": 93,
+      "cask": "cmux",
+      "name": "cmux",
+      "description": "Ghostty-based terminal with vertical tabs and notifications for AI coding agents",
+      "homepage": "https://www.cmux.dev/",
+      "installs": 53822,
+      "percent": 0.21,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.cmuxterm.app.plist"
+        ],
+        "config_paths": [
+          "~/.config/cmux",
+          "~/Library/Application Support/cmux",
+          "~/Library/Application Support/com.cmuxterm.app"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 49
+    },
+    {
+      "analytics_rank": 94,
+      "cask": "wireshark-app",
+      "name": "Wireshark",
+      "description": "Network protocol analyzer",
+      "homepage": "https://www.wireshark.org/",
+      "installs": 53703,
+      "percent": 0.21,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "manpage",
+        "pkg",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/org.wireshark.Wireshark.plist"
+        ],
+        "config_paths": [
+          "~/.config/wireshark"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 50
+    },
+    {
+      "analytics_rank": 95,
+      "cask": "db-browser-for-sqlite",
+      "name": "DB Browser for SQLite",
+      "description": "Browser for SQLite databases",
+      "homepage": "https://sqlitebrowser.org/",
+      "installs": 53506,
+      "percent": 0.21,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.sqlitebrowser.sqlitebrowser.plist",
+          "~/Library/Preferences/net.sourceforge.sqlitebrowser.plist"
+        ],
+        "config_paths": []
+      },
+      "behavior": {
+        "mechanism": "defaults_dominant",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 51
+    },
+    {
+      "analytics_rank": 96,
+      "cask": "microsoft-edge",
+      "name": "Microsoft Edge",
+      "description": "Multi-platform web browser",
+      "homepage": "https://www.microsoft.com/en-us/edge?form=",
+      "installs": 52962,
+      "percent": 0.21,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.microsoft.edgemac.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Microsoft",
+          "~/Library/Application Support/Microsoft Edge",
+          "~/Library/Application Support/Microsoft/EdgeUpdater"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 52
+    },
+    {
+      "analytics_rank": 97,
+      "cask": "inkscape",
+      "name": "Inkscape",
+      "description": "Vector graphics editor",
+      "homepage": "https://inkscape.org/",
+      "installs": 51852,
+      "percent": 0.20,
+      "artifact_kinds": [
+        "app",
+        "command_wrapper",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/org.inkscape.Inkscape.plist"
+        ],
+        "config_paths": [
+          "~/.config/inkscape",
+          "~/Library/Application Support/Inkscape",
+          "~/Library/Application Support/org.inkscape.Inkscape"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 53
+    },
+    {
+      "analytics_rank": 98,
+      "cask": "github",
+      "name": "GitHub Desktop",
+      "description": "Desktop client for GitHub repositories",
+      "homepage": "https://desktop.github.com/",
+      "installs": 51715,
+      "percent": 0.20,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/ByHost/com.github.GitHubClient.ShipIt.*.plist",
+          "~/Library/Preferences/com.github.GitHubClient.helper.plist",
+          "~/Library/Preferences/com.github.GitHubClient.plist"
+        ],
+        "config_paths": [
+          "~/.config/git",
+          "~/Library/Application Support/GitHub Desktop",
+          "~/Library/Application Support/ShipIt_stderr.log",
+          "~/Library/Application Support/ShipIt_stdout.log",
+          "~/Library/Application Support/com.github.GitHubClient",
+          "~/Library/Application Support/com.github.GitHubClient.ShipIt"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 54
+    },
+    {
+      "analytics_rank": 99,
+      "cask": "hammerspoon",
+      "name": "Hammerspoon",
+      "description": "Desktop automation application",
+      "homepage": "https://www.hammerspoon.org/",
+      "installs": 50261,
+      "percent": 0.20,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/org.hammerspoon.Hammerspoon.plist"
+        ],
+        "config_paths": [
+          "~/.hammerspoon",
+          "~/Library/Application Support/com.crashlytics/org.hammerspoon.Hammerspoon"
+        ]
+      },
+      "behavior": {
+        "mechanism": "file_driven",
+        "confidence": "high",
+        "evidence": "curated",
+        "note": "Automation configuration is user-owned Lua under ~/.hammerspoon."
+      },
+      "local_recipe": null,
+      "rank": 55
+    },
+    {
+      "analytics_rank": 100,
+      "cask": "appcleaner",
+      "name": "FreeMacSoft AppCleaner",
+      "description": "Application uninstaller",
+      "homepage": "https://freemacsoft.net/appcleaner/",
+      "installs": 49910,
+      "percent": 0.20,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/net.freemacsoft.AppCleaner-SmartDelete.plist",
+          "~/Library/Preferences/net.freemacsoft.AppCleaner.plist"
+        ],
+        "config_paths": []
+      },
+      "behavior": {
+        "mechanism": "defaults_dominant",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 56
+    },
+    {
+      "analytics_rank": 101,
+      "cask": "obs",
+      "name": "OBS",
+      "description": "Open-source software for live streaming and screen recording",
+      "homepage": "https://obsproject.com/",
+      "installs": 49058,
+      "percent": 0.19,
+      "artifact_kinds": [
+        "app",
+        "command_wrapper",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.obsproject.obs-studio.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/obs-studio"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 57
+    },
+    {
+      "analytics_rank": 103,
+      "cask": "steam",
+      "name": "Steam",
+      "description": "Video game digital distribution service",
+      "homepage": "https://store.steampowered.com/about/",
+      "installs": 47557,
+      "percent": 0.19,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.valvesoftware.steam.helper.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Steam",
+          "~/Library/Application Support/Steam/Steam.AppBundle"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 58
+    },
+    {
+      "analytics_rank": 104,
+      "cask": "librewolf",
+      "name": "LibreWolf",
+      "description": "Web browser",
+      "homepage": "https://librewolf.net/",
+      "installs": 47517,
+      "percent": 0.19,
+      "artifact_kinds": [
+        "app",
+        "command_wrapper",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/io.gitlab.librewolf-community.librewolf.plist",
+          "~/Library/Preferences/net.librewolf.librewolf.plist"
+        ],
+        "config_paths": [
+          "~/.librewolf",
+          "~/Library/Application Support/LibreWolf"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 59
+    },
+    {
+      "analytics_rank": 105,
+      "cask": "telegram",
+      "name": "Telegram for macOS",
+      "description": "Messaging app with a focus on speed and security",
+      "homepage": "https://macos.telegram.org/",
+      "installs": 47466,
+      "percent": 0.19,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/ru.keepcoder.Telegram.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/ru.keepcoder.Telegram"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 60
+    },
+    {
+      "analytics_rank": 106,
+      "cask": "codex-app",
+      "name": "Codex",
+      "description": "OpenAI's Codex desktop app for managing coding agents",
+      "homepage": "https://openai.com/codex",
+      "installs": 46756,
+      "percent": 0.18,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.openai.codex.plist"
+        ],
+        "config_paths": [
+          "~/.codex",
+          "~/Library/Application Support/Codex"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 61
+    },
+    {
+      "analytics_rank": 107,
+      "cask": "drawio",
+      "name": "draw.io Desktop",
+      "description": "Online diagram software",
+      "homepage": "https://www.diagrams.net/",
+      "installs": 46469,
+      "percent": 0.18,
+      "artifact_kinds": [
+        "app",
+        "command_wrapper",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/ByHost/com.jgraph.drawio.desktop.ShipIt.*.plist",
+          "~/Library/Preferences/com.jgraph.drawio.desktop.helper.plist",
+          "~/Library/Preferences/com.jgraph.drawio.desktop.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/draw.io"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 62
+    },
+    {
+      "analytics_rank": 108,
+      "cask": "wezterm",
+      "name": "WezTerm",
+      "description": "GPU-accelerated cross-platform terminal emulator and multiplexer",
+      "homepage": "https://wezterm.org/",
+      "installs": 46180,
+      "percent": 0.18,
+      "artifact_kinds": [
+        "app",
+        "bash_completion",
+        "binary",
+        "fish_completion",
+        "target",
+        "zap",
+        "zsh_completion"
+      ],
+      "signals": {
+        "preference_paths": [],
+        "config_paths": [
+          "~/.local/share/wezterm"
+        ]
+      },
+      "behavior": {
+        "mechanism": "file_driven",
+        "confidence": "high",
+        "evidence": "curated",
+        "note": "Configuration is user-owned Lua in ~/.wezterm.lua or XDG config."
+      },
+      "local_recipe": null,
+      "rank": 63
+    },
+    {
+      "analytics_rank": 110,
+      "cask": "gimp",
+      "name": "GIMP",
+      "description": "Free and open-source image editor",
+      "homepage": "https://www.gimp.org/",
+      "installs": 45055,
+      "percent": 0.18,
+      "artifact_kinds": [
+        "app",
+        "command_wrapper",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/org.gimp.gimp-3.2.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Gimp"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 64
+    },
+    {
+      "analytics_rank": 111,
+      "cask": "pearcleaner",
+      "name": "Pearcleaner",
+      "description": "Utility to uninstall apps and remove leftover files from old/uninstalled apps",
+      "homepage": "https://itsalin.com/appInfo/?id=pearcleaner",
+      "installs": 44967,
+      "percent": 0.18,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.alienator88.Pearcleaner.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Pearcleaner"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 65
+    },
+    {
+      "analytics_rank": 113,
+      "cask": "openclaw",
+      "name": "OpenClaw",
+      "description": "Personal AI assistant",
+      "homepage": "https://openclaw.ai/",
+      "installs": 43461,
+      "percent": 0.17,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/ai.openclaw.mac.plist",
+          "~/Library/Preferences/ai.openclaw.shared.plist",
+          "~/Library/Preferences/bot.molt.mac.plist",
+          "~/Library/Preferences/bot.molt.shared.plist"
+        ],
+        "config_paths": [
+          "~/.openclaw",
+          "~/Library/Application Support/OpenClaw"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 66
+    },
+    {
+      "analytics_rank": 114,
+      "cask": "keka",
+      "name": "Keka",
+      "description": "File archiver",
+      "homepage": "https://www.keka.io/",
+      "installs": 43389,
+      "percent": 0.17,
+      "artifact_kinds": [
+        "app",
+        "command_wrapper",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.aone.keka.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Keka"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 67
+    },
+    {
+      "analytics_rank": 115,
+      "cask": "podman-desktop",
+      "name": "Podman Desktop",
+      "description": "Browse, manage, inspect containers and images",
+      "homepage": "https://podman-desktop.io/",
+      "installs": 42911,
+      "percent": 0.17,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/io.podmandesktop.PodmanDesktop.plist"
+        ],
+        "config_paths": [
+          "~/.local/share/containers/podman-desktop",
+          "~/Library/Application Support/Podman Desktop"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 68
+    },
+    {
+      "analytics_rank": 116,
+      "cask": "linearmouse",
+      "name": "LinearMouse",
+      "description": "Customise mouse behavior",
+      "homepage": "https://linearmouse.org/",
+      "installs": 42695,
+      "percent": 0.17,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.lujjjh.LinearMouse.plist"
+        ],
+        "config_paths": [
+          "~/.config/linearmouse"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 69
+    },
+    {
+      "analytics_rank": 118,
+      "cask": "calibre",
+      "name": "calibre",
+      "description": "E-books management software",
+      "homepage": "https://calibre-ebook.com/",
+      "installs": 40877,
+      "percent": 0.16,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.calibre-ebook.ebook-viewer.plist",
+          "~/Library/Preferences/net.kovidgoyal.calibre.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/calibre-ebook.com"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 70
+    },
+    {
+      "analytics_rank": 119,
+      "cask": "figma",
+      "name": "Figma",
+      "description": "Collaborative team software",
+      "homepage": "https://www.figma.com/",
+      "installs": 40845,
+      "percent": 0.16,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.figma.Desktop.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Figma",
+          "~/Library/Application Support/figma-desktop"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 71
+    },
+    {
+      "analytics_rank": 121,
+      "cask": "vscodium",
+      "name": "VSCodium",
+      "description": "Binary releases of VS Code without MS branding/telemetry/licensing",
+      "homepage": "https://github.com/VSCodium/vscodium",
+      "installs": 39743,
+      "percent": 0.16,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.vscodium*.plist"
+        ],
+        "config_paths": [
+          "~/.vscode-oss",
+          "~/Library/Application Support/VSCodium"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "high",
+        "evidence": "curated",
+        "note": "VS Code-compatible settings files plus a CLI-managed extension set."
+      },
+      "local_recipe": null,
+      "rank": 72
+    },
+    {
+      "analytics_rank": 122,
+      "cask": "mos",
+      "name": "Mos",
+      "description": "Smooths scrolling and set mouse scroll directions independently",
+      "homepage": "https://mos.caldis.me/",
+      "installs": 37244,
+      "percent": 0.15,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.caldis.Mos.plist"
+        ],
+        "config_paths": []
+      },
+      "behavior": {
+        "mechanism": "defaults_dominant",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 73
+    },
+    {
+      "analytics_rank": 124,
+      "cask": "mongodb-compass",
+      "name": "MongoDB Compass",
+      "description": "Interactive tool for analyzing MongoDB data",
+      "homepage": "https://www.mongodb.com/products/compass",
+      "installs": 35545,
+      "percent": 0.14,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.mongodb.compass.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/MongoDB Compass"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 74
+    },
+    {
+      "analytics_rank": 125,
+      "cask": "balenaetcher",
+      "name": "Etcher",
+      "description": "Tool to flash OS images to SD cards & USB drives",
+      "homepage": "https://balena.io/etcher",
+      "installs": 35160,
+      "percent": 0.14,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/io.balena.etcher.helper.plist",
+          "~/Library/Preferences/io.balena.etcher.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/balenaEtcher"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 75
+    },
+    {
+      "analytics_rank": 126,
+      "cask": "signal",
+      "name": "Signal",
+      "description": "Instant messaging application focusing on security",
+      "homepage": "https://signal.org/",
+      "installs": 34564,
+      "percent": 0.14,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/org.whispersystems.signal-desktop.helper.plist",
+          "~/Library/Preferences/org.whispersystems.signal-desktop.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Signal"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 76
+    },
+    {
+      "analytics_rank": 127,
+      "cask": "intellij-idea",
+      "name": "IntelliJ IDEA Ultimate",
+      "description": "Java IDE by JetBrains",
+      "homepage": "https://www.jetbrains.com/idea/",
+      "installs": 34503,
+      "percent": 0.14,
+      "artifact_kinds": [
+        "app",
+        "command_wrapper",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.jetbrains.intellij.plist",
+          "~/Library/Preferences/jetbrains.idea.*.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/JetBrains/IntelliJIdea2026.2"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 77
+    },
+    {
+      "analytics_rank": 129,
+      "cask": "monitorcontrol",
+      "name": "MonitorControl",
+      "description": "Tool to control external monitor brightness & volume",
+      "homepage": "https://github.com/MonitorControl/MonitorControl",
+      "installs": 32874,
+      "percent": 0.13,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/me.guillaumeb.MonitorControl.plist"
+        ],
+        "config_paths": []
+      },
+      "behavior": {
+        "mechanism": "defaults_dominant",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 78
+    },
+    {
+      "analytics_rank": 130,
+      "cask": "godot",
+      "name": "Godot Engine",
+      "description": "2D and 3D game engine",
+      "homepage": "https://godotengine.org/",
+      "installs": 32583,
+      "percent": 0.13,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [],
+        "config_paths": [
+          "~/Library/Application Support/Godot"
+        ]
+      },
+      "behavior": {
+        "mechanism": "file_driven",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 79
+    },
+    {
+      "analytics_rank": 131,
+      "cask": "qlmarkdown",
+      "name": "sbarex QLMarkdown",
+      "description": "Quick Look generator for Markdown files",
+      "homepage": "https://github.com/sbarex/QLMarkdown",
+      "installs": 32133,
+      "percent": 0.13,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/org.sbarex.QLMarkdown.plist",
+          "~/Library/Preferences/org.sbarex.QLMarkdownXPCHelper.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/QLMarkdown"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 80
+    },
+    {
+      "analytics_rank": 132,
+      "cask": "cyberduck",
+      "name": "Cyberduck",
+      "description": "Server and cloud storage browser",
+      "homepage": "https://cyberduck.io/",
+      "installs": 32034,
+      "percent": 0.13,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/ch.sudo.cyberduck.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Cyberduck"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 81
+    },
+    {
+      "analytics_rank": 133,
+      "cask": "whisky",
+      "name": "Whisky",
+      "description": "Wine wrapper built with SwiftUI",
+      "homepage": "https://getwhisky.app/",
+      "installs": 31927,
+      "percent": 0.13,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.isaacmarovitz.Whisky.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/com.isaacmarovitz.Whisky"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 82
+    },
+    {
+      "analytics_rank": 134,
+      "cask": "caffeine",
+      "name": "Caffeine",
+      "description": "Utility that prevents the system from going to sleep",
+      "homepage": "https://intelliscapesolutions.com/apps/caffeine",
+      "installs": 31670,
+      "percent": 0.12,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.intelliscapesolutions.caffeine.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/com.intelliscapesolutions.caffeine"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 83
+    },
+    {
+      "analytics_rank": 135,
+      "cask": "zen",
+      "name": "Zen Browser",
+      "description": "Gecko based web browser",
+      "homepage": "https://zen-browser.app/",
+      "installs": 31178,
+      "percent": 0.12,
+      "artifact_kinds": [
+        "app",
+        "command_wrapper",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/app.zen-browser.zen.plist",
+          "~/Library/Preferences/org.mozilla.com.zen.browser.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Zen"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 84
+    },
+    {
+      "analytics_rank": 137,
+      "cask": "rancher",
+      "name": "Rancher Desktop",
+      "description": "Kubernetes and container management on the desktop",
+      "homepage": "https://rancherdesktop.io/",
+      "installs": 31048,
+      "percent": 0.12,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/io.rancherdesktop.app.plist"
+        ],
+        "config_paths": [
+          "~/.kuberlr",
+          "~/.rd",
+          "~/Library/Application Support/Rancher Desktop",
+          "~/Library/Application Support/rancher-desktop"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 85
+    },
+    {
+      "analytics_rank": 138,
+      "cask": "arc",
+      "name": "Arc",
+      "description": "Chromium based browser",
+      "homepage": "https://arc.net/",
+      "installs": 30886,
+      "percent": 0.12,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/company.thebrowser.Browser.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Arc"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 86
+    },
+    {
+      "analytics_rank": 139,
+      "cask": "dockdoor",
+      "name": "DockDoor",
+      "description": "Window peeking utility app",
+      "homepage": "https://dockdoor.net/",
+      "installs": 30869,
+      "percent": 0.12,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.ethanbills.DockDoor.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/DockDoor"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 87
+    },
+    {
+      "analytics_rank": 140,
+      "cask": "mounty",
+      "name": "Mounty for NTFS",
+      "description": "Re-mounts write-protected NTFS volumes",
+      "homepage": "https://mounty.app/",
+      "installs": 30474,
+      "percent": 0.12,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.cu4uc.mounty.plist"
+        ],
+        "config_paths": []
+      },
+      "behavior": {
+        "mechanism": "defaults_dominant",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 88
+    },
+    {
+      "analytics_rank": 141,
+      "cask": "alacritty",
+      "name": "Alacritty",
+      "description": "GPU-accelerated terminal emulator",
+      "homepage": "https://github.com/alacritty/alacritty/",
+      "installs": 30356,
+      "percent": 0.12,
+      "artifact_kinds": [
+        "app",
+        "bash_completion",
+        "binary",
+        "fish_completion",
+        "manpage",
+        "target",
+        "zap",
+        "zsh_completion"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/org.alacritty.plist"
+        ],
+        "config_paths": [
+          "~/.terminfo/61/alacritty",
+          "~/.terminfo/61/alacritty-direct"
+        ]
+      },
+      "behavior": {
+        "mechanism": "file_driven",
+        "confidence": "high",
+        "evidence": "curated",
+        "note": "Configuration is user-owned TOML under XDG config."
+      },
+      "local_recipe": null,
+      "rank": 89
+    },
+    {
+      "analytics_rank": 143,
+      "cask": "jetbrains-toolbox",
+      "name": "JetBrains Toolbox",
+      "description": "JetBrains tools manager",
+      "homepage": "https://www.jetbrains.com/toolbox-app/",
+      "installs": 30088,
+      "percent": 0.12,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.jetbrains.toolbox.renderer.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/JetBrains",
+          "~/Library/Application Support/JetBrains/Toolbox"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 90
+    },
+    {
+      "analytics_rank": 144,
+      "cask": "tableplus",
+      "name": "TablePlus",
+      "description": "Native GUI tool for relational databases",
+      "homepage": "https://tableplus.com/",
+      "installs": 30025,
+      "percent": 0.12,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.tinyapp.TablePlus.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/com.tinyapp.TablePlus"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 91
+    },
+    {
+      "analytics_rank": 146,
+      "cask": "keepassxc",
+      "name": "KeePassXC",
+      "description": "Password manager app",
+      "homepage": "https://keepassxc.org/",
+      "installs": 29267,
+      "percent": 0.12,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "manpage",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/keepassxc.keepassxc.plist",
+          "~/Library/Preferences/org.keepassx.keepassxc.plist"
+        ],
+        "config_paths": [
+          "~/.keepassxc",
+          "~/Library/Application Support/CrashReporter/KeePassXC_*.plist",
+          "~/Library/Application Support/keepassxc"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 92
+    },
+    {
+      "analytics_rank": 148,
+      "cask": "hiddenbar",
+      "name": "Hidden Bar",
+      "description": "Utility to hide menu bar items",
+      "homepage": "https://github.com/dwarvesf/hidden/",
+      "installs": 29105,
+      "percent": 0.11,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [],
+        "config_paths": []
+      },
+      "behavior": {
+        "mechanism": "cloud_or_opaque",
+        "confidence": "low",
+        "evidence": "homebrew_app_artifact",
+        "note": "No configuration path is exposed by the cask metadata; inspect with capture and export sniffing."
+      },
+      "local_recipe": null,
+      "rank": 93
+    },
+    {
+      "analytics_rank": 149,
+      "cask": "audacity",
+      "name": "Audacity",
+      "description": "Multi-track audio editor and recorder",
+      "homepage": "https://www.audacityteam.org/",
+      "installs": 28745,
+      "percent": 0.11,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/org.audacityteam.Audacity4.plist",
+          "~/Library/Preferences/org.audacityteam.audacity.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/audacity"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 94
+    },
+    {
+      "analytics_rank": 150,
+      "cask": "rustdesk",
+      "name": "RustDesk",
+      "description": "Open source virtual/remote desktop application",
+      "homepage": "https://rustdesk.com/",
+      "installs": 28513,
+      "percent": 0.11,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [],
+        "config_paths": []
+      },
+      "behavior": {
+        "mechanism": "cloud_or_opaque",
+        "confidence": "low",
+        "evidence": "homebrew_app_artifact",
+        "note": "No configuration path is exposed by the cask metadata; inspect with capture and export sniffing."
+      },
+      "local_recipe": null,
+      "rank": 95
+    },
+    {
+      "analytics_rank": 151,
+      "cask": "transmission",
+      "name": "Transmission",
+      "description": "Open-source BitTorrent client",
+      "homepage": "https://transmissionbt.com/",
+      "installs": 28056,
+      "percent": 0.11,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/org.m0k.transmission.LSSharedFileList.plist",
+          "~/Library/Preferences/org.m0k.transmission.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Transmission"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 96
+    },
+    {
+      "analytics_rank": 152,
+      "cask": "openscad",
+      "name": "OpenSCAD",
+      "description": "Programmable solid 3D CAD modeller",
+      "homepage": "https://www.openscad.org/",
+      "installs": 27664,
+      "percent": 0.11,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/org.openscad.OpenSCAD.plist"
+        ],
+        "config_paths": []
+      },
+      "behavior": {
+        "mechanism": "defaults_dominant",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 97
+    },
+    {
+      "analytics_rank": 153,
+      "cask": "meld",
+      "name": "Meld for macOS",
+      "description": "Visual diff and merge tool",
+      "homepage": "https://gitlab.com/dehesselle/meld_macos",
+      "installs": 27207,
+      "percent": 0.11,
+      "artifact_kinds": [
+        "app",
+        "command_wrapper",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/org.gnome.Meld.plist"
+        ],
+        "config_paths": [
+          "~/.local/share/meld",
+          "~/Library/Application Support/org.gnome.Meld"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 98
+    },
+    {
+      "analytics_rank": 154,
+      "cask": "emacs-app",
+      "name": "Emacs",
+      "description": "GNU Emacs text editor",
+      "homepage": "https://emacsformacosx.com/",
+      "installs": 26552,
+      "percent": 0.10,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "manpage",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/org.gnu.Emacs.plist"
+        ],
+        "config_paths": []
+      },
+      "behavior": {
+        "mechanism": "file_driven",
+        "confidence": "high",
+        "evidence": "curated",
+        "note": "Configuration is user-owned Emacs Lisp in ~/.emacs.d or ~/.config/emacs."
+      },
+      "local_recipe": null,
+      "rank": 99
+    },
+    {
+      "analytics_rank": 155,
+      "cask": "gemini",
+      "name": "Gemini",
+      "description": "Disk space cleaner that finds and deletes duplicated and similar files",
+      "homepage": "https://macpaw.com/gemini",
+      "installs": 26309,
+      "percent": 0.10,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [],
+        "config_paths": [
+          "~/.gemini",
+          "~/Library/Application Support/Gemini*"
+        ]
+      },
+      "behavior": {
+        "mechanism": "file_driven",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 100
+    },
+    {
+      "analytics_rank": 156,
+      "cask": "shottr",
+      "name": "Shottr",
+      "description": "Screenshot measurement and annotation tool",
+      "homepage": "https://shottr.cc/",
+      "installs": 25762,
+      "percent": 0.10,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [],
+        "config_paths": []
+      },
+      "behavior": {
+        "mechanism": "cloud_or_opaque",
+        "confidence": "low",
+        "evidence": "homebrew_app_artifact",
+        "note": "No configuration path is exposed by the cask metadata; inspect with capture and export sniffing."
+      },
+      "local_recipe": null,
+      "rank": 101
+    },
+    {
+      "analytics_rank": 157,
+      "cask": "swiftbar",
+      "name": "SwiftBar",
+      "description": "Menu bar customization tool",
+      "homepage": "https://swiftbar.app/",
+      "installs": 25705,
+      "percent": 0.10,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.ameba.SwiftBar.plist"
+        ],
+        "config_paths": []
+      },
+      "behavior": {
+        "mechanism": "defaults_dominant",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 102
+    },
+    {
+      "analytics_rank": 159,
+      "cask": "thaw",
+      "name": "Thaw",
+      "description": "Menu bar manager",
+      "homepage": "https://github.com/thaw-app/Thaw/",
+      "installs": 25683,
+      "percent": 0.10,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.stonerl.Thaw.plist"
+        ],
+        "config_paths": []
+      },
+      "behavior": {
+        "mechanism": "defaults_dominant",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 103
+    },
+    {
+      "analytics_rank": 163,
+      "cask": "codexbar",
+      "name": "CodexBar",
+      "description": "Menu bar usage monitor for Codex and Claude",
+      "homepage": "https://codexbar.app/",
+      "installs": 25037,
+      "percent": 0.10,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.steipete.codexbar.plist"
+        ],
+        "config_paths": [
+          "~/.codexbar",
+          "~/Library/Application Support/CodexBar",
+          "~/Library/Application Support/CrashReporter/CodexBar_*.plist",
+          "~/Library/Application Support/com.steipete.codexbar"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 104
+    },
+    {
+      "analytics_rank": 164,
+      "cask": "alfred",
+      "name": "Alfred",
+      "description": "Application launcher and productivity software",
+      "homepage": "https://www.alfredapp.com/",
+      "installs": 25013,
+      "percent": 0.10,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.runningwithcrayons.Alfred-Preferences.plist",
+          "~/Library/Preferences/com.runningwithcrayons.Alfred.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Alfred"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 105
+    },
+    {
+      "analytics_rank": 165,
+      "cask": "qbittorrent",
+      "name": "qBittorrent",
+      "description": "Peer to peer Bitorrent client",
+      "homepage": "https://www.qbittorrent.org/",
+      "installs": 24486,
+      "percent": 0.10,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/org.qbittorrent.qBittorrent.plist"
+        ],
+        "config_paths": [
+          "~/.config/qBittorrent",
+          "~/Library/Application Support/qBittorrent"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 106
+    },
+    {
+      "analytics_rank": 166,
+      "cask": "ungoogled-chromium",
+      "name": "Ungoogled Chromium",
+      "description": "Google Chromium, sans integration with Google",
+      "homepage": "https://ungoogled-software.github.io/",
+      "installs": 24451,
+      "percent": 0.10,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/org.chromium.Chromium.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Chromium"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 107
+    },
+    {
+      "analytics_rank": 167,
+      "cask": "sequel-ace",
+      "name": "Sequel Ace",
+      "description": "MySQL/MariaDB database management",
+      "homepage": "https://github.com/Sequel-Ace/Sequel-Ace",
+      "installs": 23888,
+      "percent": 0.09,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [],
+        "config_paths": []
+      },
+      "behavior": {
+        "mechanism": "cloud_or_opaque",
+        "confidence": "low",
+        "evidence": "homebrew_app_artifact",
+        "note": "No configuration path is exposed by the cask metadata; inspect with capture and export sniffing."
+      },
+      "local_recipe": null,
+      "rank": 108
+    },
+    {
+      "analytics_rank": 168,
+      "cask": "the-unarchiver",
+      "name": "The Unarchiver",
+      "description": "Unpacks archive files",
+      "homepage": "https://theunarchiver.com/",
+      "installs": 23477,
+      "percent": 0.09,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/cx.c3.theunarchiver.plist"
+        ],
+        "config_paths": []
+      },
+      "behavior": {
+        "mechanism": "defaults_dominant",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 109
+    },
+    {
+      "analytics_rank": 169,
+      "cask": "mark-text",
+      "name": "MarkText",
+      "description": "Markdown editor",
+      "homepage": "https://github.com/marktext/marktext",
+      "installs": 23179,
+      "percent": 0.09,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.github.marktext.marktext.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/marktext"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 110
+    },
+    {
+      "analytics_rank": 173,
+      "cask": "openmtp",
+      "name": "OpenMTP",
+      "description": "Android file transfer",
+      "homepage": "https://openmtp.ganeshrvel.com/",
+      "installs": 22507,
+      "percent": 0.09,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/io.ganeshrvel.openmtp.plist"
+        ],
+        "config_paths": [
+          "~/.io.ganeshrvel",
+          "~/Library/Application Support/OpenMTP",
+          "~/Library/Application Support/io.ganeshrvel.openmtp"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 111
+    },
+    {
+      "analytics_rank": 174,
+      "cask": "handbrake-app",
+      "name": "HandBrake",
+      "description": "Open-source video transcoder",
+      "homepage": "https://handbrake.fr/",
+      "installs": 22466,
+      "percent": 0.09,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/fr.handbrake.HandBrake.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/HandBrake"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 112
+    },
+    {
+      "analytics_rank": 175,
+      "cask": "freecad",
+      "name": "FreeCAD",
+      "description": "3D parametric modeller",
+      "homepage": "https://www.freecad.org/",
+      "installs": 22412,
+      "percent": 0.09,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.freecad.FreeCAD.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/FreeCAD"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 113
+    },
+    {
+      "analytics_rank": 176,
+      "cask": "flameshot",
+      "name": "Flameshot",
+      "description": "Screenshot software with built-in annotation tools",
+      "homepage": "https://flameshot.org/",
+      "installs": 22073,
+      "percent": 0.09,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [],
+        "config_paths": [
+          "~/.cache/flameshot",
+          "~/.config/flameshot"
+        ]
+      },
+      "behavior": {
+        "mechanism": "file_driven",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 114
+    },
+    {
+      "analytics_rank": 177,
+      "cask": "vorssaint",
+      "name": "Vorssaint",
+      "description": "Menu bar toolkit with keep-awake, system monitor and volume mixer",
+      "homepage": "https://github.com/vorssaint/vorssaint-utils",
+      "installs": 21803,
+      "percent": 0.09,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.vorssaint.utils.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/com.vorssaint.utils"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 115
+    },
+    {
+      "analytics_rank": 178,
+      "cask": "protonvpn",
+      "name": "ProtonVPN",
+      "description": "VPN client focusing on security",
+      "homepage": "https://protonvpn.com/",
+      "installs": 21700,
+      "percent": 0.09,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/ch.protonvpn.mac.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/CrashReporter/ProtonVPN*",
+          "~/Library/Application Support/ProtonVPN"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 116
+    },
+    {
+      "analytics_rank": 180,
+      "cask": "scroll-reverser",
+      "name": "Scroll Reverser",
+      "description": "Tool to reverse the direction of scrolling",
+      "homepage": "https://pilotmoon.com/scrollreverser/",
+      "installs": 21497,
+      "percent": 0.08,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.pilotmoon.scroll-reverser.plist"
+        ],
+        "config_paths": []
+      },
+      "behavior": {
+        "mechanism": "defaults_dominant",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 117
+    },
+    {
+      "analytics_rank": 181,
+      "cask": "xcodes-app",
+      "name": "Xcodes",
+      "description": "Install and switch between multiple versions of Xcode",
+      "homepage": "https://github.com/XcodesOrg/XcodesApp",
+      "installs": 21468,
+      "percent": 0.08,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [],
+        "config_paths": [
+          "~/Library/Application Support/com.robotsandpencils.XcodesApp"
+        ]
+      },
+      "behavior": {
+        "mechanism": "file_driven",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 118
+    },
+    {
+      "analytics_rank": 182,
+      "cask": "intellij-idea-ce",
+      "name": "IntelliJ IDEA Community Edition",
+      "description": "IDE for Java development - community edition",
+      "homepage": "https://www.jetbrains.com/idea/",
+      "installs": 21329,
+      "percent": 0.08,
+      "artifact_kinds": [
+        "app",
+        "command_wrapper",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.jetbrains.intellij.ce.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/JetBrains/IdeaIC2025.2"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 119
+    },
+    {
+      "analytics_rank": 185,
+      "cask": "tor-browser",
+      "name": "Tor Browser",
+      "description": "Web browser focusing on security",
+      "homepage": "https://www.torproject.org/",
+      "installs": 20311,
+      "percent": 0.08,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/org.mozilla.tor browser.plist",
+          "~/Library/Preferences/org.torproject.torbrowser.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/TorBrowser-Data"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 120
+    },
+    {
+      "analytics_rank": 188,
+      "cask": "raspberry-pi-imager",
+      "name": "Raspberry Pi Imager",
+      "description": "Imaging utility to install operating systems to a microSD card",
+      "homepage": "https://www.raspberrypi.com/software/",
+      "installs": 20170,
+      "percent": 0.08,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.raspberrypi.Raspberry Pi Imager.plist"
+        ],
+        "config_paths": []
+      },
+      "behavior": {
+        "mechanism": "defaults_dominant",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 121
+    },
+    {
+      "analytics_rank": 191,
+      "cask": "unity-hub",
+      "name": "Unity Hub",
+      "description": "Management tool for Unity",
+      "homepage": "https://docs.unity.com/en-us/hub",
+      "installs": 19951,
+      "percent": 0.08,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.unity3d.unityhub.helper.plist",
+          "~/Library/Preferences/com.unity3d.unityhub.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/UnityHub"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 122
+    },
+    {
+      "analytics_rank": 192,
+      "cask": "kiro-cli",
+      "name": "Kiro CLI",
+      "description": "AI-powered productivity tool for the command-line",
+      "homepage": "https://kiro.dev/docs/cli/",
+      "installs": 19551,
+      "percent": 0.08,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/dev.kiro.cli.plist"
+        ],
+        "config_paths": [
+          "~/.kiro",
+          "~/.local/bin/kiro-cli",
+          "~/.local/bin/kiro-cli-chat",
+          "~/Library/Application Support/kiro-cli"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 123
+    },
+    {
+      "analytics_rank": 193,
+      "cask": "bluebubbles",
+      "name": "BlueBubbles",
+      "description": "Server for forwarding iMessages",
+      "homepage": "https://bluebubbles.app/",
+      "installs": 19511,
+      "percent": 0.08,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.BlueBubbles.BlueBubbles-Server.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/@bluebubbles",
+          "~/Library/Application Support/bluebubbles-server"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 124
+    },
+    {
+      "analytics_rank": 196,
+      "cask": "anydesk",
+      "name": "AnyDesk",
+      "description": "Allows connection to a computer remotely",
+      "homepage": "https://anydesk.com/",
+      "installs": 19019,
+      "percent": 0.07,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.philandro.anydesk.plist"
+        ],
+        "config_paths": [
+          "~/.anydesk"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 125
+    },
+    {
+      "analytics_rank": 197,
+      "cask": "mysqlworkbench",
+      "name": "MySQL Workbench",
+      "description": "Visual tool to design, develop and administer MySQL servers",
+      "homepage": "https://www.mysql.com/products/workbench/",
+      "installs": 18985,
+      "percent": 0.07,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.oracle.workbench.MySQLWorkbench.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/MySQL/Workbench"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 126
+    },
+    {
+      "analytics_rank": 198,
+      "cask": "headlamp",
+      "name": "Headlamp",
+      "description": "UI for Kubernetes",
+      "homepage": "https://headlamp.dev/",
+      "installs": 18984,
+      "percent": 0.07,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.kinvolk.headlamp.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Headlamp"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 127
+    },
+    {
+      "analytics_rank": 199,
+      "cask": "aldente",
+      "name": "AlDente",
+      "description": "Menu bar tool to limit maximum charging percentage",
+      "homepage": "https://apphousekitchen.com/",
+      "installs": 18981,
+      "percent": 0.07,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.apphousekitchen.aldente-pro.plist",
+          "~/Library/Preferences/com.apphousekitchen.aldente-pro_backup.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/AlDente"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 128
+    },
+    {
+      "analytics_rank": 201,
+      "cask": "wechat",
+      "name": "WeChat for Mac",
+      "description": "Free messaging and calling application",
+      "homepage": "https://mac.weixin.qq.com/",
+      "installs": 18948,
+      "percent": 0.07,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.tencent.xinWeChat.plist"
+        ],
+        "config_paths": []
+      },
+      "behavior": {
+        "mechanism": "defaults_dominant",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 129
+    },
+    {
+      "analytics_rank": 202,
+      "cask": "macdown",
+      "name": "MacDown",
+      "description": "Open-source Markdown editor",
+      "homepage": "https://macdown.uranusjr.com/",
+      "installs": 18743,
+      "percent": 0.07,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.uranusjr.macdown.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/MacDown"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 130
+    },
+    {
+      "analytics_rank": 203,
+      "cask": "thunderbird",
+      "name": "Mozilla Thunderbird",
+      "description": "Customizable email client",
+      "homepage": "https://www.thunderbird.net/en-US/",
+      "installs": 18702,
+      "percent": 0.07,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/org.mozilla.thunderbird*.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Thunderbird"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 131
+    },
+    {
+      "analytics_rank": 204,
+      "cask": "openlens",
+      "name": "OpenLens",
+      "description": "Open source build of Lens Kubernetes IDE",
+      "homepage": "https://github.com/MuhammedKalkan/OpenLens/",
+      "installs": 18695,
+      "percent": 0.07,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [],
+        "config_paths": [
+          "~/Library/Application Support/OpenLens"
+        ]
+      },
+      "behavior": {
+        "mechanism": "file_driven",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 132
+    },
+    {
+      "analytics_rank": 208,
+      "cask": "pycharm",
+      "name": "PyCharm",
+      "description": "IDE for professional Python development",
+      "homepage": "https://www.jetbrains.com/pycharm/",
+      "installs": 18136,
+      "percent": 0.07,
+      "artifact_kinds": [
+        "app",
+        "command_wrapper",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.jetbrains.pycharm.plist",
+          "~/Library/Preferences/jetbrains.pc.*.plist",
+          "~/Library/Preferences/jetbrains.py.*.plist",
+          "~/Library/Preferences/jetbrains.pycharm.*.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/JetBrains/PyCharm2026.2",
+          "~/Library/Application Support/PyCharm2026.2"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 133
+    },
+    {
+      "analytics_rank": 211,
+      "cask": "insomnia",
+      "name": "Insomnia",
+      "description": "HTTP and GraphQL Client",
+      "homepage": "https://insomnia.rest/",
+      "installs": 18086,
+      "percent": 0.07,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/ByHost/com.insomnia.app.ShipIt.*.plist",
+          "~/Library/Preferences/com.insomnia.app.helper.plist",
+          "~/Library/Preferences/com.insomnia.app.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Insomnia"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 134
+    },
+    {
+      "analytics_rank": 212,
+      "cask": "github-copilot-for-xcode",
+      "name": "GitHub Copilot for Xcode",
+      "description": "Xcode extension for GitHub Copilot",
+      "homepage": "https://github.com/github/CopilotForXcode",
+      "installs": 18071,
+      "percent": 0.07,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/VEKTX9H2N7.group.com.github.CopilotForXcode.prefs.plist",
+          "~/Library/Preferences/com.github.CopilotForXcode.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/com.github.CopilotForXcode"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 135
+    },
+    {
+      "analytics_rank": 214,
+      "cask": "vivaldi",
+      "name": "Vivaldi",
+      "description": "Web browser with built-in email client focusing on customization and control",
+      "homepage": "https://vivaldi.com/",
+      "installs": 17957,
+      "percent": 0.07,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.vivaldi.Vivaldi.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/CrashReporter/Vivaldi_*.plist",
+          "~/Library/Application Support/Vivaldi"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 136
+    },
+    {
+      "analytics_rank": 216,
+      "cask": "dropbox",
+      "name": "Dropbox",
+      "description": "Client for the Dropbox cloud storage service",
+      "homepage": "https://www.dropbox.com/",
+      "installs": 17731,
+      "percent": 0.07,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.dropbox.DropboxMacUpdate.plist",
+          "~/Library/Preferences/com.dropbox.DropboxMonitor.plist",
+          "~/Library/Preferences/com.dropbox.tungsten.helper.plist",
+          "~/Library/Preferences/com.getdropbox.dropbox.plist"
+        ],
+        "config_paths": [
+          "~/.dropbox",
+          "~/Library/Application Support/Dropbox",
+          "~/Library/Application Support/DropboxElectron",
+          "~/Library/Application Support/FileProvider/com.getdropbox.dropbox.fileprovider"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 137
+    },
+    {
+      "analytics_rank": 218,
+      "cask": "zotero",
+      "name": "Zotero",
+      "description": "Collect, organise, cite, and share research sources",
+      "homepage": "https://www.zotero.org/",
+      "installs": 17613,
+      "percent": 0.07,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/org.zotero.zotero.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Zotero"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 138
+    },
+    {
+      "analytics_rank": 219,
+      "cask": "applite",
+      "name": "Applite",
+      "description": "User-friendly GUI app for Homebrew",
+      "homepage": "https://aerolite.dev/applite",
+      "installs": 17368,
+      "percent": 0.07,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/dev.aerolite.Applite.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Applite",
+          "~/Library/Application Support/dev.aerolite.Applite"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 139
+    },
+    {
+      "analytics_rank": 220,
+      "cask": "coteditor",
+      "name": "CotEditor",
+      "description": "Plain-text editor for web pages, program source codes and more",
+      "homepage": "https://coteditor.com/",
+      "installs": 17345,
+      "percent": 0.07,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.coteditor.CotEditor.plist"
+        ],
+        "config_paths": []
+      },
+      "behavior": {
+        "mechanism": "defaults_dominant",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 140
+    },
+    {
+      "analytics_rank": 222,
+      "cask": "sourcetree",
+      "name": "Atlassian SourceTree",
+      "description": "Graphical client for Git version control",
+      "homepage": "https://www.sourcetreeapp.com/",
+      "installs": 17264,
+      "percent": 0.07,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.torusknot.SourceTreeNotMAS.LSSharedFileList.plist",
+          "~/Library/Preferences/com.torusknot.SourceTreeNotMAS.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/SourceTree"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 141
+    },
+    {
+      "analytics_rank": 223,
+      "cask": "lulu",
+      "name": "LuLu",
+      "description": "Open-source firewall to block unknown outgoing connections",
+      "homepage": "https://objective-see.org/products/lulu.html",
+      "installs": 16958,
+      "percent": 0.07,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.objective-see.lulu.helper.plist",
+          "~/Library/Preferences/com.objective-see.lulu.plist"
+        ],
+        "config_paths": []
+      },
+      "behavior": {
+        "mechanism": "defaults_dominant",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 142
+    },
+    {
+      "analytics_rank": 226,
+      "cask": "notunes",
+      "name": "noTunes",
+      "description": "Simple application that will prevent iTunes or Apple Music from launching",
+      "homepage": "https://github.com/tombonez/noTunes",
+      "installs": 16702,
+      "percent": 0.07,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/digital.twisted.noTunes.plist"
+        ],
+        "config_paths": []
+      },
+      "behavior": {
+        "mechanism": "defaults_dominant",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 143
+    },
+    {
+      "analytics_rank": 228,
+      "cask": "finetune",
+      "name": "FineTune",
+      "description": "Per-application volume mixer, equalizer, and audio router",
+      "homepage": "https://github.com/ronitsingh10/FineTune",
+      "installs": 16385,
+      "percent": 0.06,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [],
+        "config_paths": []
+      },
+      "behavior": {
+        "mechanism": "cloud_or_opaque",
+        "confidence": "low",
+        "evidence": "homebrew_app_artifact",
+        "note": "No configuration path is exposed by the cask metadata; inspect with capture and export sniffing."
+      },
+      "local_recipe": null,
+      "rank": 144
+    },
+    {
+      "analytics_rank": 230,
+      "cask": "redis-insight",
+      "name": "Redis Insight",
+      "description": "GUI for streamlined Redis application development",
+      "homepage": "https://redis.io/insight/",
+      "installs": 16358,
+      "percent": 0.06,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/org.RedisLabs.RedisInsight-V3.plist"
+        ],
+        "config_paths": [
+          "~/.redisinsight-app",
+          "~/Library/Application Support/RedisInsight"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 145
+    },
+    {
+      "analytics_rank": 231,
+      "cask": "markedit",
+      "name": "MarkEdit",
+      "description": "Markdown editor",
+      "homepage": "https://github.com/MarkEdit-app/MarkEdit",
+      "installs": 16329,
+      "percent": 0.06,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [],
+        "config_paths": []
+      },
+      "behavior": {
+        "mechanism": "cloud_or_opaque",
+        "confidence": "low",
+        "evidence": "homebrew_app_artifact",
+        "note": "No configuration path is exposed by the cask metadata; inspect with capture and export sniffing."
+      },
+      "local_recipe": null,
+      "rank": 146
+    },
+    {
+      "analytics_rank": 233,
+      "cask": "anki",
+      "name": "Anki",
+      "description": "Memory training application",
+      "homepage": "https://apps.ankiweb.net/",
+      "installs": 16276,
+      "percent": 0.06,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [],
+        "config_paths": [
+          "~/Library/Application Support/Anki*"
+        ]
+      },
+      "behavior": {
+        "mechanism": "file_driven",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 147
+    },
+    {
+      "analytics_rank": 235,
+      "cask": "freelens",
+      "name": "Freelens",
+      "description": "Kubernetes IDE",
+      "homepage": "https://freelens.app/",
+      "installs": 16033,
+      "percent": 0.06,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [],
+        "config_paths": [
+          "~/Library/Application Support/Freelens"
+        ]
+      },
+      "behavior": {
+        "mechanism": "file_driven",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 148
+    },
+    {
+      "analytics_rank": 239,
+      "cask": "clash-verge-rev",
+      "name": "Clash Verge Rev",
+      "description": "Continuation of Clash Verge - A Clash Meta GUI based on Tauri",
+      "homepage": "https://clash-verge-rev.github.io/",
+      "installs": 15496,
+      "percent": 0.06,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [],
+        "config_paths": [
+          "~/Library/Application Support/io.github.clash-verge-rev.clash-verge-rev"
+        ]
+      },
+      "behavior": {
+        "mechanism": "file_driven",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 149
+    },
+    {
+      "analytics_rank": 241,
+      "cask": "termius",
+      "name": "Termius",
+      "description": "SSH client",
+      "homepage": "https://www.termius.com/",
+      "installs": 15305,
+      "percent": 0.06,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [],
+        "config_paths": [
+          "~/.termius",
+          "~/Library/Application Support/Termius"
+        ]
+      },
+      "behavior": {
+        "mechanism": "file_driven",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 150
+    },
+    {
+      "analytics_rank": 244,
+      "cask": "onyx",
+      "name": "OnyX",
+      "description": "Verify system files structure, run miscellaneous maintenance and more",
+      "homepage": "https://www.titanium-software.fr/en/onyx.html",
+      "installs": 14822,
+      "percent": 0.06,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/OnyX.plist",
+          "~/Library/Preferences/com.titanium.OnyX.plist",
+          "~/Library/Preferences/com.titanium.OnyX.update.plist"
+        ],
+        "config_paths": []
+      },
+      "behavior": {
+        "mechanism": "defaults_dominant",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 151
+    },
+    {
+      "analytics_rank": 245,
+      "cask": "gtkwave",
+      "name": "GTKWave",
+      "description": "GTK+ based wave viewer",
+      "homepage": "https://gtkwave.sourceforge.net/",
+      "installs": 14748,
+      "percent": 0.06,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.geda.gtkwave.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/CrashReporter/gtkwave-bin_*.plist"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 152
+    },
+    {
+      "analytics_rank": 248,
+      "cask": "another-redis-desktop-manager",
+      "name": "Another Redis Desktop Manager",
+      "description": "Redis desktop manager",
+      "homepage": "https://github.com/qishibo/AnotherRedisDesktopManager/",
+      "installs": 14559,
+      "percent": 0.06,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/me.qii404.another-redis-desktop-manager.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/another-redis-desktop-manager"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 153
+    },
+    {
+      "analytics_rank": 250,
+      "cask": "chatgpt-atlas",
+      "name": "ChatGPT Atlas",
+      "description": "OpenAI's official browser with ChatGPT built in",
+      "homepage": "https://chatgpt.com/atlas",
+      "installs": 14503,
+      "percent": 0.06,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.openai.atlas.plist",
+          "~/Library/Preferences/com.openai.atlas.web.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/CrashReporter/ChatGPT Atlas (Service)_*.plist",
+          "~/Library/Application Support/OpenAI/ChatGPT Atlas",
+          "~/Library/Application Support/com.openai.atlas"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 154
+    },
+    {
+      "analytics_rank": 252,
+      "cask": "helium-browser",
+      "name": "Helium",
+      "description": "Chromium-based web browser",
+      "homepage": "https://helium.computer/",
+      "installs": 14374,
+      "percent": 0.06,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/net.imput.helium.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/net.imput.helium"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 155
+    },
+    {
+      "analytics_rank": 253,
+      "cask": "tunnelblick",
+      "name": "Tunnelblick",
+      "description": "Free and open-source OpenVPN client",
+      "homepage": "https://www.tunnelblick.net/",
+      "installs": 14223,
+      "percent": 0.06,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "uninstall_preflight_steps",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/net.tunnelblick.tunnelblick.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Tunnelblick"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 156
+    },
+    {
+      "analytics_rank": 254,
+      "cask": "keepingyouawake",
+      "name": "KeepingYouAwake",
+      "description": "Tool to prevent the system from going into sleep mode",
+      "homepage": "https://keepingyouawake.app/",
+      "installs": 14202,
+      "percent": 0.06,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/info.marcel-dierkes.KeepingYouAwake.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/info.marcel-dierkes.KeepingYouAwake"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 157
+    },
+    {
+      "analytics_rank": 255,
+      "cask": "google-gemini",
+      "name": "Gemini",
+      "description": "Native desktop AI assistant from Google",
+      "homepage": "https://gemini.google/",
+      "installs": 14154,
+      "percent": 0.06,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [],
+        "config_paths": [
+          "~/Library/Application Support/com.google.GeminiMacOS",
+          "~/Library/Application Support/com.google.GeminiMacOS.launcher"
+        ]
+      },
+      "behavior": {
+        "mechanism": "file_driven",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 158
+    },
+    {
+      "analytics_rank": 256,
+      "cask": "skim",
+      "name": "Skim",
+      "description": "PDF reader and note-taking application",
+      "homepage": "https://skim-app.sourceforge.io/",
+      "installs": 14104,
+      "percent": 0.06,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/net.sourceforge.skim-app.skim.bookmarks.plist",
+          "~/Library/Preferences/net.sourceforge.skim-app.skim.plist"
+        ],
+        "config_paths": []
+      },
+      "behavior": {
+        "mechanism": "defaults_dominant",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 159
+    },
+    {
+      "analytics_rank": 258,
+      "cask": "proxyman",
+      "name": "Proxyman",
+      "description": "HTTP debugging proxy",
+      "homepage": "https://proxyman.com/",
+      "installs": 13947,
+      "percent": 0.05,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "target",
+        "uninstall",
+        "uninstall_postflight_steps",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.proxyman.NSProxy.plist",
+          "~/Library/Preferences/com.proxyman.iconappmanager.userdefaults.plist",
+          "~/Library/Preferences/com.proxyman.plist"
+        ],
+        "config_paths": [
+          "~/.proxyman*",
+          "~/Library/Application Support/com.proxyman",
+          "~/Library/Application Support/com.proxyman.NSProxy"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 160
+    },
+    {
+      "analytics_rank": 259,
+      "cask": "tigervnc",
+      "name": "TigerVNC",
+      "description": "Multi-platform VNC client and server",
+      "homepage": "https://tigervnc.org/",
+      "installs": 13844,
+      "percent": 0.05,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [],
+        "config_paths": []
+      },
+      "behavior": {
+        "mechanism": "cloud_or_opaque",
+        "confidence": "low",
+        "evidence": "homebrew_app_artifact",
+        "note": "No configuration path is exposed by the cask metadata; inspect with capture and export sniffing."
+      },
+      "local_recipe": null,
+      "rank": 161
+    },
+    {
+      "analytics_rank": 262,
+      "cask": "rstudio",
+      "name": "RStudio",
+      "description": "Data science software focusing on R and Python",
+      "homepage": "https://posit.co/products/open-source/rstudio/",
+      "installs": 13763,
+      "percent": 0.05,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [],
+        "config_paths": [
+          "~/.rstudio-desktop"
+        ]
+      },
+      "behavior": {
+        "mechanism": "file_driven",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 162
+    },
+    {
+      "analytics_rank": 263,
+      "cask": "mac-mouse-fix",
+      "name": "Mac Mouse Fix",
+      "description": "Mouse utility to add gesture functions and smooth scrolling to 3rd party mice",
+      "homepage": "https://macmousefix.com/",
+      "installs": 13704,
+      "percent": 0.05,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.nuebling.mac-mouse-fix.helper.plist",
+          "~/Library/Preferences/com.nuebling.mac-mouse-fix.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/com.nuebling.mac-mouse-fix"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 163
+    },
+    {
+      "analytics_rank": 264,
+      "cask": "grandperspective",
+      "name": "GrandPerspective",
+      "description": "Graphically shows disk usage within a file system",
+      "homepage": "https://grandperspectiv.sourceforge.net/",
+      "installs": 13665,
+      "percent": 0.05,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/net.sourceforge.grandperspectiv.plist"
+        ],
+        "config_paths": []
+      },
+      "behavior": {
+        "mechanism": "defaults_dominant",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 164
+    },
+    {
+      "analytics_rank": 266,
+      "cask": "keycastr",
+      "name": "KeyCastr",
+      "description": "Open-source keystroke visualiser",
+      "homepage": "https://github.com/keycastr/keycastr",
+      "installs": 13407,
+      "percent": 0.05,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/io.github.keycastr.plist"
+        ],
+        "config_paths": []
+      },
+      "behavior": {
+        "mechanism": "defaults_dominant",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 165
+    },
+    {
+      "analytics_rank": 268,
+      "cask": "bettertouchtool",
+      "name": "BetterTouchTool",
+      "description": "Tool to customise input devices and automate computer systems",
+      "homepage": "https://folivora.ai/",
+      "installs": 13206,
+      "percent": 0.05,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.hegenberg.BetterTouchTool.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/BetterTouchTool"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 166
+    },
+    {
+      "analytics_rank": 269,
+      "cask": "android-file-transfer",
+      "name": "Android File Transfer",
+      "description": "Transfer files from and to an Android smartphone",
+      "homepage": "https://www.android.com/filetransfer/",
+      "installs": 13157,
+      "percent": 0.05,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.google.android.mtpviewer.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Google",
+          "~/Library/Application Support/Google/Android File Transfer"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 167
+    },
+    {
+      "analytics_rank": 270,
+      "cask": "syncthing-app",
+      "name": "Syncthing",
+      "description": "Real time file synchronisation software",
+      "homepage": "https://syncthing.net/",
+      "installs": 13136,
+      "percent": 0.05,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.github.xor-gate.syncthing-macosx.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Syncthing-macOS"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 168
+    },
+    {
+      "analytics_rank": 271,
+      "cask": "openlogi",
+      "name": "OpenLogi",
+      "description": "Local-first alternative to Logitech Options+ for HID++ devices",
+      "homepage": "https://openlogi.org/",
+      "installs": 13123,
+      "percent": 0.05,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/org.openlogi.openlogi.plist",
+          "~/Library/Preferences/org.openlogi.overlay.plist"
+        ],
+        "config_paths": [
+          "~/.config/openlogi",
+          "~/.local/share/openlogi"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 169
+    },
+    {
+      "analytics_rank": 272,
+      "cask": "moonlight",
+      "name": "Moonlight",
+      "description": "GameStream client",
+      "homepage": "https://moonlight-stream.org/",
+      "installs": 13121,
+      "percent": 0.05,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.moonlight-stream.Moonlight.plist"
+        ],
+        "config_paths": []
+      },
+      "behavior": {
+        "mechanism": "defaults_dominant",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 170
+    },
+    {
+      "analytics_rank": 274,
+      "cask": "kiro",
+      "name": "kiro",
+      "description": "Agent-centric IDE with spec-driven development",
+      "homepage": "https://kiro.dev/",
+      "installs": 13048,
+      "percent": 0.05,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/dev.kiro.desktop.plist"
+        ],
+        "config_paths": [
+          "~/.kiro",
+          "~/Library/Application Support/Kiro"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 171
+    },
+    {
+      "analytics_rank": 277,
+      "cask": "macs-fan-control",
+      "name": "Macs Fan Control",
+      "description": "Controls and monitors all fans on Apple computers",
+      "homepage": "https://crystalidea.com/macs-fan-control",
+      "installs": 12689,
+      "percent": 0.05,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.crystalidea.macsfancontrol.plist"
+        ],
+        "config_paths": []
+      },
+      "behavior": {
+        "mechanism": "defaults_dominant",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 172
+    },
+    {
+      "analytics_rank": 278,
+      "cask": "puremac",
+      "name": "PureMac",
+      "description": "Open-source application manager and system cleaner",
+      "homepage": "https://github.com/momenbasel/PureMac",
+      "installs": 12646,
+      "percent": 0.05,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.puremac.app.plist"
+        ],
+        "config_paths": []
+      },
+      "behavior": {
+        "mechanism": "defaults_dominant",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 173
+    },
+    {
+      "analytics_rank": 280,
+      "cask": "fork",
+      "name": "Fork",
+      "description": "GIT client",
+      "homepage": "https://fork.dev/",
+      "installs": 12511,
+      "percent": 0.05,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.DanPristupov.Fork.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Fork",
+          "~/Library/Application Support/com.DanPristupov.Fork"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 174
+    },
+    {
+      "analytics_rank": 281,
+      "cask": "affinity",
+      "name": "Affinity",
+      "description": "Image editing and design software",
+      "homepage": "https://www.affinity.studio/",
+      "installs": 12507,
+      "percent": 0.05,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.canva.affinity.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Affinity"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 175
+    },
+    {
+      "analytics_rank": 284,
+      "cask": "clipy",
+      "name": "Clipy",
+      "description": "Clipboard extension app",
+      "homepage": "https://clipy-app.com/",
+      "installs": 12331,
+      "percent": 0.05,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.clipy-app.Clipy.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Clipy",
+          "~/Library/Application Support/com.clipy-app.Clipy"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 176
+    },
+    {
+      "analytics_rank": 285,
+      "cask": "handy",
+      "name": "Handy",
+      "description": "Speech to text application",
+      "homepage": "https://handy.computer/",
+      "installs": 12279,
+      "percent": 0.05,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [],
+        "config_paths": [
+          "~/Library/Application Support/com.pais.handy"
+        ]
+      },
+      "behavior": {
+        "mechanism": "file_driven",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 177
+    },
+    {
+      "analytics_rank": 286,
+      "cask": "maestro",
+      "name": "Maestro",
+      "description": "AI agent command center",
+      "homepage": "https://runmaestro.ai/",
+      "installs": 12274,
+      "percent": 0.05,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.maestro.app.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/maestro"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 178
+    },
+    {
+      "analytics_rank": 287,
+      "cask": "typora",
+      "name": "Typora",
+      "description": "Configurable document editor that supports Markdown",
+      "homepage": "https://typora.io/",
+      "installs": 12221,
+      "percent": 0.05,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/abnerworks.Typora.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Typora",
+          "~/Library/Application Support/abnerworks.Typora"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 179
+    },
+    {
+      "analytics_rank": 288,
+      "cask": "espanso",
+      "name": "Espanso",
+      "description": "Cross-platform Text Expander written in Rust",
+      "homepage": "https://espanso.org/",
+      "installs": 12077,
+      "percent": 0.05,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.federicoterzi.espanso.plist",
+          "~/Library/Preferences/espanso.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/espanso"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 180
+    },
+    {
+      "analytics_rank": 289,
+      "cask": "wave",
+      "name": "Wave Terminal",
+      "description": "Terminal emulator",
+      "homepage": "https://www.waveterm.dev/",
+      "installs": 11922,
+      "percent": 0.05,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [],
+        "config_paths": [
+          "~/.waveterm"
+        ]
+      },
+      "behavior": {
+        "mechanism": "file_driven",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 181
+    },
+    {
+      "analytics_rank": 290,
+      "cask": "crossover",
+      "name": "CrossOver",
+      "description": "Tool to run Windows software",
+      "homepage": "https://www.codeweavers.com/products/crossover-mac/",
+      "installs": 11852,
+      "percent": 0.05,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [],
+        "config_paths": [
+          "~/Library/Application Support/CrashReporter/CrossOver*",
+          "~/Library/Application Support/CrossOver"
+        ]
+      },
+      "behavior": {
+        "mechanism": "file_driven",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 182
+    },
+    {
+      "analytics_rank": 292,
+      "cask": "tabby",
+      "name": "Tabby",
+      "description": "Terminal emulator, SSH and serial client",
+      "homepage": "https://eugeny.github.io/tabby/",
+      "installs": 11773,
+      "percent": 0.05,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/ByHost/org.tabby.ShipIt.*.plist",
+          "~/Library/Preferences/org.tabby.helper.plist",
+          "~/Library/Preferences/org.tabby.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/tabby"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 183
+    },
+    {
+      "analytics_rank": 294,
+      "cask": "lens",
+      "name": "Lens",
+      "description": "Kubernetes IDE",
+      "homepage": "https://lenshq.io/",
+      "installs": 11601,
+      "percent": 0.05,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.electron.kontena-lens.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Lens"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 184
+    },
+    {
+      "analytics_rank": 295,
+      "cask": "itsycal",
+      "name": "Itsycal",
+      "description": "Menu bar calendar",
+      "homepage": "https://www.mowglii.com/itsycal/",
+      "installs": 11405,
+      "percent": 0.04,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.mowglii.ItsycalApp.plist"
+        ],
+        "config_paths": []
+      },
+      "behavior": {
+        "mechanism": "defaults_dominant",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 185
+    },
+    {
+      "analytics_rank": 296,
+      "cask": "burp-suite",
+      "name": "Burp Suite Community Edition",
+      "description": "Web security testing toolkit",
+      "homepage": "https://portswigger.net/burp/",
+      "installs": 11361,
+      "percent": 0.04,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [],
+        "config_paths": [
+          "~/.BurpSuite"
+        ]
+      },
+      "behavior": {
+        "mechanism": "file_driven",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 186
+    },
+    {
+      "analytics_rank": 297,
+      "cask": "block-goose",
+      "name": "Goose",
+      "description": "Open source, extensible AI agent that goes beyond code suggestions",
+      "homepage": "https://block.github.io/goose/",
+      "installs": 11081,
+      "percent": 0.04,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [],
+        "config_paths": [
+          "~/Library/Application Support/Goose"
+        ]
+      },
+      "behavior": {
+        "mechanism": "file_driven",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 187
+    },
+    {
+      "analytics_rank": 298,
+      "cask": "datagrip",
+      "name": "DataGrip",
+      "description": "Databases and SQL IDE",
+      "homepage": "https://www.jetbrains.com/datagrip/",
+      "installs": 11056,
+      "percent": 0.04,
+      "artifact_kinds": [
+        "app",
+        "command_wrapper",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [],
+        "config_paths": [
+          "~/Library/Application Support/JetBrains/DataGrip*"
+        ]
+      },
+      "behavior": {
+        "mechanism": "file_driven",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 188
+    },
+    {
+      "analytics_rank": 300,
+      "cask": "darktable",
+      "name": "darktable",
+      "description": "Photography workflow application and raw developer",
+      "homepage": "https://www.darktable.org/",
+      "installs": 10899,
+      "percent": 0.04,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [],
+        "config_paths": [
+          "~/.cache/darktable",
+          "~/.config/darktable",
+          "~/.local/share/darktable"
+        ]
+      },
+      "behavior": {
+        "mechanism": "file_driven",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 189
+    },
+    {
+      "analytics_rank": 302,
+      "cask": "upscayl",
+      "name": "Upscayl",
+      "description": "AI image upscaler",
+      "homepage": "https://upscayl.org/",
+      "installs": 10682,
+      "percent": 0.04,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/org.upscayl.app.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Upscayl"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 190
+    },
+    {
+      "analytics_rank": 303,
+      "cask": "openscad@snapshot",
+      "name": "OpenSCAD",
+      "description": "Programmable solid 3D CAD modeller",
+      "homepage": "https://www.openscad.org/downloads.html#snapshots",
+      "installs": 10681,
+      "percent": 0.04,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/org.openscad.OpenSCAD.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/OpenSCAD"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 191
+    },
+    {
+      "analytics_rank": 304,
+      "cask": "lunar",
+      "name": "Lunar",
+      "description": "Adaptive brightness for external displays",
+      "homepage": "https://lunar.fyi/",
+      "installs": 10653,
+      "percent": 0.04,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/fyi.lunar.Lunar.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Lunar",
+          "~/Library/Application Support/fyi.lunar.Lunar"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 192
+    },
+    {
+      "analytics_rank": 306,
+      "cask": "bartender",
+      "name": "Bartender",
+      "description": "Menu bar icon organiser",
+      "homepage": "https://www.macbartender.com/",
+      "installs": 10562,
+      "percent": 0.04,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.surteesstudios.Bartender.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Bartender 6",
+          "~/Library/Application Support/com.surteesstudios.Bartender.revenuecat"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 193
+    },
+    {
+      "analytics_rank": 307,
+      "cask": "firefox@developer-edition",
+      "name": "Mozilla Firefox Developer Edition",
+      "description": "Web browser",
+      "homepage": "https://www.mozilla.org/firefox/developer/",
+      "installs": 10549,
+      "percent": 0.04,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/org.mozilla.firefox.plist",
+          "~/Library/Preferences/org.mozilla.firefoxdeveloperedition.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/CrashReporter/firefox_*",
+          "~/Library/Application Support/Firefox",
+          "~/Library/Application Support/Mozilla"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 194
+    },
+    {
+      "analytics_rank": 308,
+      "cask": "telegram-desktop",
+      "name": "Telegram Desktop",
+      "description": "Desktop client for Telegram messenger",
+      "homepage": "https://desktop.telegram.org/",
+      "installs": 10543,
+      "percent": 0.04,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.tdesktop.Telegram.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Telegram Desktop"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 195
+    },
+    {
+      "analytics_rank": 311,
+      "cask": "vnc-viewer",
+      "name": "Real VNC Viewer",
+      "description": "Remote desktop application focusing on security",
+      "homepage": "https://www.realvnc.com/",
+      "installs": 10386,
+      "percent": 0.04,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.realvnc.vncviewer.plist"
+        ],
+        "config_paths": []
+      },
+      "behavior": {
+        "mechanism": "defaults_dominant",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 196
+    },
+    {
+      "analytics_rank": 312,
+      "cask": "duckduckgo",
+      "name": "DuckDuckGo",
+      "description": "Web browser focusing on privacy",
+      "homepage": "https://duckduckgo.com/",
+      "installs": 10374,
+      "percent": 0.04,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.duckduckgo.macos.browser.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/DuckDuckGo",
+          "~/Library/Application Support/com.duckduckgo.macos.browser"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 197
+    },
+    {
+      "analytics_rank": 314,
+      "cask": "amethyst",
+      "name": "Amethyst",
+      "description": "Automatic tiling window manager similar to xmonad",
+      "homepage": "https://ianyh.com/amethyst/",
+      "installs": 10286,
+      "percent": 0.04,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/com.amethyst.Amethyst.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/Amethyst"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 198
+    },
+    {
+      "analytics_rank": 315,
+      "cask": "battery",
+      "name": "Battery",
+      "description": "App for managing battery charging. (Also installs a CLI on first use.)",
+      "homepage": "https://github.com/actuallymentor/battery/",
+      "installs": 10278,
+      "percent": 0.04,
+      "artifact_kinds": [
+        "app",
+        "target",
+        "uninstall",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/co.palokaj.battery.plist",
+          "~/Library/Preferences/org.mentor.Battery.plist"
+        ],
+        "config_paths": [
+          "~/.battery",
+          "~/Library/Application Support/battery"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 199
+    },
+    {
+      "analytics_rank": 317,
+      "cask": "prismlauncher",
+      "name": "Prism Launcher",
+      "description": "Minecraft launcher",
+      "homepage": "https://prismlauncher.org/",
+      "installs": 10205,
+      "percent": 0.04,
+      "artifact_kinds": [
+        "app",
+        "binary",
+        "target",
+        "zap"
+      ],
+      "signals": {
+        "preference_paths": [
+          "~/Library/Preferences/org.prismlauncher.PrismLauncher.plist"
+        ],
+        "config_paths": [
+          "~/Library/Application Support/PrismLauncher/PrismLauncher-*.log",
+          "~/Library/Application Support/PrismLauncher/metacache",
+          "~/Library/Application Support/PrismLauncher/prismlauncher.cfg"
+        ]
+      },
+      "behavior": {
+        "mechanism": "hybrid",
+        "confidence": "medium",
+        "evidence": "homebrew_zap_paths",
+        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+      },
+      "local_recipe": null,
+      "rank": 200
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "generated_at": "2026-09-06T18:00:00Z",
+  "mode": "diff",
+  "apps": [
+    {
+      "id": "test-app",
+      "verified": null,
+      "entries": [
+        {
+          "bind": "defaults",
+          "kind": "defaults",
+          "confirm": "none",
+          "actions": [
+            {
+              "op": "write",
+              "target": "com.nix-me.test/enabled",
+              "current": false,
+              "desired": true,
+              "value_type": "bool"
+            }
+          ],
+          "drift": [
+            {
+              "target": "com.nix-me.test/theme",
+              "reason": "managed",
+              "detail": "key is MDM-forced"
+            }
+          ]
+        },
+        {
+          "bind": "manual-1",
+          "kind": "manual",
+          "confirm": "full_manual",
+          "actions": [],
+          "drift": []
+        }
+      ],
+      "pokes": ["restart_app"]
+    }
+  ],
+  "checklist": [
+    {
+      "app": "test-app",
+      "step": "Sign in",
+      "confirm": "full_manual",
+      "satisfied": false
+    }
+  ],
+  "summary": {
+    "writes": 1,
+    "adds": 0,
+    "dels": 0,
+    "files": 0,
+    "materialize": 0,
+    "drift": 1,
+    "manual": 1
+  },
+  "exit_code": 2
+}

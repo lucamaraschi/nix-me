@@ -386,6 +386,13 @@ create_new_configuration() {
         print_info "No profiles selected (minimal base)"
     fi
 
+    echo ""
+    if ask_yes_no "Manage supported application settings declaratively?" "n"; then
+        WIZARD_APP_STATE_ENABLE="true"
+    else
+        WIZARD_APP_STATE_ENABLE="false"
+    fi
+
     # Display name
     echo ""
     local default_name="$WIZARD_HOSTNAME"
@@ -457,6 +464,7 @@ show_summary_and_confirm() {
     [ -n "$WIZARD_MACHINE_NAME" ] && echo "  Display Name:  $WIZARD_MACHINE_NAME"
     echo "  Username:      $WIZARD_USERNAME"
     echo "  Profiles:      ${WIZARD_PROFILES:-minimal}"
+    echo "  App State:     ${WIZARD_APP_STATE_ENABLE:-false}"
 
     if [ -n "$WIZARD_ADD_CASKS" ] || [ -n "$WIZARD_REMOVE_CASKS" ] || [ -n "$WIZARD_ADD_TOOLS" ]; then
         echo ""

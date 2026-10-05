@@ -1,0 +1,46 @@
+schema_version: 1
+id: raycast
+name: Raycast
+bundle_id: com.raycast.macos
+install:
+  cask: raycast
+detect:
+  app_path: /Applications/Raycast.app
+config:
+  - kind: defaults
+    binds: defaults
+    domain: com.raycast.macos
+    keys:
+      raycastGlobalHotkey: {type: string, ui: "Settings > General > Raycast Hotkey"}
+      NSStatusItem Visible raycastIcon: {type: bool, ui: "Settings > General > Menu Bar Icon"}
+      raycastPreferredWindowMode: {type: string, ui: "Settings > General > Window Mode"}
+      openAtLogin: {type: bool, ui: "Settings > General > Launch Raycast at login"}
+      ToggleClipboardHistoryHotkey: {type: string, ui: "Extensions > Clipboard History > Hotkey"}
+      ToggleFloatingNotesHotkey: {type: string, ui: "Extensions > Floating Notes > Hotkey"}
+    unknown_keys: reject
+  - kind: generated_import
+    source: profile.raycast.import
+    deliver: open {artifact}
+    confirm: one_click
+    converges: add_only
+    artifact:
+      pipeline:
+        - header:
+            bytes: 16
+            keep: false
+            # Opaque bytes harvested from a real, pristine Raycast export.
+            # The recipe remains unverified until the macOS T3 import harness stamps it.
+            template: ujhSHFLvxyoYwRdXPHpt6g==
+        - aes:
+            algo: aes-256-cbc
+            optional: true
+            password:
+              default: "12345678"
+              profile_key: secrets.raycast_export_password
+            salted: false
+        - gzip: {}
+        - json: {}
+apply:
+  poke: restart_app
+  unsafe_to_kill: true
+verified: null

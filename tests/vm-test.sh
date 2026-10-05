@@ -31,6 +31,9 @@ VERBOSE=false
 VM_USER=""                # SSH username for VM
 VM_SSH_KEY=""             # SSH key path (optional)
 VM_IP=""                  # VM IP address (optional, auto-detected if not provided)
+APP_STATE_RECIPE=""        # Relative recipe path for app-state convergence verification
+APP_STATE_VALUES=""        # Relative values path paired with APP_STATE_RECIPE
+APP_STATE_ONLY=""          # Optional app id restriction
 
 # Logging functions
 log() { echo -e "${GREEN}[$(date '+%H:%M:%S')]${NC} $1"; }
@@ -68,6 +71,9 @@ OPTIONS:
     --onsuccess=ACTION      What to do if tests pass: 'keep', 'delete', or 'ask' [default: ask]
     --onfailure=ACTION      What to do if tests fail: 'keep', 'delete', or 'ask' [default: keep]
     --verbose               Show detailed output
+    --app-state-recipe=PATH Verify this recipe with apply -> diff in the VM
+    --app-state-values=PATH Values file for --app-state-recipe (required with it)
+    --app-state-only=ID     Restrict the app-state verification to one recipe id
     -h, --help              Show this help message
 
 LEGACY OPTIONS (still supported):
@@ -84,6 +90,9 @@ EXAMPLES:
     $0 --vm-user=admin --ssh-key=~/.ssh/id_rsa  # Use specific SSH key
     $0 --vm-user=admin --source=github          # Test from GitHub (default)
     $0 --vm-user=admin --source=local           # Test local changes via SCP
+    $0 --vm-user=admin --source=local \
+       --app-state-recipe=recipes/rectangle.yaml \
+       --app-state-values=values/rectangle.yaml --app-state-only=rectangle
 
 NOTE: Without guest agent in VM, you need to provide --vm-ip manually.
       Start the base VM first, get its IP from System Settings → Network,
@@ -162,6 +171,18 @@ while [[ $# -gt 0 ]]; do
             VERBOSE=true
             shift
             ;;
+        --app-state-recipe=*)
+            APP_STATE_RECIPE="${1#*=}"
+            shift
+            ;;
+        --app-state-values=*)
+            APP_STATE_VALUES="${1#*=}"
+            shift
+            ;;
+        --app-state-only=*)
+            APP_STATE_ONLY="${1#*=}"
+            shift
+            ;;
         -h|--help)
             usage
             ;;
@@ -188,6 +209,35 @@ if [ -z "$VM_USER" ]; then
     error "VM user is required. Use --vm-user=USERNAME"
     echo ""
     usage
+fi
+
+if [[ ! "$VM_USER" =~ ^[A-Za-z0-9._-]+$ ]]; then
+    error "--vm-user contains unsupported characters"
+    exit 1
+fi
+
+if { [ -n "$APP_STATE_RECIPE" ] && [ -z "$APP_STATE_VALUES" ]; } || \
+   { [ -z "$APP_STATE_RECIPE" ] && [ -n "$APP_STATE_VALUES" ]; }; then
+    error "--app-state-recipe and --app-state-values must be provided together"
+    exit 1
+fi
+
+for app_state_path in "$APP_STATE_RECIPE" "$APP_STATE_VALUES"; do
+    if [ -n "$app_state_path" ]; then
+        if [[ "$app_state_path" = /* ]] || [[ "$app_state_path" == *".."* ]]; then
+            error "App-state paths must be repository-relative and cannot contain '..': $app_state_path"
+            exit 1
+        fi
+        if [[ ! "$app_state_path" =~ ^[A-Za-z0-9._/-]+$ ]]; then
+            error "App-state paths contain unsupported characters: $app_state_path"
+            exit 1
+        fi
+    fi
+done
+
+if [ -n "$APP_STATE_ONLY" ] && [[ ! "$APP_STATE_ONLY" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+    error "--app-state-only must be a kebab-case recipe id"
+    exit 1
 fi
 
 # Cleanup function
@@ -533,17 +583,14 @@ run_installation() {
             return 1
         }
 
-        # Copy all project files via scp (install.sh will find them already present)
-        if ! scp $scp_opts -r \
-            "$PROJECT_DIR/install.sh" \
-            "$PROJECT_DIR/flake.nix" \
-            "$PROJECT_DIR/flake.lock" \
-            "$PROJECT_DIR/bin" \
-            "$PROJECT_DIR/lib" \
-            "$PROJECT_DIR/hosts" \
-            "$PROJECT_DIR/modules" \
-            "$PROJECT_DIR/overlays" \
-            "$VM_USER@$vm_ip:$remote_dir/"; then
+        # Stream a clean source snapshot. In particular, never copy engine/target.
+        if ! tar -C "$PROJECT_DIR" \
+            --exclude=.git \
+            --exclude=engine/target \
+            -cf - \
+            .gitignore README.md install.sh flake.nix flake.lock \
+            bin lib hosts modules overlays engine recipes values docs tests \
+            | ssh $ssh_opts "$VM_USER@$vm_ip" "tar -xf - -C $remote_dir"; then
             error "Failed to copy files to VM"
             return 1
         fi
@@ -672,6 +719,42 @@ run_verification() {
         if vm_exec "test -d ~/.config/nixpkgs/bin" &>/dev/null; then
             log "  (bin directory exists, CLI may be available after shell restart)"
             tests_passed=$((tests_passed + 1))
+        fi
+    fi
+
+    # Test 6: Check that the runtime-free app-state engine is installed.
+    tests_total=$((tests_total + 1))
+    if vm_exec "command -v nix-me-apps || test -x /run/current-system/sw/bin/nix-me-apps" &>/dev/null; then
+        log "✓ nix-me-apps engine is installed"
+        tests_passed=$((tests_passed + 1))
+    else
+        error "✗ nix-me-apps engine not found"
+    fi
+
+    if [ -n "$APP_STATE_RECIPE" ]; then
+        tests_total=$((tests_total + 1))
+        local remote_root="/Users/$VM_USER/.config/nixpkgs"
+        local recipe_path="$remote_root/$APP_STATE_RECIPE"
+        local values_path="$remote_root/$APP_STATE_VALUES"
+        local only_args=""
+        if [ -n "$APP_STATE_ONLY" ]; then
+            only_args="--only $APP_STATE_ONLY"
+        fi
+        local verify_cmd="apps_bin=\$(command -v nix-me-apps || echo /run/current-system/sw/bin/nix-me-apps); \
+          \"\$apps_bin\" registry validate --recipe '$recipe_path' --json >/tmp/nix-me-registry-validation.json && \
+          \"\$apps_bin\" apply --recipe '$recipe_path' --values '$values_path' $only_args --yes --json >/tmp/nix-me-app-state-apply.json; \
+          apply_status=\$?; \
+          if [ \$apply_status -ne 0 ] && [ \$apply_status -ne 3 ]; then exit \$apply_status; fi; \
+          \"\$apps_bin\" diff --recipe '$recipe_path' --values '$values_path' $only_args --json >/tmp/nix-me-app-state-diff.json; \
+          diff_status=\$?; \
+          if [ \$diff_status -ne 0 ] && [ \$diff_status -ne 3 ]; then exit \$diff_status; fi; \
+          exit 0"
+        if vm_exec "$verify_cmd" &>/dev/null; then
+            log "✓ app-state recipe converges and immediate diff is empty"
+            tests_passed=$((tests_passed + 1))
+        else
+            error "✗ app-state apply/diff convergence failed"
+            vm_exec "cat /tmp/nix-me-registry-validation.json /tmp/nix-me-app-state-apply.json /tmp/nix-me-app-state-diff.json 2>/dev/null" || true
         fi
     fi
 

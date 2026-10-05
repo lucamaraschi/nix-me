@@ -1,0 +1,71 @@
+{
+  "visual-studio-code": {
+    "mechanism": "hybrid",
+    "confidence": "high",
+    "local_recipe": "vscode",
+    "note": "Settings are JSON/JSONC files; extensions converge through the code CLI."
+  },
+  "ghostty": {
+    "mechanism": "file_driven",
+    "confidence": "high",
+    "local_recipe": "ghostty",
+    "note": "User-owned text configuration under ~/.config/ghostty."
+  },
+  "raycast": {
+    "mechanism": "hybrid",
+    "confidence": "high",
+    "local_recipe": "raycast",
+    "note": "CFPreferences plus a generated .rayconfig import artifact."
+  },
+  "rectangle": {
+    "mechanism": "defaults_dominant",
+    "confidence": "high",
+    "local_recipe": "rectangle",
+    "note": "Typed settings in the com.knollsoft.Rectangle CFPreferences domain."
+  },
+  "obsidian": {
+    "mechanism": "file_driven",
+    "confidence": "high",
+    "note": "Vault settings and plugins are files under each vault's .obsidian directory."
+  },
+  "karabiner-elements": {
+    "mechanism": "file_driven",
+    "confidence": "high",
+    "note": "Primary configuration is ~/.config/karabiner/karabiner.json."
+  },
+  "kitty": {
+    "mechanism": "file_driven",
+    "confidence": "high",
+    "note": "Primary configuration is a user-owned kitty.conf file."
+  },
+  "hammerspoon": {
+    "mechanism": "file_driven",
+    "confidence": "high",
+    "note": "Automation configuration is user-owned Lua under ~/.hammerspoon."
+  },
+  "wezterm": {
+    "mechanism": "file_driven",
+    "confidence": "high",
+    "note": "Configuration is user-owned Lua in ~/.wezterm.lua or XDG config."
+  },
+  "alacritty": {
+    "mechanism": "file_driven",
+    "confidence": "high",
+    "note": "Configuration is user-owned TOML under XDG config."
+  },
+  "vscodium": {
+    "mechanism": "hybrid",
+    "confidence": "high",
+    "note": "VS Code-compatible settings files plus a CLI-managed extension set."
+  },
+  "sublime-text": {
+    "mechanism": "file_driven",
+    "confidence": "high",
+    "note": "Preferences, keymaps, and packages are files under Application Support/Sublime Text."
+  },
+  "emacs-app": {
+    "mechanism": "file_driven",
+    "confidence": "high",
+    "note": "Configuration is user-owned Emacs Lisp in ~/.emacs.d or ~/.config/emacs."
+  }
+}

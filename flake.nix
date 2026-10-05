@@ -110,6 +110,31 @@
   };
     in
     {
+      packages = nixpkgs.lib.genAttrs [
+        "aarch64-darwin"
+        "x86_64-darwin"
+        "aarch64-linux"
+        "x86_64-linux"
+      ] (system:
+        let pkgs = import nixpkgs { inherit system; };
+        in {
+          nix-me-apps = pkgs.rustPlatform.buildRustPackage {
+            pname = "nix-me-apps";
+            version = "0.1.0";
+            src = pkgs.lib.cleanSourceWith {
+              src = ./engine;
+              filter = path: type:
+                let base = baseNameOf path;
+                in base != "target" && base != ".git";
+            };
+            cargoLock.lockFile = ./engine/Cargo.lock;
+            cargoBuildFlags = [ "-p" "nix-me-apps" ];
+            cargoTestFlags = [ "-p" "nix-me-apps" ];
+            meta.mainProgram = "nix-me-apps";
+          };
+          default = self.packages.${system}.nix-me-apps;
+        });
+
       # Define specific machine configurations
       darwinConfigurations = {
         # MacBook configurations
@@ -187,6 +212,8 @@
           machineType = "vm";
           machineName = "VM";
           username = username;  # Use USERNAME env var or default
+          # Exercise the opt-in activation path in the disposable macOS VM.
+          extraModules = [ { apps.state.enable = true; } ];
         };
 
         # Add a generic VM configuration for testing

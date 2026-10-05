@@ -1,0 +1,101 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/lucamaraschi/nix-me/catalog/catalog.schema.json",
+  "title": "nix-me local Homebrew application catalog",
+  "type": "object",
+  "required": ["version", "source", "selection", "mechanisms", "applications"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "const": 1 },
+    "source": {
+      "type": "object",
+      "required": ["provider", "analytics_endpoint", "metadata_endpoint", "window_days", "start_date", "end_date", "total_cask_events"],
+      "additionalProperties": false,
+      "properties": {
+        "provider": { "type": "string", "minLength": 1 },
+        "analytics_endpoint": { "type": "string", "format": "uri" },
+        "metadata_endpoint": { "type": "string", "format": "uri" },
+        "window_days": { "const": 365 },
+        "start_date": { "type": "string", "format": "date" },
+        "end_date": { "type": "string", "format": "date" },
+        "total_cask_events": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "selection": {
+      "type": "object",
+      "required": ["denominator", "rule", "excludes"],
+      "additionalProperties": false,
+      "properties": {
+        "denominator": { "const": 200 },
+        "rule": { "type": "string", "minLength": 1 },
+        "excludes": { "type": "string", "minLength": 1 }
+      }
+    },
+    "mechanisms": {
+      "type": "object",
+      "required": ["defaults_dominant", "file_driven", "hybrid", "cloud_or_opaque"],
+      "additionalProperties": false,
+      "properties": {
+        "defaults_dominant": { "type": "string" },
+        "file_driven": { "type": "string" },
+        "hybrid": { "type": "string" },
+        "cloud_or_opaque": { "type": "string" }
+      }
+    },
+    "applications": {
+      "type": "array",
+      "minItems": 200,
+      "maxItems": 200,
+      "items": { "$ref": "#/definitions/application" }
+    }
+  },
+  "definitions": {
+    "application": {
+      "type": "object",
+      "required": ["rank", "analytics_rank", "cask", "name", "description", "homepage", "installs", "percent", "artifact_kinds", "signals", "behavior", "local_recipe"],
+      "additionalProperties": false,
+      "properties": {
+        "rank": { "type": "integer", "minimum": 1, "maximum": 200 },
+        "analytics_rank": { "type": "integer", "minimum": 1 },
+        "cask": { "type": "string", "pattern": "^[a-z0-9@+._-]+$" },
+        "name": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 },
+        "homepage": { "type": "string", "format": "uri" },
+        "installs": { "type": "integer", "minimum": 1 },
+        "percent": { "type": "number", "exclusiveMinimum": 0 },
+        "artifact_kinds": {
+          "type": "array",
+          "contains": { "const": "app" },
+          "items": { "type": "string" },
+          "uniqueItems": true
+        },
+        "signals": {
+          "type": "object",
+          "required": ["preference_paths", "config_paths"],
+          "additionalProperties": false,
+          "properties": {
+            "preference_paths": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+            "config_paths": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+          }
+        },
+        "behavior": {
+          "type": "object",
+          "required": ["mechanism", "confidence", "evidence", "note"],
+          "additionalProperties": false,
+          "properties": {
+            "mechanism": { "enum": ["defaults_dominant", "file_driven", "hybrid", "cloud_or_opaque"] },
+            "confidence": { "enum": ["high", "medium", "low"] },
+            "evidence": { "enum": ["curated", "homebrew_zap_paths", "homebrew_app_artifact"] },
+            "note": { "type": "string", "minLength": 1 }
+          }
+        },
+        "local_recipe": {
+          "oneOf": [
+            { "type": "null" },
+            { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" }
+          ]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "domain": "com.knollsoft.Rectangle",
+  "host": "any",
+  "values": {
+    "gapSize": 6.0,
+    "hideMenubarIcon": false,
+    "launchOnLogin": true
+  },
+  "forced": ["launchOnLogin"]
+}

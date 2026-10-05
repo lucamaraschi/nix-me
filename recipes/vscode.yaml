@@ -1,0 +1,28 @@
+schema_version: 1
+id: vscode
+name: Visual Studio Code
+bundle_id: com.microsoft.VSCode
+install:
+  cask: visual-studio-code
+detect:
+  app_path: /Applications/Visual Studio Code.app
+config:
+  - kind: file
+    binds: settings
+    path: ~/Library/Application Support/Code/User/settings.json
+    format: jsonc
+    merge: deep_merge
+    mode: "0644"
+    confirm: none
+  - kind: command
+    name: extensions
+    list:
+      get: code --list-extensions
+      add: code --install-extension {item}
+      del: code --uninstall-extension {item}
+    converges: full
+    confirm: none
+apply:
+  poke: restart_app
+  unsafe_to_kill: true
+verified: null
