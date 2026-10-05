@@ -93,7 +93,14 @@ git_state() {
 }
 
 desired_manifest='null'
-if [[ -f "$CONFIG_DIR/flake.nix" ]] && command_exists nix; then
+if [[ -n "${NIX_ME_DESIRED_MANIFEST:-}" ]]; then
+  if desired_manifest="$(jq -c . "$NIX_ME_DESIRED_MANIFEST" 2>/dev/null)"; then
+    :
+  else
+    desired_manifest='null'
+    add_warning "The desired manifest fixture is not valid JSON"
+  fi
+elif [[ -f "$CONFIG_DIR/flake.nix" ]] && command_exists nix; then
   if ! desired_manifest="$(nix eval --json "$CONFIG_DIR#darwinConfigurations.$HOST_NAME.config.nixMe.manifest" 2>"$TEMP_DIR/nix-eval.err")"; then
     desired_manifest='null'
     nix_error="$(tail -1 "$TEMP_DIR/nix-eval.err" 2>/dev/null || true)"

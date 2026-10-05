@@ -9,6 +9,26 @@ trap 'rm -rf "$TEMP_DIR"' EXIT
 
 export NIX_ME_CONFIG_DIR="$REPO_DIR"
 export NIX_ME_SKIP_UPDATES=1
+export NIX_ME_DESIRED_MANIFEST="$TEMP_DIR/desired-manifest.json"
+
+cat >"$NIX_ME_DESIRED_MANIFEST" <<'JSON'
+{
+  "schemaVersion": 1,
+  "host": {
+    "hostname": "contract-test",
+    "machineName": "Contract Test",
+    "machineType": "test",
+    "username": "tester"
+  },
+  "software": {
+    "nixPackages": [],
+    "nixPackageDetails": [],
+    "homebrew": {"formulae": [], "casks": [], "masApps": {}}
+  },
+  "projects": [],
+  "source": {"contentHash": "fixture", "lockHash": "fixture"}
+}
+JSON
 
 "$REPO_DIR/apps/cli/bin/nix-me" api snapshot >"$TEMP_DIR/snapshot.json"
 
