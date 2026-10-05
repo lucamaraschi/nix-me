@@ -38,3 +38,6 @@ tui/*.log
 macos/NixMeApp/.build/
 build/
 dist/
+
+# Rust app-state engine builds
+engine/target/

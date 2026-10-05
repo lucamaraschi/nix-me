@@ -31,6 +31,19 @@ if [[ "${1:-}" == "details" ]]; then
     exec "$SCRIPT_DIR/nix-me-details" "$@"
 fi
 
+# The application-state engine is a separate, runtime-free Rust binary.
+if [[ "${1:-}" == "apps" ]]; then
+    shift
+    if command -v nix-me-apps >/dev/null 2>&1; then
+        exec nix-me-apps "$@"
+    elif [[ -x "$SCRIPT_DIR/../engine/target/debug/nix-me-apps" ]]; then
+        exec "$SCRIPT_DIR/../engine/target/debug/nix-me-apps" "$@"
+    else
+        echo "Error: nix-me-apps is not installed. Build it with: nix build .#nix-me-apps" >&2
+        exit 4
+    fi
+fi
+
 # Source libraries
 source "$LIB_DIR/ui.sh"
 source "$LIB_DIR/config-builder.sh" 2>/dev/null || true
@@ -68,6 +81,7 @@ ${CYAN}System Management:${NC}
   ${GREEN}rollback${NC}            Rollback to previous configuration
   ${GREEN}action${NC} <action>     Validated action API for native clients
   ${GREEN}details${NC} <kind> <id> Package metadata API for native clients
+  ${GREEN}apps${NC} <command>      Diff, apply, or capture declarative app state
 
 ${CYAN}VM Management:${NC}
   ${GREEN}vm${NC}                  Interactive VM management menu

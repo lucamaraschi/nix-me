@@ -94,10 +94,22 @@ curl -fsSL https://raw.githubusercontent.com/lucamaraschi/nix-me/main/install.sh
 ```
 
 The wizard will guide you through:
+
 1. **Clone or create** - Copy settings from an existing host or start fresh
 2. **Select profiles** - Choose dev, work, personal (or combine them)
-3. **Configure machine** - Set hostname, type, and username
-4. **Build system** - Apply your configuration
+3. **Choose app state** - Optionally manage supported application settings declaratively
+4. **Configure machine** - Set hostname, type, and username
+5. **Build system** - Apply your configuration
+
+See [Declarative application state](docs/APP_STATE.md) for recipes, profile
+values, capture, command auditing, and migration behavior.
+
+The local recipe catalog currently reports **1.5% zero-click coverage of the
+top-200 Homebrew application denominator** (3 zero-click recipes, 1 one-click
+recipe, 196 uncovered). Configuration behavior is mapped for all 200 applications
+in the [readable catalog](catalog/homebrew-top-200-apps.md) and its
+[machine-readable source](catalog/homebrew-top-200-apps.json); the coverage result lives in
+[metrics/zero-click.json](metrics/zero-click.json).
 
 > **Time:** 30-60 minutes (mostly package downloads)
 

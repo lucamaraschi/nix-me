@@ -1,0 +1,677 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/lucamaraschi/nix-me-recipes/recipe.schema.json",
+  "title": "nix-me app configuration recipe",
+  "description": "Canonical schema for nix-me recipes (schema_version 1). Recipes describe HOW an app is configured; user values live in profiles. Validated by: engine at load time, capture at emit time, registry CI on every PR.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "id",
+    "name",
+    "bundle_id",
+    "config"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$",
+      "description": "Registry-unique kebab-case identifier. Matches the recipe filename (<id>.yaml)."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "bundle_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9.-]+$",
+      "description": "CFBundleIdentifier. Used for container resolution when sandboxed, and by capture to resolve domains."
+    },
+    "install": {
+      "type": "object",
+      "description": "Binding to the existing package layers. At most one source.",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "properties": {
+        "cask": {
+          "type": "string"
+        },
+        "brew": {
+          "type": "string"
+        },
+        "mas": {
+          "type": "integer",
+          "description": "App Store id"
+        },
+        "nixpkg": {
+          "type": "string"
+        }
+      }
+    },
+    "detect": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "app_path": {
+          "type": "string"
+        },
+        "command": {
+          "type": "string",
+          "description": "Exit 0 = installed. Alternative to app_path for CLI tools."
+        }
+      }
+    },
+    "sandboxed": {
+      "type": "boolean",
+      "default": false,
+      "description": "When true, the ENGINE resolves preference domains and relative paths through ~/Library/Containers/<bundle_id>/Data. Recipe authors never write container paths."
+    },
+    "requires": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "full_disk_access",
+          "accessibility",
+          "input_monitoring",
+          "screen_recording"
+        ]
+      },
+      "uniqueItems": true,
+      "default": [],
+      "description": "TCC grants aggregated at preflight. The engine instructs; it never requests grants itself."
+    },
+    "config": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/definitions/configEntry"
+      }
+    },
+    "apply": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "poke": {
+          "enum": [
+            "none",
+            "cfprefsd",
+            "restart_app",
+            "script"
+          ],
+          "default": "none"
+        },
+        "poke_script": {
+          "type": "string",
+          "description": "Required iff poke == script."
+        },
+        "unsafe_to_kill": {
+          "type": "boolean",
+          "default": false,
+          "description": "Forces an interactive prompt before restart_app, even under --yes."
+        }
+      }
+    },
+    "verified": {
+      "description": "CI-written verification stamp. NEVER hand-edited; registry CI is the only writer. null or absent = unverified.",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "required": [
+            "macos",
+            "app",
+            "date",
+            "harness"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "macos": {
+              "type": "string"
+            },
+            "app": {
+              "type": "string"
+            },
+            "date": {
+              "type": "string",
+              "format": "date"
+            },
+            "harness": {
+              "type": "string",
+              "description": "e.g. vm-test@<commit>"
+            }
+          }
+        }
+      ]
+    },
+    "maintainers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "definitions": {
+    "configEntry": {
+      "oneOf": [
+        {
+          "$ref": "#/definitions/kindDefaults"
+        },
+        {
+          "$ref": "#/definitions/kindFile"
+        },
+        {
+          "$ref": "#/definitions/kindCommand"
+        },
+        {
+          "$ref": "#/definitions/kindGeneratedImport"
+        },
+        {
+          "$ref": "#/definitions/kindManual"
+        }
+      ]
+    },
+    "confirm": {
+      "enum": [
+        "none",
+        "one_click",
+        "full_manual"
+      ],
+      "description": "Residual human interaction for this entry. Aggregated registry-wide into the zero-click configurability metric. Entries improve by moving full_manual -> one_click -> none."
+    },
+    "kindDefaults": {
+      "type": "object",
+      "required": [
+        "kind",
+        "domain"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "defaults"
+        },
+        "domain": {
+          "type": "string",
+          "description": "CFPreferences domain. For sandboxed apps this is still the logical domain; the engine handles container resolution."
+        },
+        "keys": {
+          "type": "object",
+          "description": "Schema with UI provenance, NOT a value store. Values come from profiles.",
+          "additionalProperties": {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "enum": [
+                  "bool",
+                  "int",
+                  "float",
+                  "string",
+                  "array",
+                  "dict",
+                  "data",
+                  "date"
+                ]
+              },
+              "ui": {
+                "type": "string",
+                "description": "Where this setting lives in the GUI, e.g. 'Settings > General > Hotkey'. Consumed by capture, PR reviewers, and agents mapping natural language to keys."
+              },
+              "doc": {
+                "type": "string"
+              },
+              "host": {
+                "enum": [
+                  "any",
+                  "current"
+                ],
+                "default": "any",
+                "description": "Preference host scope. 'current' routes through kCFPreferencesCurrentHost (ByHost prefs). See SPEC.md \u00a73."
+              }
+            }
+          }
+        },
+        "unknown_keys": {
+          "enum": [
+            "passthrough",
+            "reject"
+          ],
+          "default": "passthrough",
+          "description": "passthrough: profile keys absent from the schema are written with a warning. Keeps schema incompleteness non-fatal."
+        },
+        "confirm": {
+          "$ref": "#/definitions/confirm",
+          "default": "none"
+        },
+        "binds": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_-]*$",
+          "description": "Effective bind name override. Default: 'defaults'. See SPEC.md \u00a71; uniqueness enforced by engine semantic validation."
+        }
+      }
+    },
+    "kindFile": {
+      "type": "object",
+      "required": [
+        "kind",
+        "path",
+        "format"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "file"
+        },
+        "path": {
+          "type": "string",
+          "description": "~ expanded. Resolved through the container when sandboxed: true."
+        },
+        "format": {
+          "enum": [
+            "text",
+            "json",
+            "jsonc",
+            "toml",
+            "yaml",
+            "plist"
+          ]
+        },
+        "merge": {
+          "enum": [
+            "replace",
+            "deep_merge"
+          ],
+          "default": "replace",
+          "description": "deep_merge only valid for structured formats. Merges profile-owned keys into current file content; keys not owned by the profile are left alone."
+        },
+        "mode": {
+          "type": "string",
+          "pattern": "^0[0-7]{3}$",
+          "default": "0644"
+        },
+        "confirm": {
+          "$ref": "#/definitions/confirm",
+          "default": "none"
+        },
+        "binds": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_-]*$",
+          "description": "Effective bind name override. Default: 'file'. Required in practice when a recipe has multiple file entries (uniqueness is engine-enforced)."
+        }
+      }
+    },
+    "kindCommand": {
+      "type": "object",
+      "required": [
+        "kind",
+        "name",
+        "list"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "command"
+        },
+        "name": {
+          "type": "string",
+          "description": "Profile key this set binds to, e.g. 'extensions'."
+        },
+        "list": {
+          "type": "object",
+          "required": [
+            "get",
+            "add"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "get": {
+              "type": "string",
+              "description": "Prints current members, one per line."
+            },
+            "add": {
+              "type": "string",
+              "description": "{item} substituted per member."
+            },
+            "del": {
+              "type": "string"
+            }
+          }
+        },
+        "converges": {
+          "enum": [
+            "full",
+            "add_only"
+          ],
+          "default": "full",
+          "description": "add_only (or missing del) => plan reports uncorrectable drift honestly instead of ignoring it."
+        },
+        "confirm": {
+          "$ref": "#/definitions/confirm",
+          "default": "none"
+        }
+      }
+    },
+    "kindGeneratedImport": {
+      "type": "object",
+      "required": [
+        "kind",
+        "source",
+        "deliver",
+        "artifact"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "generated_import"
+        },
+        "source": {
+          "type": "string",
+          "description": "Path into the merged profile model, e.g. 'profile.raycast'."
+        },
+        "deliver": {
+          "type": "string",
+          "description": "Command handing the materialized artifact to the app. {artifact} substituted."
+        },
+        "artifact": {
+          "description": "How to build/parse the app's native artifact. Declarative pipeline preferred; compiled codec plugin is the escape hatch for formats not expressible as a primitive chain.",
+          "oneOf": [
+            {
+              "type": "object",
+              "required": [
+                "pipeline"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "pipeline": {
+                  "type": "array",
+                  "minItems": 1,
+                  "description": "Ordered DECODE-direction transform chain (artifact -> model). Encode runs the same chain in reverse; every primitive is bidirectional. This is data, not code: authoring a new format requires no engine changes.",
+                  "items": {
+                    "$ref": "#/definitions/pipelineStep"
+                  }
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": [
+                "codec",
+                "codec_version"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "codec": {
+                  "type": "string",
+                  "description": "Compiled engine plugin id."
+                },
+                "codec_version": {
+                  "type": "string"
+                }
+              }
+            }
+          ]
+        },
+        "converges": {
+          "enum": [
+            "full",
+            "add_only"
+          ],
+          "default": "full"
+        },
+        "confirm": {
+          "$ref": "#/definitions/confirm",
+          "default": "one_click"
+        }
+      }
+    },
+    "pipelineStep": {
+      "description": "One bidirectional transform. Exactly one primitive key per step. 'optional: true' = try on decode, skip on failure; on encode, applied only if it was applied on the reference decode (recorded in local state). Registry CI round-trips every pipeline against a live export in the VM harness.",
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 1,
+      "properties": {
+        "header": {
+          "type": "object",
+          "required": [
+            "bytes"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "keep": {
+              "type": "boolean",
+              "default": true,
+              "description": "true: preserve stripped bytes in state and reattach on encode. false: discard; encode requires 'template' \u2014 a base64 literal or a harvest path."
+            },
+            "template": {
+              "type": "string"
+            },
+            "optional": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        },
+        "gzip": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "optional": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        },
+        "zip": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Multi-file container. Decode yields a file map; 'select' narrows to entries of interest.",
+          "properties": {
+            "select": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "optional": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        },
+        "tar": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "select": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "optional": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        },
+        "base64": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "optional": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        },
+        "aes": {
+          "type": "object",
+          "required": [
+            "algo"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "algo": {
+              "enum": [
+                "aes-256-cbc",
+                "aes-128-cbc",
+                "aes-256-gcm"
+              ]
+            },
+            "password": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Resolution order: profile_key if set by the user, else default. Never a literal secret in the recipe beyond vendor-known defaults.",
+              "properties": {
+                "default": {
+                  "type": "string"
+                },
+                "profile_key": {
+                  "type": "string"
+                }
+              }
+            },
+            "salted": {
+              "type": "boolean",
+              "default": false,
+              "description": "OpenSSL 'Salted__' envelope vs -nosalt."
+            },
+            "optional": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        },
+        "json": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {}
+        },
+        "plist": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "flavor": {
+              "enum": [
+                "auto",
+                "xml",
+                "binary"
+              ],
+              "default": "auto"
+            }
+          }
+        },
+        "yaml": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {}
+        },
+        "toml": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {}
+        },
+        "sqlite": {
+          "type": "object",
+          "required": [
+            "tables"
+          ],
+          "additionalProperties": false,
+          "description": "v2 primitive \u2014 read-mapped, HIGH CAUTION: app schema churn and live write-locks. Engine refuses while the app holds the lock. Requires converges: add_only unless CI proves otherwise.",
+          "properties": {
+            "tables": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "columns": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "kindManual": {
+      "type": "object",
+      "required": [
+        "kind",
+        "step"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "manual"
+        },
+        "step": {
+          "type": "string"
+        },
+        "doc": {
+          "type": "string"
+        },
+        "marker": {
+          "description": "Optional completion detectability: satisfied markers drop the step from the checklist, so the checklist converges to empty on a configured machine.",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "minProperties": 1,
+              "maxProperties": 1,
+              "additionalProperties": false,
+              "properties": {
+                "defaults_key": {
+                  "type": "object",
+                  "required": [
+                    "domain",
+                    "key"
+                  ],
+                  "properties": {
+                    "domain": {
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "file_exists": {
+                  "type": "string"
+                },
+                "command": {
+                  "type": "string",
+                  "description": "Exit 0 = complete."
+                }
+              }
+            }
+          ]
+        },
+        "confirm": {
+          "$ref": "#/definitions/confirm",
+          "default": "full_manual"
+        }
+      }
+    }
+  }
+}

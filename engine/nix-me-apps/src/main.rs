@@ -1,0 +1,597 @@
+use std::collections::BTreeSet;
+use std::io::{self, Write};
+use std::path::PathBuf;
+use std::process::ExitCode;
+
+use anyhow::{anyhow, Result};
+use clap::{Args, Parser, Subcommand};
+use nix_me_apps::engine::{command_action_command, poke_command, Engine, Options};
+use nix_me_apps::model::{load_recipe, load_values, ConfigEntry, Recipe};
+use nix_me_apps::plan::Plan;
+use nix_me_apps::runner::{Clock, CommandExecutionError, RealCommandRunner, SystemClock};
+use nix_me_apps::state::{load_no_mutation, load_readonly, StateGuard};
+
+#[derive(Parser)]
+#[command(
+    name = "nix-me-apps",
+    version,
+    about = "Declaratively converge macOS application state"
+)]
+struct Cli {
+    #[command(subcommand)]
+    command: Command,
+}
+
+#[derive(Subcommand)]
+enum Command {
+    /// Show the convergent plan without changing application state.
+    Diff(RunArgs),
+    /// Apply a plan, synchronize preference domains, and run required pokes.
+    Apply(ApplyArgs),
+    /// Capture preference changes or inspect/watch an exported artifact.
+    Capture(CaptureArgs),
+    /// Validate a recipe registry or compute its zero-click metric.
+    Registry(RegistryArgs),
+}
+
+#[derive(Args)]
+struct RegistryArgs {
+    #[command(subcommand)]
+    command: RegistryCommand,
+}
+
+#[derive(Subcommand)]
+enum RegistryCommand {
+    /// Validate schema, semantic invariants, IDs, filenames, and duplicates.
+    Validate {
+        #[arg(long = "recipe", required = true)]
+        recipe: Vec<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Aggregate none/one_click/full_manual residue across all recipes.
+    Metric {
+        #[arg(long = "recipe", required = true)]
+        recipe: Vec<PathBuf>,
+        /// Coverage denominator; use 200 for the top-200 registry metric.
+        #[arg(long)]
+        denominator: Option<usize>,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Run every statically linked compiled codec smoke test.
+    CodecSmoke {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Validate the local Homebrew top-200 application map and recipe links.
+    CatalogValidate {
+        #[arg(long)]
+        catalog: PathBuf,
+        #[arg(long = "recipe", required = true)]
+        recipe: Vec<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Measure local recipe coverage against the mapped application catalog.
+    CatalogMetric {
+        #[arg(long)]
+        catalog: PathBuf,
+        #[arg(long = "recipe", required = true)]
+        recipe: Vec<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Args, Clone)]
+struct RunArgs {
+    #[arg(long = "recipe", required = true)]
+    recipe: Vec<PathBuf>,
+    #[arg(long = "values", required = true)]
+    values: Vec<PathBuf>,
+    #[arg(long, value_delimiter = ',')]
+    only: Vec<String>,
+    #[arg(long)]
+    json: bool,
+    #[arg(long)]
+    force: bool,
+    #[arg(long)]
+    skip_manual: bool,
+    #[arg(long)]
+    skip_missing: bool,
+    #[arg(long)]
+    require_verified: bool,
+    #[arg(long)]
+    no_exec: bool,
+}
+
+#[derive(Args, Clone)]
+struct ApplyArgs {
+    #[command(flatten)]
+    run: RunArgs,
+    #[arg(long)]
+    yes: bool,
+    #[arg(long)]
+    no_wait: bool,
+}
+
+#[derive(Args)]
+struct CaptureArgs {
+    app: Option<String>,
+    #[arg(long)]
+    domain: Option<String>,
+    #[arg(long)]
+    watch: bool,
+    #[arg(long)]
+    sniff: Option<PathBuf>,
+    /// Write the latest sniff result (or decoded model) atomically to this path.
+    #[arg(long, requires = "sniff")]
+    output: Option<PathBuf>,
+    /// Commit output changes to the containing Git repository while watching.
+    #[arg(long, requires_all = ["watch", "output"])]
+    commit: bool,
+    /// Poll interval for --watch, in milliseconds.
+    #[arg(long, default_value_t = 750, value_parser = clap::value_parser!(u64).range(100..))]
+    poll_ms: u64,
+    #[arg(long = "include-key")]
+    include_key: Vec<String>,
+    #[arg(long)]
+    json: bool,
+}
+
+fn main() -> ExitCode {
+    match run() {
+        Ok(code) => ExitCode::from(code as u8),
+        Err((code, error, json)) => {
+            if json {
+                eprintln!(
+                    "{}",
+                    serde_json::json!({"version":1,"exit_code":code,"error":error.to_string()})
+                );
+            } else {
+                eprintln!("error: {error:#}");
+            }
+            ExitCode::from(code as u8)
+        }
+    }
+}
+
+fn run() -> std::result::Result<i32, (i32, anyhow::Error, bool)> {
+    let cli = Cli::parse();
+    match cli.command {
+        Command::Diff(args) => {
+            let json = args.json;
+            run_diff(args).map_err(|e| (failure_code(&e, 4), e, json))
+        }
+        Command::Apply(args) => {
+            let json = args.run.json;
+            run_apply(args).map_err(|(code, e)| (code, e, json))
+        }
+        Command::Capture(args) => {
+            let json = args.json;
+            run_capture(args).map_err(|e| (4, e, json))
+        }
+        Command::Registry(args) => run_registry(args),
+    }
+}
+
+fn run_registry(args: RegistryArgs) -> std::result::Result<i32, (i32, anyhow::Error, bool)> {
+    match args.command {
+        RegistryCommand::Validate { recipe, json } => {
+            let report =
+                nix_me_apps::registry::validate(&recipe).map_err(|error| (4, error, json))?;
+            emit_registry(&report, json).map_err(|error| (5, error, json))?;
+            Ok(0)
+        }
+        RegistryCommand::Metric {
+            recipe,
+            denominator,
+            json,
+        } => {
+            let report = nix_me_apps::registry::metric(&recipe, denominator)
+                .map_err(|error| (4, error, json))?;
+            emit_registry(&report, json).map_err(|error| (5, error, json))?;
+            Ok(0)
+        }
+        RegistryCommand::CodecSmoke { json } => {
+            let registry = nix_me_codec::builtin_registry();
+            registry.smoke_all().map_err(|error| (5, error, json))?;
+            let report = serde_json::json!({"version":1,"status":"ok","codecs":registry.len()});
+            emit_registry(&report, json).map_err(|error| (5, error, json))?;
+            Ok(0)
+        }
+        RegistryCommand::CatalogValidate {
+            catalog,
+            recipe,
+            json,
+        } => {
+            let report = nix_me_apps::catalog::validate(&catalog, &recipe)
+                .map_err(|error| (4, error, json))?;
+            emit_registry(&report, json).map_err(|error| (5, error, json))?;
+            Ok(0)
+        }
+        RegistryCommand::CatalogMetric {
+            catalog,
+            recipe,
+            json,
+        } => {
+            let report = nix_me_apps::catalog::metric(&catalog, &recipe)
+                .map_err(|error| (4, error, json))?;
+            emit_registry(&report, json).map_err(|error| (5, error, json))?;
+            Ok(0)
+        }
+    }
+}
+
+fn emit_registry<T: serde::Serialize>(value: &T, json: bool) -> Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(value)?);
+    } else {
+        println!("{}", serde_yaml::to_string(value)?);
+    }
+    Ok(())
+}
+
+fn run_diff(args: RunArgs) -> Result<i32> {
+    let (recipes, values) = load_inputs(&args)?;
+    let clock = SystemClock;
+    let path = state_path()?;
+    let (mut state, state_warning) = if args.no_exec {
+        load_no_mutation(&path)?
+    } else {
+        (load_readonly(&path, &clock.now())?, None)
+    };
+    let mut runner = RealCommandRunner {
+        no_exec: args.no_exec,
+        ..Default::default()
+    };
+    let mut prefs = platform_store();
+    let mut engine = Engine {
+        prefs: &mut prefs,
+        runner: &mut runner,
+        clock: &clock,
+        state: &mut state,
+        state_dir: path.parent().unwrap().to_path_buf(),
+        options: options(&args),
+        warnings: vec![],
+    };
+    if let Some(warning) = state_warning {
+        engine.warnings.push(warning);
+    }
+    let plan = engine.plan(&recipes, &values, "diff")?;
+    let warnings = engine.warnings.clone();
+    drop(engine);
+    let commands = audit_commands(&recipes, &plan, &runner.recorded)?;
+    emit(&plan, args.json, &warnings, &commands, args.no_exec)?;
+    Ok(plan.exit_code)
+}
+
+fn run_apply(args: ApplyArgs) -> std::result::Result<i32, (i32, anyhow::Error)> {
+    let (recipes, values) = load_inputs(&args.run).map_err(|e| (4, e))?;
+    let clock = SystemClock;
+    let path = state_path().map_err(|e| (5, e))?;
+    if args.run.no_exec {
+        let (mut state, state_warning) = load_no_mutation(&path).map_err(|e| (5, e))?;
+        let mut runner = RealCommandRunner {
+            no_exec: true,
+            ..Default::default()
+        };
+        let mut prefs = platform_store();
+        let mut engine = Engine {
+            prefs: &mut prefs,
+            runner: &mut runner,
+            clock: &clock,
+            state: &mut state,
+            state_dir: path.parent().unwrap().to_path_buf(),
+            options: options(&args.run),
+            warnings: vec![],
+        };
+        if let Some(warning) = state_warning {
+            engine.warnings.push(warning);
+        }
+        let plan = engine
+            .plan(&recipes, &values, "apply")
+            .map_err(|e| (failure_code(&e, 4), e))?;
+        let warnings = engine.warnings.clone();
+        drop(engine);
+        let commands = audit_commands(&recipes, &plan, &runner.recorded).map_err(|e| (4, e))?;
+        emit(&plan, args.run.json, &warnings, &commands, true).map_err(|e| (5, e))?;
+        return Ok(plan.exit_code);
+    }
+    let mut guard = StateGuard::acquire(&path, args.no_wait, &clock.now()).map_err(|e| (5, e))?;
+    let mut runner = RealCommandRunner {
+        no_exec: args.run.no_exec,
+        ..Default::default()
+    };
+    let mut prefs = platform_store();
+    let mut engine = Engine {
+        prefs: &mut prefs,
+        runner: &mut runner,
+        clock: &clock,
+        state: &mut guard.state,
+        state_dir: path.parent().unwrap().to_path_buf(),
+        options: options(&args.run),
+        warnings: vec![],
+    };
+    let plan = engine
+        .plan(&recipes, &values, "apply")
+        .map_err(|e| (failure_code(&e, 4), e))?;
+    if plan.has_actions() {
+        let unsafe_restart = recipes.iter().any(|r| {
+            r.apply.unsafe_to_kill
+                && plan
+                    .apps
+                    .iter()
+                    .any(|a| a.id == r.id && a.entries.iter().any(|e| !e.actions.is_empty()))
+        });
+        if !args.yes || unsafe_restart {
+            if !args.run.json {
+                emit(&plan, false, &engine.warnings, &[], false).map_err(|e| (5, e))?;
+            }
+            if !confirm(if unsafe_restart {
+                "An app may have unsaved work. Apply and restart it?"
+            } else {
+                "Apply this plan?"
+            })
+            .map_err(|e| (5, e))?
+            {
+                if args.run.json {
+                    emit(&plan, true, &engine.warnings, &[], false).map_err(|e| (5, e))?;
+                }
+                return Ok(plan.exit_code);
+            }
+        }
+    }
+    let plan = engine.apply(&recipes, &values, plan);
+    let warnings = engine.warnings.clone();
+    drop(engine);
+    guard.save(&clock.now()).map_err(|e| (5, e))?;
+    emit(&plan, args.run.json, &warnings, &runner.recorded, false).map_err(|e| (5, e))?;
+    Ok(plan.exit_code)
+}
+
+fn run_capture(args: CaptureArgs) -> Result<i32> {
+    if let Some(path) = args.sniff {
+        if args.watch {
+            return nix_me_apps::capture::watch_artifact(
+                &path,
+                args.output.as_deref(),
+                args.commit,
+                args.poll_ms,
+                args.json,
+            );
+        }
+        let output = nix_me_apps::capture::sniff(&path)?;
+        if let Some(path) = &args.output {
+            nix_me_apps::capture::write_sniff_output(path, &output)?;
+        }
+        if args.json {
+            println!("{}", serde_json::to_string_pretty(&output)?);
+        } else {
+            println!("{}", serde_yaml::to_string(&output)?);
+        }
+        return Ok(0);
+    }
+
+    let output = {
+        let app = args
+            .app
+            .ok_or_else(|| anyhow!("capture requires <app> or --sniff <file>"))?;
+        let domain = match args.domain {
+            Some(domain) => domain,
+            None => nix_me_apps::capture::resolve_bundle_id(&app)?,
+        };
+        nix_me_apps::capture::interactive_defaults_capture(
+            &app,
+            &domain,
+            &args.include_key.into_iter().collect(),
+            args.watch,
+            args.poll_ms,
+        )?
+    };
+    if args.json {
+        println!("{}", serde_json::to_string_pretty(&output)?);
+    } else {
+        println!("{}", serde_yaml::to_string(&output)?);
+    }
+    Ok(0)
+}
+
+fn load_inputs(
+    args: &RunArgs,
+) -> Result<(Vec<Recipe>, serde_json::Map<String, serde_json::Value>)> {
+    let only = args.only.iter().cloned().collect::<BTreeSet<_>>();
+    let paths = nix_me_apps::registry::discover_recipe_paths(&args.recipe)?;
+    let all_recipes = paths
+        .iter()
+        .map(|path| load_recipe(path))
+        .collect::<Result<Vec<_>>>()?;
+    let known = all_recipes
+        .iter()
+        .map(|recipe| recipe.id.clone())
+        .collect::<BTreeSet<_>>();
+    if known.len() != all_recipes.len() {
+        return Err(anyhow!("duplicate recipe ids in --recipe inputs"));
+    }
+    let unknown = only.difference(&known).cloned().collect::<Vec<_>>();
+    if !unknown.is_empty() {
+        return Err(anyhow!(
+            "--only contains unknown recipe id(s): {}",
+            unknown.join(", ")
+        ));
+    }
+    let recipes = all_recipes
+        .into_iter()
+        .filter(|r| only.is_empty() || only.contains(&r.id))
+        .collect();
+    Ok((recipes, load_values(&args.values)?))
+}
+fn options(args: &RunArgs) -> Options {
+    Options {
+        force: args.force,
+        skip_manual: args.skip_manual,
+        skip_missing: args.skip_missing,
+        require_verified: args.require_verified,
+        no_exec: args.no_exec,
+    }
+}
+fn state_path() -> Result<PathBuf> {
+    if let Some(path) = std::env::var_os("NIX_ME_STATE_DIR") {
+        return Ok(PathBuf::from(path).join("apps.json"));
+    }
+    if let Some(path) = std::env::var_os("XDG_STATE_HOME") {
+        return Ok(PathBuf::from(path).join("nix-me/apps.json"));
+    }
+    Ok(
+        PathBuf::from(std::env::var_os("HOME").ok_or_else(|| anyhow!("HOME is not set"))?)
+            .join(".local/state/nix-me/apps.json"),
+    )
+}
+fn confirm(prompt: &str) -> Result<bool> {
+    eprint!("{prompt} [y/N] ");
+    io::stderr().flush()?;
+    let mut answer = String::new();
+    io::stdin().read_line(&mut answer)?;
+    Ok(matches!(
+        answer.trim().to_ascii_lowercase().as_str(),
+        "y" | "yes"
+    ))
+}
+fn emit(
+    plan: &Plan,
+    json: bool,
+    warnings: &[String],
+    commands: &[String],
+    audit: bool,
+) -> Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(plan)?);
+        if audit {
+            eprintln!("Commands (not executed):");
+            for command in commands {
+                eprintln!("  {command}");
+            }
+        }
+    } else {
+        for warning in warnings {
+            eprintln!("warning: {warning}");
+        }
+        for app in &plan.apps {
+            println!("{}:", app.id);
+            for entry in &app.entries {
+                for action in &entry.actions {
+                    println!(
+                        "  {} {}: {} -> {}{}",
+                        match action.op.as_str() {
+                            "del" => "-",
+                            "write" | "add" | "replace_file" | "merge_file" | "materialize"
+                            | "deliver" => "+",
+                            _ => "~",
+                        },
+                        action.target,
+                        action
+                            .current
+                            .as_ref()
+                            .map(value_text)
+                            .unwrap_or_else(|| "<absent>".into()),
+                        action
+                            .desired
+                            .as_ref()
+                            .map(value_text)
+                            .unwrap_or_else(|| "<absent>".into()),
+                        action
+                            .result
+                            .as_ref()
+                            .map(|r| format!(" [{r}]"))
+                            .unwrap_or_default()
+                    );
+                }
+                for drift in &entry.drift {
+                    println!("  ! {} ({}) {}", drift.target, drift.reason, drift.detail);
+                }
+            }
+        }
+        if !plan.checklist.is_empty() {
+            println!("Checklist:");
+            for item in &plan.checklist {
+                if !item.satisfied {
+                    println!("  [ ] {}: {}", item.app, item.step);
+                }
+            }
+        }
+        println!("Summary: {} write(s), {} add(s), {} delete(s), {} file(s), {} artifact(s), {} drift, {} manual",plan.summary.writes,plan.summary.adds,plan.summary.dels,plan.summary.files,plan.summary.materialize,plan.summary.drift,plan.summary.manual);
+        if audit {
+            println!("Commands (not executed):");
+            for command in commands {
+                println!("  {command}");
+            }
+        }
+    }
+    Ok(())
+}
+
+fn audit_commands(recipes: &[Recipe], plan: &Plan, recorded: &[String]) -> Result<Vec<String>> {
+    let mut commands = Vec::new();
+    for command in recorded {
+        push_unique(&mut commands, command.clone());
+    }
+    for app in &plan.apps {
+        let Some(recipe) = recipes.iter().find(|recipe| recipe.id == app.id) else {
+            continue;
+        };
+        for (index, entry_plan) in app.entries.iter().enumerate() {
+            let Some(entry) = recipe.config.get(index) else {
+                continue;
+            };
+            match entry {
+                ConfigEntry::Command(command) => {
+                    for action in &entry_plan.actions {
+                        push_unique(&mut commands, command_action_command(command, action)?);
+                    }
+                }
+                ConfigEntry::GeneratedImport(_) => {
+                    for action in &entry_plan.actions {
+                        if action.op == "deliver" {
+                            push_unique(&mut commands, action.target.clone());
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        if app.entries.iter().any(|entry| !entry.actions.is_empty()) {
+            if let Some(command) = poke_command(recipe) {
+                push_unique(&mut commands, command);
+            }
+        }
+    }
+    Ok(commands)
+}
+fn push_unique(commands: &mut Vec<String>, command: String) {
+    if !commands.contains(&command) {
+        commands.push(command);
+    }
+}
+fn failure_code(error: &anyhow::Error, default: i32) -> i32 {
+    if error.downcast_ref::<CommandExecutionError>().is_some() {
+        5
+    } else {
+        default
+    }
+}
+fn value_text(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::String(s) => format!("{s:?}"),
+        other => other.to_string(),
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn platform_store() -> nix_me_apps::prefs::CfPrefStore {
+    nix_me_apps::prefs::CfPrefStore
+}
+#[cfg(not(target_os = "macos"))]
+fn platform_store() -> nix_me_apps::prefs::DefaultsCliStore {
+    nix_me_apps::prefs::DefaultsCliStore
+}

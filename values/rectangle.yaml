@@ -1,0 +1,15 @@
+rectangle:
+  SUEnableAutomaticChecks: true
+  launchOnLogin: true
+  hideMenubarIcon: false
+  alternateDefaultShortcuts: true
+  allowAnyShortcut: true
+  gapSize: 5
+  snapEdgeMarginTop: 5
+  snapEdgeMarginBottom: 5
+  snapEdgeMarginLeft: 5
+  snapEdgeMarginRight: 5
+  windowSnapping: 2
+  almostMaximizeHeight: 0.95
+  almostMaximizeWidth: 0.95
+  subsequentExecutionMode: 1

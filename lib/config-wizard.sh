@@ -251,6 +251,13 @@ run_configuration_wizard() {
     select_packages
     echo ""
 
+    if ask_yes_no "Manage supported application settings declaratively?" "n"; then
+        WIZARD_APP_STATE_ENABLE="true"
+    else
+        WIZARD_APP_STATE_ENABLE="false"
+    fi
+    echo ""
+
     # Step 5: Summary
     print_step "5/6" "Configuration Summary"
     echo ""
@@ -259,6 +266,7 @@ run_configuration_wizard() {
     echo "  ${CYAN}Display Name:${NC}  $WIZARD_MACHINE_NAME"
     echo "  ${CYAN}Machine Type:${NC}  $WIZARD_MACHINE_TYPE"
     echo "  ${CYAN}Profile:${NC}       $WIZARD_PROFILE"
+    echo "  ${CYAN}App State:${NC}     $WIZARD_APP_STATE_ENABLE"
 
     if [ ${#WIZARD_PACKAGES[@]} -gt 0 ]; then
         echo "  ${CYAN}Extra Apps:${NC}    ${#WIZARD_PACKAGES[@]} selected"

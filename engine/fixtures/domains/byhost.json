@@ -1,0 +1,8 @@
+{
+  "domain": "com.nix-me.fixture.byhost",
+  "host": "current",
+  "values": {
+    "currentDisplayOnly": true
+  },
+  "forced": []
+}
