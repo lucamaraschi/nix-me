@@ -1,8 +1,9 @@
 import SwiftUI
 
-private enum DashboardSection: String, Identifiable {
+enum DashboardSection: String, Identifiable {
     case overview = "Overview"
     case configuration = "Configuration"
+    case harness = "Harness"
     case managedSoftware = "Managed"
     case installedSoftware = "Installed"
     case configurationChanges = "Changes"
@@ -15,6 +16,7 @@ private enum DashboardSection: String, Identifiable {
         switch self {
         case .overview: "square.grid.2x2"
         case .configuration: "point.3.connected.trianglepath.dotted"
+        case .harness: "checklist.checked"
         case .managedSoftware: "shippingbox"
         case .installedSoftware: "internaldrive"
         case .configurationChanges: "arrow.left.arrow.right"
@@ -26,14 +28,13 @@ private enum DashboardSection: String, Identifiable {
 
 struct DashboardView: View {
     @ObservedObject var store: DashboardStore
-    @State private var selection: DashboardSection = .overview
     @State private var projectFilter = ProjectFilter.all
     @State private var selectedUpdateIDs = Set<String>()
     @State private var showingApplyConfirmation = false
 
     var body: some View {
         NavigationSplitView {
-            List(selection: $selection) {
+            List(selection: $store.selectedSection) {
                 SidebarRow(section: .overview)
                 SidebarRow(section: .configuration, count: store.configurationGraph?.activeNodes.count)
 
@@ -48,6 +49,11 @@ struct DashboardView: View {
                 }
 
                 Section("Maintenance") {
+                    SidebarRow(
+                        section: .harness,
+                        count: store.snapshot?.appState?.differenceCount,
+                        needsAttention: store.snapshot?.appState?.needsAttention ?? false
+                    )
                     SidebarRow(section: .projects, count: store.snapshot?.projectAttentionCount)
                     SidebarRow(section: .updates, count: store.snapshot?.softwareUpdateCount)
                 }
@@ -57,7 +63,7 @@ struct DashboardView: View {
         } detail: {
             Group {
                 if let snapshot = store.snapshot {
-                    content(for: selection, snapshot: snapshot)
+                    content(for: store.selectedSection, snapshot: snapshot)
                 } else if let errorMessage = store.errorMessage {
                     ConfigurationSetupView(
                         errorMessage: errorMessage,
@@ -84,8 +90,9 @@ struct DashboardView: View {
                     .disabled(store.snapshot == nil)
 
                     if store.snapshot?.configuration.applyState != "current",
-                       selection != .overview,
-                       selection != .configurationChanges {
+                       store.selectedSection != .overview,
+                       store.selectedSection != .configurationChanges,
+                       store.selectedSection != .harness {
                         Button("Apply", systemImage: "checkmark.circle") {
                             showingApplyConfirmation = true
                         }
@@ -138,20 +145,20 @@ struct DashboardView: View {
             OverviewView(
                 snapshot: snapshot,
                 openManagedSoftware: {
-                    selection = .managedSoftware
+                    store.selectedSection = .managedSoftware
                 },
                 openInstalledSoftware: {
-                    selection = .installedSoftware
+                    store.selectedSection = .installedSoftware
                 },
                 openUpdates: {
-                    selection = .updates
+                    store.selectedSection = .updates
                 },
                 openProjectAttention: {
                     projectFilter = .attention
-                    selection = .projects
+                    store.selectedSection = .projects
                 },
                 openConfigurationChanges: {
-                    selection = .configurationChanges
+                    store.selectedSection = .configurationChanges
                 },
                 applyConfiguration: { showingApplyConfirmation = true },
                 isApplying: store.isApplying
@@ -164,6 +171,8 @@ struct DashboardView: View {
                 openFile: store.openConfigurationFile,
                 revealFile: store.revealConfigurationFile
             )
+        case .harness:
+            HarnessStatusView(status: snapshot.appState)
         case .managedSoftware:
             SoftwareView(snapshot: snapshot, mode: .managed, loadDetails: store.packageDetails)
         case .installedSoftware:
@@ -389,6 +398,139 @@ private struct OverviewView: View {
         guard let revision, revision != "unknown" else { return "Unavailable" }
         let clean = revision.replacingOccurrences(of: "-dirty", with: "")
         return String(clean.prefix(9)) + (revision.hasSuffix("-dirty") ? " (modified)" : "")
+    }
+}
+
+private struct HarnessStatusView: View {
+    let status: AppStateStatus?
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Application state")
+                            .font(.system(size: 34, weight: .semibold, design: .rounded))
+                        Text("Read-only status from the management API")
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    StatusBadge(label: statusLabel, color: statusColor, symbol: statusSymbol)
+                }
+
+                if let status {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 170), spacing: 14)], spacing: 14) {
+                        HarnessMetricCard(
+                            title: "Configured recipes",
+                            value: status.configuredRecipeCount,
+                            symbol: "list.bullet.rectangle",
+                            tint: status.configuredRecipeCount == nil ? .secondary : .blue
+                        )
+                        HarnessMetricCard(
+                            title: "Configuration drift",
+                            value: status.driftCount,
+                            symbol: "arrow.left.arrow.right",
+                            tint: countTint(status.driftCount)
+                        )
+                        HarnessMetricCard(
+                            title: "Manual residue",
+                            value: status.manualResidueCount,
+                            symbol: "hand.raised.fill",
+                            tint: countTint(status.manualResidueCount)
+                        )
+                        HarnessMetricCard(
+                            title: "Verified recipes",
+                            value: status.verification.verifiedRecipeCount,
+                            symbol: "checkmark.seal.fill",
+                            tint: status.verification.verifiedRecipeCount == nil ? .secondary : .green
+                        )
+                        HarnessMetricCard(
+                            title: "Unverified recipes",
+                            value: status.verification.unverifiedRecipeCount,
+                            symbol: "questionmark.diamond.fill",
+                            tint: countTint(status.verification.unverifiedRecipeCount)
+                        )
+                    }
+
+                    SectionCard(title: "Engine", symbol: "gearshape.2.fill") {
+                        DetailRow(label: "Availability", value: status.engine.available ? "Available" : "Unavailable")
+                        DetailRow(label: "Version", value: status.engine.version ?? "Unavailable")
+                    }
+
+                    SectionCard(title: "Last apply", symbol: "clock.arrow.circlepath") {
+                        DetailRow(label: "Result", value: applyResult(status.lastApply.status))
+                        DetailRow(label: "Time", value: applyTime(status.lastApply.time))
+                        DetailRow(label: "Message", value: status.lastApply.message ?? "Unavailable")
+                    }
+
+                    SectionCard(title: "Warnings", symbol: "exclamationmark.triangle.fill") {
+                        if status.warnings.isEmpty {
+                            Label("No harness warnings", systemImage: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                        } else {
+                            ForEach(status.warnings, id: \.self) { warning in
+                                Label(warning, systemImage: "exclamationmark.circle")
+                                    .foregroundStyle(.orange)
+                            }
+                        }
+                    }
+                } else {
+                    ContentUnavailableView {
+                        Label("Harness status unavailable", systemImage: "questionmark.circle")
+                    } description: {
+                        Text("This snapshot predates the optional app-state status contract. Refresh after updating the management API.")
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 360)
+                }
+            }
+            .padding(28)
+        }
+        .navigationTitle("Harness")
+    }
+
+    private var statusLabel: String {
+        guard let status else { return "Status unavailable" }
+        if !status.engine.available { return "Engine unavailable" }
+        if status.hasUnavailableCounts { return "Status incomplete" }
+        if status.hasDifferences { return "Differences found" }
+        if status.verification.unverifiedRecipeCount.map({ $0 > 0 }) == true {
+            return "Verification needed"
+        }
+        if status.lastApply.status == "failed" { return "Last apply failed" }
+        if status.lastApply.status == "partial" { return "Last apply partial" }
+        if !status.warnings.isEmpty { return "Needs attention" }
+        return "In sync"
+    }
+
+    private var statusColor: Color {
+        guard let status else { return .secondary }
+        return status.needsAttention ? .orange : .green
+    }
+
+    private var statusSymbol: String {
+        guard let status else { return "questionmark.circle.fill" }
+        return status.needsAttention ? "exclamationmark.circle.fill" : "checkmark.circle.fill"
+    }
+
+    private func countTint(_ count: Int?) -> Color {
+        guard let count else { return .secondary }
+        return count == 0 ? .green : .orange
+    }
+
+    private func applyResult(_ result: String?) -> String {
+        switch result {
+        case "succeeded": "Succeeded"
+        case "partial": "Partially succeeded"
+        case "failed": "Failed"
+        case let result?: result.capitalized
+        case nil: "Unavailable"
+        }
+    }
+
+    private func applyTime(_ value: String?) -> String {
+        guard let value else { return "Unavailable" }
+        guard let date = ISO8601DateFormatter().date(from: value) else { return value }
+        return date.formatted(date: .abbreviated, time: .shortened)
     }
 }
 
@@ -1498,6 +1640,41 @@ private struct MetricCard: View {
         .onHover { isHovered = $0 }
         .accessibilityLabel("\(title), \(value)")
         .accessibilityHint("Open details")
+    }
+}
+
+private struct HarnessMetricCard: View {
+    let title: String
+    let value: Int?
+    let symbol: String
+    let tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Image(systemName: symbol)
+                .font(.title2)
+                .foregroundStyle(tint)
+            if let value {
+                Text(value, format: .number)
+                    .font(.system(size: 30, weight: .semibold, design: .rounded))
+            } else {
+                Text("Unavailable")
+                    .font(.system(size: 20, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+            Text(title)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(18)
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color(nsColor: .separatorColor).opacity(0.4), lineWidth: 1)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title), \(value.map(String.init) ?? "unavailable")")
     }
 }
 

@@ -11,4 +11,5 @@ Run its integration checks from the repository root:
 
 ```sh
 make test-cli
+apps/cli/tests/test-harness-status.sh
 ```

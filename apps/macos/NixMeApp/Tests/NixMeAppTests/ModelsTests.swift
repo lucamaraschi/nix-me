@@ -19,6 +19,59 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(snapshot.softwareDifferences.first?.change, .versionChanged)
         XCTAssertEqual(snapshot.softwareDifferences.first?.appliedVersion, "2.52.0")
         XCTAssertEqual(snapshot.softwareDifferences.first?.desiredVersion, "2.53.0")
+        XCTAssertNil(snapshot.appState)
+    }
+
+    func testSnapshotDecodesOptionalAppStateStatus() throws {
+        let data = try fixtureData(named: "snapshot-v1-app-state")
+        let snapshot = try JSONDecoder().decode(ManagementSnapshot.self, from: data)
+        let status = try XCTUnwrap(snapshot.appState)
+
+        XCTAssertTrue(status.engine.available)
+        XCTAssertEqual(status.engine.version, "0.1.0")
+        XCTAssertEqual(status.configuredRecipeCount, 4)
+        XCTAssertEqual(status.driftCount, 2)
+        XCTAssertEqual(status.manualResidueCount, 1)
+        XCTAssertEqual(status.differenceCount, 3)
+        XCTAssertEqual(status.verification.verifiedRecipeCount, 1)
+        XCTAssertEqual(status.verification.unverifiedRecipeCount, 3)
+        XCTAssertEqual(status.lastApply.status, "succeeded")
+        XCTAssertEqual(status.lastApply.time, "2026-10-05T17:56:00Z")
+        XCTAssertEqual(status.lastApply.message, "Applied 4 configured recipes")
+        XCTAssertEqual(status.warnings, ["One recipe needs review"])
+        XCTAssertTrue(status.needsAttention)
+    }
+
+    func testAppStateCountsKeepZeroDistinctFromUnavailable() {
+        let engine = AppStateEngine(available: true, version: nil)
+        let lastApply = AppStateLastApply(status: nil, time: nil, message: nil)
+        let current = AppStateStatus(
+            schemaVersion: 1,
+            engine: engine,
+            configuredRecipeCount: 0,
+            driftCount: 0,
+            manualResidueCount: 0,
+            lastApply: lastApply,
+            verification: AppStateVerification(verifiedRecipeCount: 0, unverifiedRecipeCount: 0),
+            warnings: []
+        )
+        let unavailable = AppStateStatus(
+            schemaVersion: 1,
+            engine: engine,
+            configuredRecipeCount: nil,
+            driftCount: nil,
+            manualResidueCount: nil,
+            lastApply: lastApply,
+            verification: AppStateVerification(verifiedRecipeCount: nil, unverifiedRecipeCount: nil),
+            warnings: []
+        )
+
+        XCTAssertEqual(current.differenceCount, 0)
+        XCTAssertFalse(current.hasUnavailableCounts)
+        XCTAssertFalse(current.needsAttention)
+        XCTAssertNil(unavailable.differenceCount)
+        XCTAssertTrue(unavailable.hasUnavailableCounts)
+        XCTAssertTrue(unavailable.needsAttention)
     }
 
     func testConfigurationGraphResolvesActiveProfilesAndImports() throws {
@@ -97,6 +150,11 @@ final class ModelsTests: XCTestCase {
             withIntermediateDirectories: true
         )
         try contents.write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    private func fixtureData(named name: String) throws -> Data {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: name, withExtension: "json"))
+        return try Data(contentsOf: url)
     }
 
     private let fixture = #"""

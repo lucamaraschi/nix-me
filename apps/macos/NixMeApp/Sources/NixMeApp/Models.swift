@@ -9,6 +9,7 @@ struct ManagementSnapshot: Codable {
     let inventory: Inventory
     let updates: Updates
     let projects: [Project]
+    let appState: AppStateStatus?
     let warnings: [String]
 
     var desiredSoftwareCount: Int {
@@ -88,6 +89,60 @@ struct ToolHealth: Codable {
         case available
         case version
     }
+}
+
+struct AppStateStatus: Codable {
+    let schemaVersion: Int
+    let engine: AppStateEngine
+    let configuredRecipeCount: Int?
+    let driftCount: Int?
+    let manualResidueCount: Int?
+    let lastApply: AppStateLastApply
+    let verification: AppStateVerification
+    let warnings: [String]
+
+    var differenceCount: Int? {
+        guard let driftCount, let manualResidueCount else { return nil }
+        return driftCount + manualResidueCount
+    }
+
+    var hasDifferences: Bool {
+        driftCount.map { $0 > 0 } == true || manualResidueCount.map { $0 > 0 } == true
+    }
+
+    var hasUnavailableCounts: Bool {
+        configuredRecipeCount == nil
+            || driftCount == nil
+            || manualResidueCount == nil
+            || verification.verifiedRecipeCount == nil
+            || verification.unverifiedRecipeCount == nil
+    }
+
+    var needsAttention: Bool {
+        !engine.available
+            || hasUnavailableCounts
+            || hasDifferences
+            || verification.unverifiedRecipeCount.map { $0 > 0 } == true
+            || lastApply.status == "partial"
+            || lastApply.status == "failed"
+            || !warnings.isEmpty
+    }
+}
+
+struct AppStateEngine: Codable {
+    let available: Bool
+    let version: String?
+}
+
+struct AppStateLastApply: Codable {
+    let status: String?
+    let time: String?
+    let message: String?
+}
+
+struct AppStateVerification: Codable {
+    let verifiedRecipeCount: Int?
+    let unverifiedRecipeCount: Int?
 }
 
 struct Inventory: Codable {

@@ -3,6 +3,7 @@ import Foundation
 
 @MainActor
 final class DashboardStore: ObservableObject {
+    @Published var selectedSection: DashboardSection = .overview
     @Published private(set) var snapshot: ManagementSnapshot?
     @Published private(set) var configurationGraph: ConfigurationGraph?
     @Published private(set) var configurationGraphError: String?
