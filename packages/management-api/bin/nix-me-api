@@ -9,6 +9,7 @@ CONFIG_DIR="${NIX_ME_CONFIG_DIR:-$REPO_DIR}"
 HOST_NAME="${NIX_ME_HOSTNAME:-$(hostname -s | tr '[:upper:]' '[:lower:]')}"
 APPLIED_MANIFEST="${NIX_ME_APPLIED_MANIFEST:-/etc/nix-me/manifest.json}"
 API_VERSION=1
+REQUESTED_ENDPOINT="${1:-snapshot}"
 
 # GUI apps do not inherit the interactive shell PATH.
 export PATH="/run/current-system/sw/bin:/etc/profiles/per-user/${USER:-$(id -un)}/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/usr/local/bin:${PATH:-/usr/bin:/bin:/usr/sbin:/sbin}"
@@ -165,6 +166,7 @@ run_bounded_local_ai_status() {
   return "$status"
 }
 
+if [[ "$REQUESTED_ENDPOINT" != "local-ai" ]]; then
 app_state_warnings='[]'
 
 add_app_state_warning() {
@@ -528,6 +530,26 @@ else
   fi
 fi
 
+if [[ "$REQUESTED_ENDPOINT" == "app-state" ]]; then
+  generated_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+  jq -n \
+    --argjson schemaVersion "$API_VERSION" \
+    --arg generatedAt "$generated_at" \
+    --arg hostname "$HOST_NAME" \
+    --arg username "${USER:-$(id -un)}" \
+    --argjson appState "$app_state" \
+    --argjson warnings "$warnings" \
+    '{
+      schemaVersion: $schemaVersion,
+      generatedAt: $generatedAt,
+      host: {hostname: $hostname, machineName: $hostname, machineType: null, username: $username},
+      appState: $appState,
+      warnings: ($warnings + $appState.warnings)
+    }'
+  exit 0
+fi
+fi
+
 local_ai='null'
 if [[ -n "${NIX_ME_LOCAL_AI_STATUS:-}" ]]; then
   if [[ -r "$NIX_ME_LOCAL_AI_STATUS" ]] &&
@@ -577,6 +599,25 @@ else
     fi
     local_ai="$(unavailable_local_ai "Run local-ai-doctor --json, resolve the reported error, then refresh.")"
   fi
+fi
+
+if [[ "$REQUESTED_ENDPOINT" == "local-ai" ]]; then
+  generated_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+  jq -n \
+    --argjson schemaVersion "$API_VERSION" \
+    --arg generatedAt "$generated_at" \
+    --arg hostname "$HOST_NAME" \
+    --arg username "${USER:-$(id -un)}" \
+    --argjson localAI "$local_ai" \
+    --argjson warnings "$warnings" \
+    '{
+      schemaVersion: $schemaVersion,
+      generatedAt: $generatedAt,
+      host: {hostname: $hostname, machineName: $hostname, machineType: null, username: $username},
+      localAI: $localAI,
+      warnings: $warnings
+    }'
+  exit 0
 fi
 
 git_state() {
@@ -898,7 +939,7 @@ snapshot="$(jq -n \
     warnings: $warnings
   }')"
 
-case "${1:-snapshot}" in
+case "$REQUESTED_ENDPOINT" in
   snapshot)
     jq . <<<"$snapshot"
     ;;

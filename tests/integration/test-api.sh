@@ -307,6 +307,39 @@ jq -e '
   (.appState.warnings | any(. == "Configured app-state recipes are unknown without engine status"))
 ' "$TEMP_DIR/app-state-legacy-fixtures.json" >/dev/null
 
+focused_command_log="$TEMP_DIR/focused-command.log"
+brew() {
+  printf 'brew %s\n' "$*" >>"$FOCUSED_COMMAND_LOG"
+  return 99
+}
+mas() {
+  printf 'mas %s\n' "$*" >>"$FOCUSED_COMMAND_LOG"
+  return 99
+}
+nix() {
+  printf 'nix %s\n' "$*" >>"$FOCUSED_COMMAND_LOG"
+  return 99
+}
+export -f brew mas nix
+(
+  unset NIX_ME_SKIP_UPDATES
+  export FOCUSED_COMMAND_LOG="$focused_command_log"
+  "$REPO_DIR/packages/management-api/bin/nix-me-api" app-state \
+    >"$TEMP_DIR/app-state-focused.json"
+  "$REPO_DIR/packages/management-api/bin/nix-me-api" local-ai \
+    >"$TEMP_DIR/local-ai-focused.json"
+)
+unset -f brew mas nix
+if [[ -s "$focused_command_log" ]]; then
+  echo "focused API endpoints executed unrelated update commands:" >&2
+  cat "$focused_command_log" >&2
+  exit 1
+fi
+jq -e '.appState.schemaVersion == 1 and has("updates") == false' \
+  "$TEMP_DIR/app-state-focused.json" >/dev/null
+jq -e '.localAI.schemaVersion == 1 and has("updates") == false' \
+  "$TEMP_DIR/local-ai-focused.json" >/dev/null
+
 if "$REPO_DIR/apps/cli/bin/nix-me" api not-an-endpoint >"$TEMP_DIR/unknown.json"; then
   echo "unknown API endpoint unexpectedly succeeded" >&2
   exit 1
