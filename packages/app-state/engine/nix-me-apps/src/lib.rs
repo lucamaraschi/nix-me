@@ -8,3 +8,4 @@ pub mod prefs;
 pub mod registry;
 pub mod runner;
 pub mod state;
+pub mod status;

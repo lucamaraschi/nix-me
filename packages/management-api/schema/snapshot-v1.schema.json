@@ -68,7 +68,7 @@
           "properties": {
             "status": {
               "type": ["string", "null"],
-              "enum": ["succeeded", "partial", "failed", null]
+              "enum": ["succeeded", "partial", "declined", "failed", null]
             },
             "time": {
               "type": ["string", "null"],

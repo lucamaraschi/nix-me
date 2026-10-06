@@ -39,6 +39,55 @@ add_app_state_warning() {
   app_state_warnings="$(jq -c --arg message "$message" '. + [$message]' <<<"$app_state_warnings")"
 }
 
+valid_app_state_status() {
+  jq -e '
+    type == "object" and
+    has("schemaVersion") and
+    has("engine") and
+    has("configuredRecipeCount") and
+    has("driftCount") and
+    has("manualResidueCount") and
+    has("lastApply") and
+    has("verification") and
+    has("warnings") and
+    .schemaVersion == 1 and
+    (.engine | type == "object" and has("available") and has("version")) and
+    (.engine.available | type == "boolean") and
+    (.engine.version == null or (.engine.version | type == "string" and length > 0)) and
+    (.configuredRecipeCount == null or (.configuredRecipeCount | type == "number" and . >= 0 and floor == .)) and
+    (.driftCount == null or (.driftCount | type == "number" and . >= 0 and floor == .)) and
+    (.manualResidueCount == null or (.manualResidueCount | type == "number" and . >= 0 and floor == .)) and
+    (.lastApply | type == "object" and has("status") and has("time") and has("message")) and
+    (.lastApply.status == null or (.lastApply.status | IN("succeeded", "partial", "declined", "failed"))) and
+    (.lastApply.time == null or (.lastApply.time |
+      type == "string" and
+      test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"))) and
+    (.lastApply.message == null or (.lastApply.message | type == "string")) and
+    (.verification | type == "object" and has("verifiedRecipeCount") and has("unverifiedRecipeCount")) and
+    (.verification.verifiedRecipeCount == null or (.verification.verifiedRecipeCount | type == "number" and . >= 0 and floor == .)) and
+    (.verification.unverifiedRecipeCount == null or (.verification.unverifiedRecipeCount | type == "number" and . >= 0 and floor == .)) and
+    (.warnings | type == "array") and
+    all(.warnings[]; type == "string" and length > 0)
+  ' >/dev/null 2>&1 <<<"$1"
+}
+
+unknown_app_state() {
+  jq -cn \
+    --argjson engineAvailable "$app_state_engine_available" \
+    --argjson engineVersion "$app_state_engine_version" \
+    --argjson warnings "$app_state_warnings" \
+    '{
+      schemaVersion: 1,
+      engine: {available: $engineAvailable, version: $engineVersion},
+      configuredRecipeCount: null,
+      driftCount: null,
+      manualResidueCount: null,
+      lastApply: {status: null, time: null, message: null},
+      verification: {verifiedRecipeCount: null, unverifiedRecipeCount: null},
+      warnings: $warnings
+    }'
+}
+
 app_state_engine=''
 app_state_engine_available=false
 app_state_engine_version='null'
@@ -81,6 +130,69 @@ values_path_list="${NIX_ME_APP_STATE_VALUES:-$CONFIG_DIR/packages/app-state/valu
 IFS=':' read -r -a app_state_recipe_paths <<<"$recipe_path_list"
 IFS=':' read -r -a app_state_values_paths <<<"$values_path_list"
 
+app_state='null'
+app_state_source='legacy'
+legacy_app_state_fixture=false
+for fixture_name in \
+  NIX_ME_APP_STATE_REGISTRY \
+  NIX_ME_APP_STATE_PLAN \
+  NIX_ME_APP_STATE_STATE \
+  NIX_ME_APP_STATE_LAST_APPLY; do
+  if [[ -n "${!fixture_name:-}" ]]; then
+    legacy_app_state_fixture=true
+  fi
+done
+
+if [[ -n "${NIX_ME_APP_STATE_STATUS:-}" ]]; then
+  app_state_source='status'
+  if [[ -r "$NIX_ME_APP_STATE_STATUS" ]] &&
+    app_state="$(jq -c . "$NIX_ME_APP_STATE_STATUS" 2>/dev/null)" &&
+    valid_app_state_status "$app_state"; then
+    :
+  else
+    app_state='null'
+    add_app_state_warning "The app-state status fixture is malformed or unreadable"
+  fi
+elif [[ "$legacy_app_state_fixture" != "true" && -n "$app_state_engine" ]]; then
+  app_state_source='status'
+  status_args=(status --json)
+  for recipe_path in "${app_state_recipe_paths[@]}"; do
+    [[ -n "$recipe_path" ]] && status_args+=(--recipe "$recipe_path")
+  done
+  value_file_count=0
+  for values_path in "${app_state_values_paths[@]}"; do
+    [[ -z "$values_path" ]] && continue
+    if [[ -d "$values_path" ]]; then
+      while IFS= read -r values_file; do
+        status_args+=(--values "$values_file")
+        value_file_count=$((value_file_count + 1))
+      done < <(find "$values_path" -type f \( -name '*.yaml' -o -name '*.yml' \) -print 2>/dev/null | sort)
+    else
+      status_args+=(--values "$values_path")
+      value_file_count=$((value_file_count + 1))
+    fi
+  done
+
+  if ((value_file_count == 0)); then
+    add_app_state_warning "The app-state status is unavailable because no values files are configured"
+  elif "$app_state_engine" "${status_args[@]}" >"$TEMP_DIR/app-state-status.json" 2>"$TEMP_DIR/app-state-status.err"; then
+    app_state="$(jq -c . "$TEMP_DIR/app-state-status.json" 2>/dev/null || printf null)"
+    if valid_app_state_status "$app_state"; then
+      app_state="$(jq -c --argjson extraWarnings "$app_state_warnings" '
+        .warnings = ((.warnings + $extraWarnings) | unique)
+      ' <<<"$app_state")"
+    else
+      app_state='null'
+      add_app_state_warning "The app-state engine status does not match version 1"
+    fi
+  else
+    status_error="$(tail -1 "$TEMP_DIR/app-state-status.err" 2>/dev/null || true)"
+    add_app_state_warning "The app-state status is unavailable${status_error:+: $status_error}"
+  fi
+fi
+
+if [[ "$app_state_source" == "legacy" ]]; then
+
 app_state_registry='null'
 if [[ -n "${NIX_ME_APP_STATE_REGISTRY:-}" ]]; then
   if [[ -r "$NIX_ME_APP_STATE_REGISTRY" ]] && app_state_registry="$(jq -c . "$NIX_ME_APP_STATE_REGISTRY" 2>/dev/null)"; then
@@ -121,9 +233,7 @@ if [[ "$app_state_registry" != "null" ]]; then
       (.ids | length) == $recipes and
       (.unverified | length) <= $recipes)
   ' >/dev/null 2>&1 <<<"$app_state_registry"; then
-    configured_recipe_count="$(jq -c '.recipes' <<<"$app_state_registry")"
-    unverified_recipe_count="$(jq -c '.unverified | length' <<<"$app_state_registry")"
-    verified_recipe_count="$((configured_recipe_count - unverified_recipe_count))"
+    add_app_state_warning "Configured app-state recipes are unknown without engine status"
   else
     add_app_state_warning "The app-state registry status does not match version 1"
   fi
@@ -233,7 +343,7 @@ last_apply='null'
 if [[ -r "$last_apply_file" ]]; then
   if last_apply="$(jq -c . "$last_apply_file" 2>/dev/null)" && jq -e '
     type == "object" and
-    (.status | IN("succeeded", "partial", "failed")) and
+    (.status | IN("succeeded", "partial", "declined", "failed")) and
     (.time == null or (.time |
       type == "string" and
       test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"))) and
@@ -279,6 +389,11 @@ app_state="$(jq -n \
     },
     warnings: $warnings
   }')"
+else
+  if [[ "$app_state" == "null" ]]; then
+    app_state="$(unknown_app_state)"
+  fi
+fi
 
 git_state() {
   local directory="$1"
