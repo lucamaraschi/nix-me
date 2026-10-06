@@ -1,0 +1,346 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+EVIDENCE_DIR="$REPO_ROOT/packages/app-state/evidence"
+VALIDATOR="$SCRIPT_DIR/validate-manifest.jq"
+
+die() {
+  printf 'evidence-tool: %s\n' "$*" >&2
+  exit 1
+}
+
+usage() {
+  cat >&2 <<'EOF'
+Usage:
+  evidence-tool validate-manifest MANIFEST
+  evidence-tool generate-stamp MANIFEST RECIPE
+  evidence-tool stamp-recipe MANIFEST RECIPE
+  evidence-tool verify-stamp MANIFEST RECIPE
+  evidence-tool verify-repository
+EOF
+  exit 2
+}
+
+require_file() {
+  [ -f "$1" ] || die "file not found: $1"
+}
+
+sha256_file() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  else
+    shasum -a 256 "$1" | awk '{print $1}'
+  fi
+}
+
+sha256_stdin() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum | awk '{print $1}'
+  else
+    shasum -a 256 | awk '{print $1}'
+  fi
+}
+
+file_bytes() {
+  wc -c < "$1" | tr -d '[:space:]'
+}
+
+normalized_recipe() {
+  awk '
+    BEGIN { found = 0; in_verified = 0 }
+    /^verified:[[:space:]]*/ {
+      if (found) exit 3
+      print "verified: null"
+      found = 1
+      in_verified = 1
+      next
+    }
+    in_verified && /^[^[:space:]]/ { in_verified = 0 }
+    in_verified { next }
+    { print }
+    END { if (!found) exit 4 }
+  ' "$1"
+}
+
+recipe_sha256() {
+  normalized_recipe "$1" | sha256_stdin
+}
+
+recipe_id() {
+  awk '
+    /^id:[[:space:]]*[a-z0-9][a-z0-9-]*[[:space:]]*$/ {
+      value = $0
+      sub(/^id:[[:space:]]*/, "", value)
+      sub(/[[:space:]]*$/, "", value)
+      print value
+      found++
+    }
+    END { if (found != 1) exit 1 }
+  ' "$1" || die "cannot read one canonical top-level id from $1"
+}
+
+validate_manifest_shape() {
+  local manifest="$1"
+  local errors
+
+  require_file "$manifest"
+  jq empty "$manifest" 2>/dev/null || die "$manifest is not valid JSON"
+  errors="$(jq -r -f "$VALIDATOR" "$manifest")" || die "validator failed for $manifest"
+  if [ "$errors" != "[]" ]; then
+    printf 'evidence-tool: manifest validation failed: %s\n' "$manifest" >&2
+    jq -r -f "$VALIDATOR" "$manifest" | jq -r '.[] | "  - " + .' >&2
+    return 1
+  fi
+}
+
+validate_manifest_links() {
+  local manifest="$1"
+  local artifact_ids referenced_ids artifact_id artifact_path expected_sha actual_sha expected_bytes actual_bytes captured_at
+
+  artifact_ids="$(jq -r '.artifacts[].id' "$manifest" | LC_ALL=C sort)"
+  referenced_ids="$(
+    jq -r '.result.checks | [.apply, .visible_behavior, .idempotence] | .[].artifact_ids[]' "$manifest" \
+      | LC_ALL=C sort -u
+  )"
+
+  while IFS= read -r artifact_id; do
+    [ -n "$artifact_id" ] || continue
+    printf '%s\n' "$artifact_ids" | grep -Fxq "$artifact_id" \
+      || die "$manifest: check references unknown artifact id '$artifact_id'"
+  done <<EOF
+$referenced_ids
+EOF
+
+  while IFS=$'\t' read -r artifact_id artifact_path expected_sha expected_bytes captured_at; do
+    [ -n "$artifact_id" ] || continue
+    case "$artifact_path" in
+      packages/app-state/evidence/*) ;;
+      *) die "$manifest: artifact '$artifact_id' must be retained under packages/app-state/evidence" ;;
+    esac
+    case "/$artifact_path/" in
+      */../*) die "$manifest: artifact '$artifact_id' path contains '..'" ;;
+    esac
+    require_file "$REPO_ROOT/$artifact_path"
+    actual_sha="$(sha256_file "$REPO_ROOT/$artifact_path")"
+    [ "$actual_sha" = "$expected_sha" ] \
+      || die "$manifest: artifact '$artifact_id' SHA-256 mismatch (expected $expected_sha, got $actual_sha)"
+    actual_bytes="$(file_bytes "$REPO_ROOT/$artifact_path")"
+    [ "$actual_bytes" = "$expected_bytes" ] \
+      || die "$manifest: artifact '$artifact_id' byte count mismatch (expected $expected_bytes, got $actual_bytes)"
+    jq -e --arg captured_at "$captured_at" \
+      '.run.started_at <= $captured_at and $captured_at <= .run.finished_at' \
+      "$manifest" >/dev/null \
+      || die "$manifest: artifact '$artifact_id' captured_at is outside the run interval"
+  done < <(jq -r '.artifacts[] | [.id, .path, .sha256, (.bytes | tostring), .captured_at] | @tsv' "$manifest")
+}
+
+validate_manifest() {
+  validate_manifest_shape "$1"
+  validate_manifest_links "$1"
+}
+
+assert_passing() {
+  local manifest="$1"
+  local failures
+
+  [ "$(jq -r '.result.status' "$manifest")" = "passed" ] \
+    || die "$manifest: result.status must be passed before a stamp can be generated"
+  failures="$(
+    jq -r '
+      .result.checks
+      | to_entries[]
+      | select(.value.status != "passed")
+      | .key
+    ' "$manifest"
+  )"
+  [ -z "$failures" ] \
+    || die "$manifest: required checks must pass before stamping: $(printf '%s' "$failures" | paste -sd, -)"
+}
+
+assert_recipe_binding() {
+  local manifest="$1"
+  local recipe="$2"
+  local manifest_id actual_id expected_sha actual_sha manifest_path actual_path
+
+  require_file "$recipe"
+  manifest_id="$(jq -r '.recipe.id' "$manifest")"
+  actual_id="$(recipe_id "$recipe")"
+  [ "$actual_id" = "$manifest_id" ] \
+    || die "$manifest: recipe id '$manifest_id' does not match '$actual_id' in $recipe"
+
+  expected_sha="$(jq -r '.recipe.sha256' "$manifest")"
+  actual_sha="$(recipe_sha256 "$recipe")" \
+    || die "cannot normalize top-level verified field in $recipe"
+  [ "$actual_sha" = "$expected_sha" ] \
+    || die "$manifest: recipe evidence is stale (expected normalized SHA-256 $expected_sha, got $actual_sha for $recipe)"
+
+  manifest_path="$(jq -r '.recipe.path' "$manifest")"
+  actual_path="${recipe#"$REPO_ROOT/"}"
+  if [ "$recipe" = "$actual_path" ]; then
+    actual_path="$recipe"
+  fi
+  [ "$actual_path" = "$manifest_path" ] \
+    || die "$manifest: recipe.path '$manifest_path' does not match $actual_path"
+}
+
+manifest_sha256() {
+  jq -cS . "$1" | sha256_stdin
+}
+
+stamp_json() {
+  local manifest="$1"
+  local digest
+  digest="$(manifest_sha256 "$manifest")"
+  jq -S \
+    --arg digest "$digest" \
+    '{
+      macos: (.environment.macos.version + " (" + .environment.macos.build + ")"),
+      app: (.application.version + " (" + .application.build + ")"),
+      date: (.run.finished_at[0:10]),
+      harness: ("t3-evidence/v1@" + .procedure.harness_revision + "#sha256:" + $digest)
+    }' "$manifest"
+}
+
+stamp_yaml() {
+  stamp_json "$1" | jq -r '
+    "verified:\n"
+    + "  macos: " + (.macos | tojson) + "\n"
+    + "  app: " + (.app | tojson) + "\n"
+    + "  date: " + (.date | tojson) + "\n"
+    + "  harness: " + (.harness | tojson)
+  '
+}
+
+prepare_stamp() {
+  local manifest="$1"
+  local recipe="$2"
+  validate_manifest "$manifest"
+  assert_passing "$manifest"
+  assert_recipe_binding "$manifest" "$recipe"
+}
+
+verified_block() {
+  awk '
+    /^verified:[[:space:]]*/ { found = 1; in_verified = 1; print; next }
+    in_verified && /^[^[:space:]]/ { exit }
+    in_verified { print }
+    END { if (!found) exit 1 }
+  ' "$1"
+}
+
+verify_stamp() {
+  local manifest="$1"
+  local recipe="$2"
+  local expected actual
+  prepare_stamp "$manifest" "$recipe"
+  expected="$(stamp_yaml "$manifest")"
+  actual="$(verified_block "$recipe")" \
+    || die "$recipe has no top-level verified field; run stamp-recipe"
+  [ "$actual" = "$expected" ] \
+    || die "$recipe verification stamp is not the canonical stamp derived from $manifest; run stamp-recipe"
+}
+
+stamp_recipe() {
+  local manifest="$1"
+  local recipe="$2"
+  local stamp_file output_file
+  prepare_stamp "$manifest" "$recipe"
+
+  stamp_file="$(mktemp "${TMPDIR:-/tmp}/nix-me-stamp.XXXXXX")"
+  output_file="$(mktemp "${recipe}.XXXXXX")"
+  trap 'rm -f "$stamp_file" "$output_file"' EXIT
+  stamp_yaml "$manifest" > "$stamp_file"
+
+  awk -v stamp_file="$stamp_file" '
+    function print_stamp( line) {
+      while ((getline line < stamp_file) > 0) print line
+      close(stamp_file)
+    }
+    /^verified:[[:space:]]*/ {
+      if (found) exit 3
+      print_stamp()
+      found = 1
+      in_verified = 1
+      next
+    }
+    in_verified && /^[^[:space:]]/ { in_verified = 0 }
+    in_verified { next }
+    { print }
+    END { if (!found) exit 4 }
+  ' "$recipe" > "$output_file" \
+    || die "could not replace the single top-level verified field in $recipe"
+  chmod --reference="$recipe" "$output_file" 2>/dev/null || chmod "$(stat -f '%Lp' "$recipe")" "$output_file"
+  mv "$output_file" "$recipe"
+  trap - EXIT
+  rm -f "$stamp_file"
+}
+
+verify_repository() {
+  local manifest recipe manifest_count=0 stamp_count=0 id state expected_manifest
+
+  if [ -d "$EVIDENCE_DIR/manifests" ]; then
+    while IFS= read -r manifest; do
+      [ -n "$manifest" ] || continue
+      manifest_count=$((manifest_count + 1))
+      id="$(jq -r '.recipe.id' "$manifest" 2>/dev/null)" \
+        || die "$manifest is not valid JSON"
+      recipe="$REPO_ROOT/packages/app-state/recipes/$id.yaml"
+      [ "$(jq -r '.recipe.path' "$manifest")" = "packages/app-state/recipes/$id.yaml" ] \
+        || die "$manifest: committed manifests must target packages/app-state/recipes/$id.yaml"
+      verify_stamp "$manifest" "$recipe"
+    done < <(find "$EVIDENCE_DIR/manifests" -type f -name '*.json' -print | LC_ALL=C sort)
+  fi
+
+  while IFS= read -r recipe; do
+    state="$(verified_block "$recipe" 2>/dev/null || true)"
+    case "$state" in
+      ""|"verified: null") continue ;;
+      verified:*) ;;
+      *) die "$recipe has a malformed top-level verified value" ;;
+    esac
+    stamp_count=$((stamp_count + 1))
+    id="$(recipe_id "$recipe")"
+    expected_manifest="$EVIDENCE_DIR/manifests/$id.json"
+    [ -f "$expected_manifest" ] \
+      || die "$recipe is stamped but $expected_manifest is missing"
+    verify_stamp "$expected_manifest" "$recipe"
+  done < <(find "$REPO_ROOT/packages/app-state/recipes" -type f -name '*.yaml' -print | LC_ALL=C sort)
+
+  [ "$manifest_count" -eq "$stamp_count" ] \
+    || die "found $manifest_count committed evidence manifests but $stamp_count stamped recipes"
+  printf 'Evidence verification passed: %d manifest(s), %d recipe stamp(s).\n' "$manifest_count" "$stamp_count"
+}
+
+[ "$#" -ge 1 ] || usage
+command="$1"
+shift
+
+case "$command" in
+  validate-manifest)
+    [ "$#" -eq 1 ] || usage
+    validate_manifest "$1"
+    printf 'Evidence manifest is valid: %s\n' "$1"
+    ;;
+  generate-stamp)
+    [ "$#" -eq 2 ] || usage
+    prepare_stamp "$1" "$2"
+    stamp_json "$1"
+    ;;
+  stamp-recipe)
+    [ "$#" -eq 2 ] || usage
+    stamp_recipe "$1" "$2"
+    printf 'Stamped recipe from passing evidence: %s\n' "$2"
+    ;;
+  verify-stamp)
+    [ "$#" -eq 2 ] || usage
+    verify_stamp "$1" "$2"
+    printf 'Recipe stamp is valid: %s\n' "$2"
+    ;;
+  verify-repository)
+    [ "$#" -eq 0 ] || usage
+    verify_repository
+    ;;
+  *) usage ;;
+esac

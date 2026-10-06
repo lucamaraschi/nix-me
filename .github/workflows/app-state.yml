@@ -16,6 +16,7 @@ on:
     paths:
       - "packages/app-state/engine/**"
       - "packages/app-state/recipes/**"
+      - "packages/app-state/evidence/**"
       - "packages/app-state/catalog/**"
       - "tools/update-homebrew-app-catalog.sh"
       - "packages/app-state/values/**"
@@ -33,6 +34,7 @@ on:
     paths:
       - "packages/app-state/engine/**"
       - "packages/app-state/recipes/**"
+      - "packages/app-state/evidence/**"
       - "packages/app-state/catalog/**"
       - "tools/update-homebrew-app-catalog.sh"
       - "packages/app-state/values/**"
@@ -51,6 +53,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - name: Validate T3 evidence contract and verification stamps
+        run: packages/app-state/evidence/tests/run.sh
       - uses: dtolnay/rust-toolchain@stable
       - name: Validate every recipe
         working-directory: packages/app-state/engine
