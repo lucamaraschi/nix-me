@@ -1,5 +1,5 @@
 use std::collections::BTreeSet;
-use std::io::{self, Write};
+use std::io::{self, IsTerminal, Write};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -125,15 +125,22 @@ struct CaptureArgs {
     watch: bool,
     #[arg(long)]
     sniff: Option<PathBuf>,
-    /// Write the latest sniff result (or decoded model) atomically to this path.
+    /// Review, then atomically write the latest sniff result or decoded model.
     #[arg(long, requires = "sniff")]
     output: Option<PathBuf>,
     /// Commit output changes to the containing Git repository while watching.
     #[arg(long, requires_all = ["watch", "output"])]
     commit: bool,
+    /// Approve capture writes (and --commit) without an interactive prompt.
+    #[arg(long, requires = "output", conflicts_with = "dry_run")]
+    yes: bool,
+    /// Emit the review diff without writing or committing the capture.
+    #[arg(long, requires = "output", conflicts_with_all = ["yes", "commit"])]
+    dry_run: bool,
     /// Poll interval for --watch, in milliseconds.
     #[arg(long, default_value_t = 750, value_parser = clap::value_parser!(u64).range(100..))]
     poll_ms: u64,
+    /// Allow an otherwise-redacted key name or dotted/bracketed path; repeatable.
     #[arg(long = "include-key")]
     include_key: Vec<String>,
     #[arg(long)]
@@ -352,19 +359,43 @@ fn run_apply(args: ApplyArgs) -> std::result::Result<i32, (i32, anyhow::Error)> 
 }
 
 fn run_capture(args: CaptureArgs) -> Result<i32> {
+    let include = args.include_key.into_iter().collect::<BTreeSet<_>>();
+    let review_mode = if args.dry_run {
+        nix_me_apps::capture::ReviewMode::PreviewOnly
+    } else if args.yes {
+        nix_me_apps::capture::ReviewMode::AssumeYes
+    } else {
+        nix_me_apps::capture::ReviewMode::Prompt
+    };
     if let Some(path) = args.sniff {
         if args.watch {
             return nix_me_apps::capture::watch_artifact(
                 &path,
                 args.output.as_deref(),
                 args.commit,
+                review_mode,
+                &include,
                 args.poll_ms,
                 args.json,
             );
         }
-        let output = nix_me_apps::capture::sniff(&path)?;
-        if let Some(path) = &args.output {
-            nix_me_apps::capture::write_sniff_output(path, &output)?;
+        eprintln!(
+            "Capture target: artifact={}; output={}",
+            path.display(),
+            args.output
+                .as_ref()
+                .map(|output| output.display().to_string())
+                .unwrap_or_else(|| "<stdout-only>".into())
+        );
+        let output = nix_me_apps::capture::sniff_with_allowlist(&path, &include)?;
+        if let Some(destination) = &args.output {
+            nix_me_apps::capture::review_sniff_output(
+                &path,
+                destination,
+                &output,
+                review_mode,
+                false,
+            )?;
         }
         if args.json {
             println!("{}", serde_json::to_string_pretty(&output)?);
@@ -378,6 +409,11 @@ fn run_capture(args: CaptureArgs) -> Result<i32> {
         let app = args
             .app
             .ok_or_else(|| anyhow!("capture requires <app> or --sniff <file>"))?;
+        if !io::stdin().is_terminal() {
+            return Err(anyhow!(
+                "guided capture requires an interactive terminal; use --sniff with --dry-run or --yes for automation"
+            ));
+        }
         let domain = match args.domain {
             Some(domain) => domain,
             None => nix_me_apps::capture::resolve_bundle_id(&app)?,
@@ -385,7 +421,7 @@ fn run_capture(args: CaptureArgs) -> Result<i32> {
         nix_me_apps::capture::interactive_defaults_capture(
             &app,
             &domain,
-            &args.include_key.into_iter().collect(),
+            &include,
             args.watch,
             args.poll_ms,
         )?

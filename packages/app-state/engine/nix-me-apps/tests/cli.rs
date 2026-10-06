@@ -207,12 +207,127 @@ fn capture_sniff_can_atomically_write_the_decoded_model() {
             artifact.to_str().unwrap(),
             "--output",
             output.to_str().unwrap(),
+            "--yes",
             "--json",
         ],
     );
     assert!(result.status.success());
     let decoded: Value = serde_json::from_slice(&fs::read(output).unwrap()).unwrap();
     assert_eq!(decoded, serde_json::json!({"captured":true}));
+}
+
+#[test]
+fn capture_output_requires_consent_without_a_terminal() {
+    let dir = TempDir::new().unwrap();
+    let artifact = dir.path().join("settings.json");
+    let output = dir.path().join("capture.json");
+    write(&artifact, r#"{"enabled":true}"#);
+
+    let result = run(
+        &dir,
+        &[
+            "capture",
+            "--sniff",
+            artifact.to_str().unwrap(),
+            "--output",
+            output.to_str().unwrap(),
+        ],
+    );
+
+    assert_eq!(result.status.code(), Some(4));
+    assert!(!output.exists());
+    let stderr = String::from_utf8(result.stderr).unwrap();
+    assert!(stderr.contains("Capture review:"));
+    assert!(stderr.contains("requires explicit consent in non-interactive mode"));
+}
+
+#[test]
+fn capture_dry_run_is_non_interactive_and_does_not_write() {
+    let dir = TempDir::new().unwrap();
+    let artifact = dir.path().join("settings.json");
+    let output = dir.path().join("capture.json");
+    write(&artifact, r#"{"enabled":true}"#);
+
+    let result = run(
+        &dir,
+        &[
+            "capture",
+            "--sniff",
+            artifact.to_str().unwrap(),
+            "--output",
+            output.to_str().unwrap(),
+            "--dry-run",
+            "--json",
+        ],
+    );
+
+    assert!(result.status.success());
+    assert!(!output.exists());
+    let stderr = String::from_utf8(result.stderr).unwrap();
+    assert!(stderr.contains(r#""path": "$/enabled""#));
+    assert!(stderr.contains("Preview only; nothing was written or committed."));
+}
+
+#[test]
+fn capture_watch_cannot_commit_non_interactively_without_yes() {
+    let dir = TempDir::new().unwrap();
+    let artifact = dir.path().join("settings.json");
+    let output = dir.path().join("capture.json");
+    write(&artifact, r#"{"enabled":true}"#);
+
+    let result = run(
+        &dir,
+        &[
+            "capture",
+            "--sniff",
+            artifact.to_str().unwrap(),
+            "--watch",
+            "--output",
+            output.to_str().unwrap(),
+            "--commit",
+        ],
+    );
+
+    assert_eq!(result.status.code(), Some(4));
+    assert!(!output.exists());
+    assert!(String::from_utf8(result.stderr)
+        .unwrap()
+        .contains("requires explicit consent in non-interactive mode"));
+}
+
+#[test]
+fn capture_sniff_redacts_nested_secrets_by_default() {
+    let dir = TempDir::new().unwrap();
+    let artifact = dir.path().join("settings.json");
+    write(
+        &artifact,
+        r#"{"account":{"password":"hidden"},"items":["0123456789abcdefghijklmnopqrstuv"]}"#,
+    );
+
+    let result = run(
+        &dir,
+        &["capture", "--sniff", artifact.to_str().unwrap(), "--json"],
+    );
+
+    assert!(result.status.success());
+    let captured: Value = serde_json::from_slice(&result.stdout).unwrap();
+    assert_eq!(
+        captured["model"],
+        serde_json::json!({"account":{},"items":[null]})
+    );
+    assert_eq!(captured["redaction"]["policy"], "default_closed");
+    assert_eq!(captured["redaction"]["count"], 2);
+}
+
+#[test]
+fn guided_capture_refuses_non_interactive_input() {
+    let dir = TempDir::new().unwrap();
+    let result = run(&dir, &["capture", "Example", "--domain", "com.example.App"]);
+
+    assert_eq!(result.status.code(), Some(4));
+    assert!(String::from_utf8(result.stderr)
+        .unwrap()
+        .contains("guided capture requires an interactive terminal"));
 }
 
 #[test]
