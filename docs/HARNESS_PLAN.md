@@ -125,7 +125,7 @@ weights remain outside the Nix store and require an explicit download.
 | LAI-002 | P0 | Done | LAI-001 | Provide `local-ai-doctor` and `local-ai-setup`. Setup builds DS4, links Pi, and downloads DeepSeek V4 Flash Q2 only with `--download-model`; doctor reports prerequisites, memory, disk, runtime, extension, and model state. |
 | LAI-003 | P1 | Done | H-020, LAI-002 | Model Pi/DS4 settings as a harness recipe. Capture excludes model binaries and secrets; plan/apply converges settings without disrupting a running server. |
 | LAI-004 | P1 | Done | H-011, LAI-003 | Add local-AI status to the management API and macOS app: checkout health, runtime build, model presence, server state, configuration drift, and actionable remediation. |
-| LAI-005 | P2 | In progress | LAI-004 | Add explicit model lifecycle actions with progress, disk preflight, checksum/error reporting, cancellation, and cleanup of partial downloads. |
+| LAI-005 | P2 | Done | LAI-004 | Add explicit model lifecycle actions with progress, disk preflight, checksum/error reporting, cancellation, and cleanup of partial downloads. |
 | LAI-006 | P0 | Done | LAI-001 | Declare model requirements in the profile and run a pre-activation hardware/capacity check. Unsupported hardware fails; capacity uses host-selectable `warn` or `fail` enforcement. |
 
 ## Release gates

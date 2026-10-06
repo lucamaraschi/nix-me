@@ -131,6 +131,59 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(snapshot.host.hostname, "bellerofonte")
     }
 
+    func testLocalAIModelOperationDecodesProgressAndIntegrity() throws {
+        let data = Data(#"""
+        {
+          "schemaVersion": 1,
+          "operation": {
+            "operationId": "model-123",
+            "status": "running",
+            "phase": "downloading",
+            "pid": 123,
+            "startedAt": "2026-10-05T20:00:00Z",
+            "updatedAt": "2026-10-05T20:01:00Z",
+            "finishedAt": null,
+            "message": "Downloading DeepSeek V4 Flash Q2",
+            "model": {"name":"DeepSeek V4 Flash Q2","path":"/tmp/ds4flash.gguf","downloadTarget":"ds4f-q2"},
+            "progress": {"bytesDownloaded":1073741824,"expectedBytes":86973087744,"percent":1},
+            "disk": {"requiredBytes":107374182400,"availableBytes":214748364800},
+            "integrity": {"status":"pending","expectedSha256":null,"actualSha256":null},
+            "stagePath": "/tmp/.nix-me-model-model-123",
+            "processAlive": true
+          }
+        }
+        """#.utf8)
+
+        let response = try JSONDecoder().decode(LocalAIModelActionResponse.self, from: data)
+        let operation = try XCTUnwrap(response.operation)
+        XCTAssertTrue(operation.isRunning)
+        XCTAssertEqual(operation.progress.percent, 1)
+        XCTAssertEqual(operation.integrity.status, "pending")
+        XCTAssertEqual(operation.processAlive, true)
+    }
+
+    func testActionClientPreservesStructuredFailureMessage() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try write(
+            #"""
+            #!/bin/bash
+            printf '%s\n' '{"schemaVersion":1,"error":{"code":"missing_downloader","message":"Configured downloader is unavailable"}}'
+            exit 69
+            """#,
+            to: root.appendingPathComponent("packages/management-api/bin/nix-me-action")
+        )
+
+        let client = ManagementActionClient(configurationDirectory: root)
+        do {
+            _ = try await client.startLocalAIModel()
+            XCTFail("Expected the action to fail")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("Configured downloader is unavailable"))
+        }
+    }
+
     func testConfigurationGraphResolvesActiveProfilesAndImports() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

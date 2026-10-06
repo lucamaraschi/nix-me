@@ -33,6 +33,37 @@ if [[ "${1:-}" == "details" ]]; then
     exec "$REPO_DIR/packages/management-api/bin/nix-me-details" "$@"
 fi
 
+if [[ "${1:-}" == "local-ai" && "${2:-}" == "model" ]]; then
+    subcommand="${3:-status}"
+    action_bin="$REPO_DIR/packages/management-api/bin/nix-me-action"
+    case "$subcommand" in
+        start)
+            shift 3
+            if [[ $# -eq 0 ]]; then
+                printf '{}\n' | "$action_bin" local-ai-model-start
+            elif [[ $# -eq 2 && "$1" == "--checksum" ]]; then
+                jq -n --arg checksum "$2" '{expectedSha256: $checksum}' | \
+                    "$action_bin" local-ai-model-start
+            else
+                echo "Usage: nix-me local-ai model start [--checksum SHA256]" >&2
+                exit 64
+            fi
+            ;;
+        status | cancel)
+            [[ $# -eq 3 ]] || {
+                echo "Usage: nix-me local-ai model $subcommand" >&2
+                exit 64
+            }
+            "$action_bin" "local-ai-model-$subcommand" </dev/null
+            ;;
+        *)
+            echo "Usage: nix-me local-ai model <start|status|cancel> [--checksum SHA256]" >&2
+            exit 64
+            ;;
+    esac
+    exit $?
+fi
+
 # The application-state engine is a separate, runtime-free Rust binary.
 if [[ "${1:-}" == "apps" ]]; then
     shift
@@ -86,6 +117,7 @@ ${CYAN}System Management:${NC}
   ${GREEN}details${NC} <kind> <id> Package metadata API for native clients
   ${GREEN}apps${NC} <command>      Diff, apply, or capture declarative app state
   ${GREEN}harness${NC} [status|diff] Read-only application-state harness summary
+  ${GREEN}local-ai model${NC} <start|status|cancel> Manage the configured local model
 
 ${CYAN}VM Management:${NC}
   ${GREEN}vm${NC}                  Interactive VM management menu

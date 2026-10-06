@@ -20,8 +20,57 @@ struct ApplyActionResponse: Codable {
     let message: String
 }
 
+struct LocalAIModelActionResponse: Codable {
+    let schemaVersion: Int
+    let operation: LocalAIModelOperation?
+}
+
+struct LocalAIModelOperation: Codable, Equatable {
+    let operationId: String
+    let status: String
+    let phase: String
+    let message: String
+    let startedAt: String
+    let updatedAt: String
+    let finishedAt: String?
+    let processAlive: Bool?
+    let model: LocalAIModelOperationModel
+    let progress: LocalAIModelProgress
+    let disk: LocalAIModelDisk
+    let integrity: LocalAIModelIntegrity
+
+    var isRunning: Bool { status == "running" }
+}
+
+struct LocalAIModelOperationModel: Codable, Equatable {
+    let name: String
+    let path: String
+    let downloadTarget: String
+}
+
+struct LocalAIModelProgress: Codable, Equatable {
+    let bytesDownloaded: Int64
+    let expectedBytes: Int64
+    let percent: Int
+}
+
+struct LocalAIModelDisk: Codable, Equatable {
+    let requiredBytes: Int64
+    let availableBytes: Int64
+}
+
+struct LocalAIModelIntegrity: Codable, Equatable {
+    let status: String
+    let expectedSha256: String?
+    let actualSha256: String?
+}
+
 private struct UpdateActionRequest: Codable {
     let items: [SoftwareUpdate]
+}
+
+private struct LocalAIModelStartRequest: Codable {
+    let expectedSha256: String?
 }
 
 struct ManagementActionClient {
@@ -88,6 +137,36 @@ struct ManagementActionClient {
         }
     }
 
+    func startLocalAIModel(expectedSha256: String? = nil) async throws -> LocalAIModelActionResponse {
+        let request = try JSONEncoder().encode(LocalAIModelStartRequest(expectedSha256: expectedSha256))
+        return try await runLocalAIModel(command: "local-ai-model-start", request: request)
+    }
+
+    func localAIModelStatus() async throws -> LocalAIModelActionResponse {
+        try await runLocalAIModel(command: "local-ai-model-status", request: Data())
+    }
+
+    func cancelLocalAIModel() async throws -> LocalAIModelActionResponse {
+        try await runLocalAIModel(command: "local-ai-model-cancel", request: Data())
+    }
+
+    private func runLocalAIModel(command: String, request: Data) async throws -> LocalAIModelActionResponse {
+        let action = configurationDirectory.appendingPathComponent("packages/management-api/bin/nix-me-action")
+        let data = try await run(action: action, command: command, request: request)
+        do {
+            let response = try JSONDecoder().decode(LocalAIModelActionResponse.self, from: data)
+            guard response.schemaVersion == 1 else {
+                throw ManagementAPIError.invalidResponse("Unsupported local-AI action schema version \(response.schemaVersion)")
+            }
+            return response
+        } catch {
+            if let apiError = error as? ManagementAPIError {
+                throw apiError
+            }
+            throw ManagementAPIError.invalidResponse(error.localizedDescription)
+        }
+    }
+
     private func run(
         action: URL,
         command: String,
@@ -122,8 +201,13 @@ struct ManagementActionClient {
                     let errorData = errors.fileHandleForReading.readDataToEndOfFile()
 
                     guard process.terminationStatus == 0 else {
-                        let message = String(data: errorData, encoding: .utf8)?
-                            .trimmingCharacters(in: .whitespacesAndNewlines) ?? "Unknown action error"
+                        let stderrMessage = String(data: errorData, encoding: .utf8)?
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                        let structuredMessage = (try? JSONSerialization.jsonObject(with: outputData))
+                            .flatMap { $0 as? [String: Any] }?["error"] as? [String: Any]
+                        let message = structuredMessage?["message"] as? String
+                            ?? (stderrMessage?.isEmpty == false ? stderrMessage : nil)
+                            ?? "Unknown action error"
                         continuation.resume(throwing: ManagementAPIError.commandFailed(process.terminationStatus, message))
                         return
                     }

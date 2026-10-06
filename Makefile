@@ -31,7 +31,7 @@ help:
 	@echo "  test-actions    Validate update actions without changing the system"
 	@echo "  test-details    Validate package metadata responses"
 	@echo "  test-cli        Validate CLI syntax and management contracts"
-	@echo "  test-local-ai   Validate local AI model preflight policy"
+	@echo "  test-local-ai   Validate local AI preflight, status, and lifecycle"
 	@echo "  test-app-state  Run app-state formatting and tests"
 	@echo "  app             Build the native macOS app"
 	@echo "  app-run         Build and launch the native macOS app"

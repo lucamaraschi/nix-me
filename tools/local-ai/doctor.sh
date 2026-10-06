@@ -219,7 +219,7 @@ emit_json_status() {
     missing | mislinked) add_remediation "Run local-ai-setup to relink the pi-ds4 extension and runtime support." ;;
   esac
   case "$model_state" in
-    missing) add_remediation "Run local-ai-setup --download-model to install $model_name." ;;
+    missing) add_remediation "Run local-ai-model start to install $model_name." ;;
   esac
   if [[ "$configuration_state" == "drifted" ]]; then
     add_remediation "Run make switch to restore the local-AI harness configuration."
@@ -380,7 +380,7 @@ if [[ -e "$model_path" ]] || ((${#model_files[@]} > 0)); then
   model_present=true
   pass "$model_name is present"
 else
-  warn "$model_name is not present; run: local-ai-setup --download-model"
+  warn "$model_name is not present; run: local-ai-model start"
 fi
 
 if [[ "$(uname -s)" == "Darwin" ]]; then

@@ -182,7 +182,14 @@ struct DashboardView: View {
         case .harness:
             HarnessStatusView(status: snapshot.appState)
         case .localAI:
-            LocalAIStatusView(status: snapshot.localAI)
+            LocalAIStatusView(
+                status: snapshot.localAI,
+                operation: store.localAIModelOperation,
+                isActionRunning: store.isLocalAIModelActionRunning,
+                startDownload: { Task { await store.startLocalAIModelDownload() } },
+                cancelDownload: { Task { await store.cancelLocalAIModelDownload() } },
+                refreshOperation: { Task { await store.refreshLocalAIModelOperation() } }
+            )
         case .managedSoftware:
             SoftwareView(snapshot: snapshot, mode: .managed, loadDetails: store.packageDetails)
         case .installedSoftware:
@@ -546,6 +553,12 @@ private struct HarnessStatusView: View {
 
 private struct LocalAIStatusView: View {
     let status: LocalAIStatus?
+    let operation: LocalAIModelOperation?
+    let isActionRunning: Bool
+    let startDownload: () -> Void
+    let cancelDownload: () -> Void
+    let refreshOperation: () -> Void
+    @State private var confirmingDownload = false
 
     var body: some View {
         ScrollView {
@@ -586,6 +599,44 @@ private struct LocalAIStatusView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+
+                    SectionCard(title: "Model lifecycle", symbol: "externaldrive.badge.arrow.down") {
+                        if let operation {
+                            DetailRow(label: "Operation", value: stateLabel(operation.status))
+                            DetailRow(label: "Phase", value: stateLabel(operation.phase))
+                            DetailRow(label: "Integrity", value: integrityLabel(operation.integrity.status))
+                            if operation.isRunning {
+                                ProgressView(value: Double(operation.progress.percent), total: 100) {
+                                    Text(operation.message)
+                                } currentValueLabel: {
+                                    Text("\(operation.progress.percent)%")
+                                }
+                                Text("\(byteCount(operation.progress.bytesDownloaded)) of approximately \(byteCount(operation.progress.expectedBytes))")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Button("Cancel download", role: .destructive, action: cancelDownload)
+                                    .disabled(isActionRunning)
+                            } else {
+                                Text(operation.message)
+                                    .foregroundStyle(operation.status == "failed" ? .red : .secondary)
+                            }
+                        } else {
+                            Text("No model lifecycle operation has been started on this Mac.")
+                                .foregroundStyle(.secondary)
+                        }
+
+                        if operation?.isRunning != true {
+                            Button(status.model.state == .present ? "Reinstall model…" : "Download model…") {
+                                confirmingDownload = true
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(isActionRunning || status.ds4Checkout.state != .ready)
+                        }
+
+                        Text("A download starts only after confirmation. The existing model remains available until the new artifact passes any configured checksum and is installed atomically.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 } else {
                     ContentUnavailableView {
                         Label("Local AI status unavailable", systemImage: "questionmark.circle")
@@ -598,6 +649,19 @@ private struct LocalAIStatusView: View {
             .padding(28)
         }
         .navigationTitle("Local AI")
+        .task { refreshOperation() }
+        .confirmationDialog(
+            status?.model.state == .present ? "Reinstall the local model?" : "Download the local model?",
+            isPresented: $confirmingDownload,
+            titleVisibility: .visible
+        ) {
+            Button(status?.model.state == .present ? "Reinstall Model" : "Download Model") {
+                startDownload()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This explicitly starts a large download after a disk-space preflight. You can monitor or cancel it from this view.")
+        }
     }
 
     private var healthLabel: String {
@@ -618,6 +682,21 @@ private struct LocalAIStatusView: View {
         case .healthy: "checkmark.circle.fill"
         case .degraded: "exclamationmark.circle.fill"
         case .unavailable, nil: "questionmark.circle.fill"
+        }
+    }
+
+    private func byteCount(_ bytes: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+
+    private func integrityLabel(_ value: String) -> String {
+        switch value {
+        case "verified": "SHA-256 verified"
+        case "mismatch": "Checksum mismatch"
+        case "notProvided": "No checksum provided"
+        case "notChecked": "Not checked"
+        case "pending": "Pending"
+        default: stateLabel(value)
         }
     }
 

@@ -23,9 +23,14 @@ known absence (`missing`, `notBuilt`, `stopped`, or `drifted`) from
 starts or stops a server, clones a checkout, applies harness state, or launches
 an app.
 
-Model download, cancellation, checksum, cleanup, and other lifecycle mutations
-are intentionally not part of this status contract. They require a separate,
-explicit action contract (LAI-005).
+Model download, cancellation, checksum, and cleanup are intentionally not part
+of this status contract. The separate `local-ai-model-start`,
+`local-ai-model-status`, and `local-ai-model-cancel` actions expose a private,
+inspectable operation record. Only start launches the downloader. Status never
+writes state or cleans files; it synthesizes a failed view for a dead worker.
+Explicit start or cancel performs stale cleanup. Completed artifacts replace the
+configured model atomically; failures and cancellation preserve the previous
+model.
 
 Run the contract tests from the repository root:
 

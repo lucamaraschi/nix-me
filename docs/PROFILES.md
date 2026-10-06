@@ -107,9 +107,28 @@ localAi.requirements.enforcement = "fail";
 **First-time setup:**
 ```bash
 local-ai-doctor
-local-ai-setup --download-model
+local-ai-setup
+local-ai-model start
+local-ai-model status
 pi
 ```
+
+`local-ai-model start` performs a disk-space preflight and returns an operation
+record immediately. `local-ai-model status` reports progress and integrity;
+`local-ai-model cancel` stops the active download and removes partial data. A
+previously installed model remains active until its replacement is complete.
+Pass a trusted checksum when one is available:
+
+```bash
+nix-me local-ai model start --checksum <sha256>
+```
+
+For a host-wide trusted value, set `localAi.expectedSha256` to the same
+64-character digest. The lifecycle action validates it before replacing the
+installed model.
+
+Without a caller-provided checksum, completion is reported as `notProvided`,
+not as verified. Refresh, doctor, and `make switch` never start a download.
 
 Inside Pi, run `/model` and select `ds4/dsv4-flash-q2`. The DeepSeek V4 Flash
 Q2 model is about 81 GiB and is never downloaded by `make switch`. DS4 is for

@@ -99,6 +99,38 @@ run_sync_projects() {
     '{schemaVersion: 1, action: "sync-projects", success: $success, message: $message}'
 }
 
+run_local_ai_model() {
+  local subcommand="$1"
+  local lifecycle="$CONFIG_DIR/tools/local-ai/model-lifecycle.sh"
+
+  if [[ ! "$subcommand" =~ ^(start|status|cancel)$ ]]; then
+    jq -n --arg subcommand "$subcommand" \
+      '{schemaVersion: 1, error: {code: "unknown_action", message: ("Unknown local-AI model action: " + $subcommand)}}'
+    return 64
+  fi
+
+  if [[ -n "${NIX_ME_LOCAL_AI_MODEL_BIN:-}" ]]; then
+    lifecycle="$NIX_ME_LOCAL_AI_MODEL_BIN"
+    if [[ "$lifecycle" != /* || ! -x "$lifecycle" || "$lifecycle" == *$'\n'* || "$lifecycle" == *$'\r'* ]]; then
+      jq -n '{schemaVersion: 1, error: {code: "invalid_configuration", message: "NIX_ME_LOCAL_AI_MODEL_BIN is invalid"}}'
+      return 78
+    fi
+  elif command -v local-ai-model >/dev/null 2>&1; then
+    lifecycle="$(command -v local-ai-model)"
+  elif [[ -r "$lifecycle" ]]; then
+    :
+  else
+    jq -n '{schemaVersion: 1, error: {code: "missing_dependency", message: "local-ai-model is not installed"}}'
+    return 69
+  fi
+
+  if [[ -x "$lifecycle" ]]; then
+    "$lifecycle" "$subcommand"
+  else
+    bash "$lifecycle" "$subcommand"
+  fi
+}
+
 if [[ "$action" == "apply" ]]; then
   run_apply
   exit 0
@@ -108,6 +140,21 @@ if [[ "$action" == "sync-projects" ]]; then
   run_sync_projects
   exit 0
 fi
+
+case "$action" in
+  local-ai-model-start)
+    run_local_ai_model start
+    exit $?
+    ;;
+  local-ai-model-status)
+    run_local_ai_model status </dev/null
+    exit $?
+    ;;
+  local-ai-model-cancel)
+    run_local_ai_model cancel </dev/null
+    exit $?
+    ;;
+esac
 
 if [[ "$action" != "update" ]]; then
   jq -n --arg action "$action" \

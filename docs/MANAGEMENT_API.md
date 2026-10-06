@@ -61,6 +61,22 @@ unsafe package names, then maps accepted items to fixed operations:
 Actions return structured per-item results. `NIX_ME_ACTION_DRY_RUN=1` validates
 and reports intended operations without changing packages or `flake.lock`.
 
+Local model lifecycle actions use the same validated boundary:
+
+```bash
+nix-me action local-ai-model-start   # optional {"expectedSha256":"..."} on stdin
+nix-me action local-ai-model-status
+nix-me action local-ai-model-cancel
+```
+
+Start performs a disk-space preflight, downloads into a private staging path,
+and returns an inspectable operation record. Status is strictly read-only: a
+dead worker is shown as failed, but its state and partial data are retained.
+Explicit start or cancel finalizes and cleans that stale operation. Cancellation,
+downloader failure, and checksum mismatch never replace a valid installed model.
+A checksum is marked verified only when the caller supplies an expected SHA-256
+and the completed artifact matches it.
+
 `nix-me action apply` runs the existing `switch-fast` activation path after a
 native macOS administrator prompt. The app passes the evaluated hostname and
 username explicitly, skips duplicate Homebrew update checks, waits for

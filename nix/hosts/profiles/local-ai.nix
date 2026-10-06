@@ -68,6 +68,18 @@ let
     text = builtins.readFile ../../../tools/local-ai/doctor.sh;
   };
 
+  localAiModel = pkgs.writeShellApplication {
+    name = "local-ai-model";
+    runtimeInputs = with pkgs; [
+      coreutils
+      findutils
+      jq
+    ];
+    text = lib.optionalString (cfg.expectedSha256 != null) ''
+      export LOCAL_AI_EXPECTED_SHA256=${lib.escapeShellArg cfg.expectedSha256}
+    '' + builtins.readFile ../../../tools/local-ai/model-lifecycle.sh;
+  };
+
   modelEnvironment = {
     LOCAL_AI_MODEL = cfg.model;
     LOCAL_AI_MODEL_NAME = selectedModel.displayName;
@@ -78,6 +90,8 @@ let
     LOCAL_AI_RECOMMENDED_MEMORY_GIB = toString selectedModel.recommendedMemoryGiB;
     LOCAL_AI_REQUIRED_FREE_DISK_GIB = toString selectedModel.requiredFreeDiskGiB;
     LOCAL_AI_REQUIREMENTS_ENFORCEMENT = cfg.requirements.enforcement;
+  } // lib.optionalAttrs (cfg.expectedSha256 != null) {
+    LOCAL_AI_EXPECTED_SHA256 = cfg.expectedSha256;
   };
 in
 {
@@ -86,6 +100,12 @@ in
       type = lib.types.enum (builtins.attrNames models);
       default = "dsv4-flash-q2";
       description = "Local model configured for DS4 and Pi.";
+    };
+
+    expectedSha256 = lib.mkOption {
+      type = lib.types.nullOr (lib.types.strMatching "[0-9a-fA-F]{64}");
+      default = null;
+      description = "Trusted SHA-256 expected for the selected model, or null when none is available.";
     };
 
     requirements = {
@@ -127,6 +147,7 @@ in
         localAiPreflight
         localAiSetup
         localAiDoctor
+        localAiModel
       ];
       variables = modelEnvironment // {
         DS4_RUNTIME_DIR = ds4RuntimeDir;
