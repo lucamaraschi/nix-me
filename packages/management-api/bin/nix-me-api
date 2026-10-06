@@ -32,6 +32,254 @@ command_exists() {
   command -v "$1" >/dev/null 2>&1
 }
 
+app_state_warnings='[]'
+
+add_app_state_warning() {
+  local message="$1"
+  app_state_warnings="$(jq -c --arg message "$message" '. + [$message]' <<<"$app_state_warnings")"
+}
+
+app_state_engine=''
+app_state_engine_available=false
+app_state_engine_version='null'
+
+if [[ -n "${NIX_ME_APP_STATE_ENGINE_VERSION:-}" ]]; then
+  app_state_engine_available=true
+  app_state_engine_version="$(jq -cn --arg version "$NIX_ME_APP_STATE_ENGINE_VERSION" '$version')"
+fi
+
+if [[ -n "${NIX_ME_APP_STATE_ENGINE+x}" ]]; then
+  engine_candidate="$NIX_ME_APP_STATE_ENGINE"
+  if [[ "$engine_candidate" == */* ]]; then
+    [[ -x "$engine_candidate" ]] && app_state_engine="$engine_candidate"
+  elif command_exists "$engine_candidate"; then
+    app_state_engine="$(command -v "$engine_candidate")"
+  fi
+elif command_exists nix-me-apps; then
+  app_state_engine="$(command -v nix-me-apps)"
+elif [[ -x "$CONFIG_DIR/packages/app-state/engine/target/debug/nix-me-apps" ]]; then
+  app_state_engine="$CONFIG_DIR/packages/app-state/engine/target/debug/nix-me-apps"
+fi
+
+if [[ -n "$app_state_engine" ]]; then
+  app_state_engine_available=true
+  if [[ "$app_state_engine_version" == "null" ]]; then
+    engine_version_text="$($app_state_engine --version 2>/dev/null | head -1 || true)"
+    engine_version_text="${engine_version_text#nix-me-apps }"
+    if [[ -n "$engine_version_text" ]]; then
+      app_state_engine_version="$(jq -cn --arg version "$engine_version_text" '$version')"
+    else
+      add_app_state_warning "The app-state engine version could not be discovered"
+    fi
+  fi
+elif [[ "$app_state_engine_available" != "true" ]]; then
+  add_app_state_warning "The app-state engine is unavailable"
+fi
+
+recipe_path_list="${NIX_ME_APP_STATE_RECIPES:-$CONFIG_DIR/packages/app-state/recipes}"
+values_path_list="${NIX_ME_APP_STATE_VALUES:-$CONFIG_DIR/packages/app-state/values}"
+IFS=':' read -r -a app_state_recipe_paths <<<"$recipe_path_list"
+IFS=':' read -r -a app_state_values_paths <<<"$values_path_list"
+
+app_state_registry='null'
+if [[ -n "${NIX_ME_APP_STATE_REGISTRY:-}" ]]; then
+  if [[ -r "$NIX_ME_APP_STATE_REGISTRY" ]] && app_state_registry="$(jq -c . "$NIX_ME_APP_STATE_REGISTRY" 2>/dev/null)"; then
+    :
+  else
+    app_state_registry='null'
+    add_app_state_warning "The app-state registry status is malformed or unreadable"
+  fi
+elif [[ -n "$app_state_engine" ]]; then
+  registry_args=(registry validate --json)
+  for recipe_path in "${app_state_recipe_paths[@]}"; do
+    [[ -n "$recipe_path" ]] && registry_args+=(--recipe "$recipe_path")
+  done
+  if "$app_state_engine" "${registry_args[@]}" >"$TEMP_DIR/app-state-registry.json" 2>"$TEMP_DIR/app-state-registry.err"; then
+    app_state_registry="$(jq -c . "$TEMP_DIR/app-state-registry.json" 2>/dev/null || printf null)"
+  else
+    registry_error="$(tail -1 "$TEMP_DIR/app-state-registry.err" 2>/dev/null || true)"
+    add_app_state_warning "The app-state recipe registry is unavailable${registry_error:+: $registry_error}"
+  fi
+else
+  add_app_state_warning "The app-state recipe registry is unavailable"
+fi
+
+configured_recipe_count='null'
+verified_recipe_count='null'
+unverified_recipe_count='null'
+if [[ "$app_state_registry" != "null" ]]; then
+  if jq -e '
+    type == "object" and
+    .version == 1 and
+    .valid == true and
+    (.recipes | type == "number" and . >= 0 and floor == .) and
+    (.ids | type == "array") and
+    (all(.ids[]; type == "string")) and
+    (.unverified | type == "array") and
+    (all(.unverified[]; type == "string")) and
+    (.recipes as $recipes |
+      (.ids | length) == $recipes and
+      (.unverified | length) <= $recipes)
+  ' >/dev/null 2>&1 <<<"$app_state_registry"; then
+    configured_recipe_count="$(jq -c '.recipes' <<<"$app_state_registry")"
+    unverified_recipe_count="$(jq -c '.unverified | length' <<<"$app_state_registry")"
+    verified_recipe_count="$((configured_recipe_count - unverified_recipe_count))"
+  else
+    add_app_state_warning "The app-state registry status does not match version 1"
+  fi
+fi
+
+app_state_plan='null'
+if [[ -n "${NIX_ME_APP_STATE_PLAN:-}" ]]; then
+  if [[ -r "$NIX_ME_APP_STATE_PLAN" ]] && app_state_plan="$(jq -c . "$NIX_ME_APP_STATE_PLAN" 2>/dev/null)"; then
+    :
+  else
+    app_state_plan='null'
+    add_app_state_warning "The app-state plan status is malformed or unreadable"
+  fi
+elif [[ -n "$app_state_engine" ]]; then
+  plan_args=(diff --json --no-exec --skip-missing)
+  for recipe_path in "${app_state_recipe_paths[@]}"; do
+    [[ -n "$recipe_path" ]] && plan_args+=(--recipe "$recipe_path")
+  done
+  value_file_count=0
+  for values_path in "${app_state_values_paths[@]}"; do
+    [[ -z "$values_path" ]] && continue
+    if [[ -d "$values_path" ]]; then
+      while IFS= read -r values_file; do
+        plan_args+=(--values "$values_file")
+        value_file_count=$((value_file_count + 1))
+      done < <(find "$values_path" -type f \( -name '*.yaml' -o -name '*.yml' \) -print 2>/dev/null | sort)
+    else
+      plan_args+=(--values "$values_path")
+      value_file_count=$((value_file_count + 1))
+    fi
+  done
+
+  if (( value_file_count == 0 )); then
+    add_app_state_warning "The app-state plan is unavailable because no values files are configured"
+  else
+    "$app_state_engine" "${plan_args[@]}" >"$TEMP_DIR/app-state-plan.json" 2>"$TEMP_DIR/app-state-plan.err" || true
+    if app_state_plan="$(jq -c . "$TEMP_DIR/app-state-plan.json" 2>/dev/null)"; then
+      :
+    else
+      app_state_plan='null'
+      plan_error="$(tail -1 "$TEMP_DIR/app-state-plan.err" 2>/dev/null || true)"
+      add_app_state_warning "The app-state plan is unavailable${plan_error:+: $plan_error}"
+    fi
+  fi
+else
+  add_app_state_warning "The app-state plan is unavailable"
+fi
+
+drift_count='null'
+manual_residue_count='null'
+if [[ "$app_state_plan" != "null" ]]; then
+  if jq -e '
+    type == "object" and
+    .version == 1 and
+    (.summary | type == "object") and
+    (.summary.drift | type == "number" and . >= 0 and floor == .) and
+    (.summary.manual | type == "number" and . >= 0 and floor == .)
+  ' >/dev/null 2>&1 <<<"$app_state_plan"; then
+    drift_count="$(jq -c '.summary.drift' <<<"$app_state_plan")"
+    manual_residue_count="$(jq -c '.summary.manual' <<<"$app_state_plan")"
+  else
+    add_app_state_warning "The app-state plan status does not match version 1"
+  fi
+fi
+
+if [[ -n "${NIX_ME_APP_STATE_STATE:-}" ]]; then
+  app_state_file="$NIX_ME_APP_STATE_STATE"
+elif [[ -n "${NIX_ME_STATE_DIR:-}" ]]; then
+  app_state_file="$NIX_ME_STATE_DIR/apps.json"
+elif [[ -n "${XDG_STATE_HOME:-}" ]]; then
+  app_state_file="$XDG_STATE_HOME/nix-me/apps.json"
+else
+  app_state_file="$HOME/.local/state/nix-me/apps.json"
+fi
+
+persisted_app_state='null'
+persisted_state_time='null'
+if [[ -r "$app_state_file" ]]; then
+  if persisted_app_state="$(jq -c . "$app_state_file" 2>/dev/null)" && jq -e '
+    type == "object" and
+    .version == 1 and
+    (.updated_at | type == "string") and
+    (.updated_at == "" or (.updated_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"))) and
+    (.apps | type == "object")
+  ' >/dev/null 2>&1 <<<"$persisted_app_state"; then
+    if [[ -n "$(jq -r '.updated_at' <<<"$persisted_app_state")" ]]; then
+      persisted_state_time="$(jq -c '.updated_at' <<<"$persisted_app_state")"
+    fi
+  else
+    persisted_app_state='null'
+    add_app_state_warning "The persisted app-state status is malformed"
+  fi
+else
+  add_app_state_warning "The persisted app-state status is unavailable"
+fi
+
+last_apply_status='null'
+last_apply_time="$persisted_state_time"
+last_apply_message='null'
+if [[ -n "${NIX_ME_APP_STATE_LAST_APPLY:-}" ]]; then
+  last_apply_file="$NIX_ME_APP_STATE_LAST_APPLY"
+else
+  last_apply_file="$(dirname "$app_state_file")/last-apply.json"
+fi
+
+last_apply='null'
+if [[ -r "$last_apply_file" ]]; then
+  if last_apply="$(jq -c . "$last_apply_file" 2>/dev/null)" && jq -e '
+    type == "object" and
+    (.status | IN("succeeded", "partial", "failed")) and
+    (.time == null or (.time |
+      type == "string" and
+      test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"))) and
+    (.message == null or (.message | type == "string"))
+  ' >/dev/null 2>&1 <<<"$last_apply"; then
+    last_apply_status="$(jq -c '.status' <<<"$last_apply")"
+    last_apply_time="$(jq -c '.time' <<<"$last_apply")"
+    last_apply_message="$(jq -c '.message' <<<"$last_apply")"
+  else
+    last_apply='null'
+    add_app_state_warning "The last app-state apply status is malformed"
+  fi
+else
+  add_app_state_warning "The last app-state apply status is unavailable"
+fi
+
+app_state="$(jq -n \
+  --argjson engineAvailable "$app_state_engine_available" \
+  --argjson engineVersion "$app_state_engine_version" \
+  --argjson configuredRecipeCount "$configured_recipe_count" \
+  --argjson driftCount "$drift_count" \
+  --argjson manualResidueCount "$manual_residue_count" \
+  --argjson lastApplyStatus "$last_apply_status" \
+  --argjson lastApplyTime "$last_apply_time" \
+  --argjson lastApplyMessage "$last_apply_message" \
+  --argjson verifiedRecipeCount "$verified_recipe_count" \
+  --argjson unverifiedRecipeCount "$unverified_recipe_count" \
+  --argjson warnings "$app_state_warnings" \
+  '{
+    schemaVersion: 1,
+    engine: {available: $engineAvailable, version: $engineVersion},
+    configuredRecipeCount: $configuredRecipeCount,
+    driftCount: $driftCount,
+    manualResidueCount: $manualResidueCount,
+    lastApply: {
+      status: $lastApplyStatus,
+      time: $lastApplyTime,
+      message: $lastApplyMessage
+    },
+    verification: {
+      verifiedRecipeCount: $verifiedRecipeCount,
+      unverifiedRecipeCount: $unverifiedRecipeCount
+    },
+    warnings: $warnings
+  }')"
+
 git_state() {
   local directory="$1"
 
@@ -317,6 +565,7 @@ snapshot="$(jq -n \
   --argjson masUpdates "$mas_updates" \
   --argjson nixUpdates "$nix_updates" \
   --argjson projects "$projects" \
+  --argjson appState "$app_state" \
   --argjson warnings "$warnings" \
   '{
     schemaVersion: $schemaVersion,
@@ -344,6 +593,7 @@ snapshot="$(jq -n \
     },
     updates: {homebrew: $brewUpdates, macAppStore: $masUpdates, nixFlake: $nixUpdates},
     projects: $projects,
+    appState: $appState,
     warnings: $warnings
   }')"
 
@@ -362,6 +612,9 @@ case "${1:-snapshot}" in
     ;;
   projects)
     jq '{schemaVersion, generatedAt, host, projects, warnings}' <<<"$snapshot"
+    ;;
+  app-state)
+    jq '{schemaVersion, generatedAt, host, appState, warnings: (.warnings + .appState.warnings)}' <<<"$snapshot"
     ;;
   manifest)
     if [[ "$desired_manifest" == "null" ]]; then
