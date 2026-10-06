@@ -4,6 +4,7 @@ enum DashboardSection: String, Identifiable {
     case overview = "Overview"
     case configuration = "Configuration"
     case harness = "Harness"
+    case localAI = "Local AI"
     case managedSoftware = "Managed"
     case installedSoftware = "Installed"
     case configurationChanges = "Changes"
@@ -17,6 +18,7 @@ enum DashboardSection: String, Identifiable {
         case .overview: "square.grid.2x2"
         case .configuration: "point.3.connected.trianglepath.dotted"
         case .harness: "checklist.checked"
+        case .localAI: "cpu"
         case .managedSoftware: "shippingbox"
         case .installedSoftware: "internaldrive"
         case .configurationChanges: "arrow.left.arrow.right"
@@ -53,6 +55,11 @@ struct DashboardView: View {
                         section: .harness,
                         count: store.snapshot?.appState?.differenceCount,
                         needsAttention: store.snapshot?.appState?.needsAttention ?? false
+                    )
+                    SidebarRow(
+                        section: .localAI,
+                        count: store.snapshot?.localAI?.remediation.count,
+                        needsAttention: store.snapshot?.localAI?.needsAttention ?? false
                     )
                     SidebarRow(section: .projects, count: store.snapshot?.projectAttentionCount)
                     SidebarRow(section: .updates, count: store.snapshot?.softwareUpdateCount)
@@ -92,7 +99,8 @@ struct DashboardView: View {
                     if store.snapshot?.configuration.applyState != "current",
                        store.selectedSection != .overview,
                        store.selectedSection != .configurationChanges,
-                       store.selectedSection != .harness {
+                       store.selectedSection != .harness,
+                       store.selectedSection != .localAI {
                         Button("Apply", systemImage: "checkmark.circle") {
                             showingApplyConfirmation = true
                         }
@@ -173,6 +181,8 @@ struct DashboardView: View {
             )
         case .harness:
             HarnessStatusView(status: snapshot.appState)
+        case .localAI:
+            LocalAIStatusView(status: snapshot.localAI)
         case .managedSoftware:
             SoftwareView(snapshot: snapshot, mode: .managed, loadDetails: store.packageDetails)
         case .installedSoftware:
@@ -531,6 +541,103 @@ private struct HarnessStatusView: View {
         guard let value else { return "Unavailable" }
         guard let date = ISO8601DateFormatter().date(from: value) else { return value }
         return date.formatted(date: .abbreviated, time: .shortened)
+    }
+}
+
+private struct LocalAIStatusView: View {
+    let status: LocalAIStatus?
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("DS4 + Pi")
+                            .font(.system(size: 34, weight: .semibold, design: .rounded))
+                        Text(status?.summary ?? "Local AI status is not present in this snapshot")
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    StatusBadge(label: healthLabel, color: healthColor, symbol: healthSymbol)
+                }
+
+                if let status {
+                    SectionCard(title: "Operational status", symbol: "waveform.path.ecg") {
+                        DetailRow(label: "DS4 checkout", value: stateLabel(status.ds4Checkout.state.rawValue))
+                        DetailRow(label: "pi-ds4 checkout", value: stateLabel(status.piDs4Checkout.state.rawValue))
+                        DetailRow(label: "Extension link", value: stateLabel(status.extension.state.rawValue))
+                        DetailRow(label: "Runtime build", value: stateLabel(status.runtime.state.rawValue))
+                        DetailRow(label: status.model.name, value: stateLabel(status.model.state.rawValue))
+                        DetailRow(label: "DS4 server", value: stateLabel(status.server.state.rawValue))
+                        DetailRow(label: "Harness configuration", value: configurationLabel(status.configuration))
+                    }
+
+                    SectionCard(title: "Remediation", symbol: "wrench.and.screwdriver.fill") {
+                        if status.remediation.isEmpty {
+                            Label("No action needed", systemImage: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                        } else {
+                            ForEach(status.remediation, id: \.self) { remediation in
+                                Label(remediation, systemImage: "arrow.right.circle")
+                                    .foregroundStyle(.orange)
+                            }
+                        }
+                        Text("Refresh is read-only. Model downloads and lifecycle operations remain explicit actions.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    ContentUnavailableView {
+                        Label("Local AI status unavailable", systemImage: "questionmark.circle")
+                    } description: {
+                        Text("This snapshot predates the optional local-AI status contract. Refresh after updating the management API.")
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 360)
+                }
+            }
+            .padding(28)
+        }
+        .navigationTitle("Local AI")
+    }
+
+    private var healthLabel: String {
+        guard let status else { return "Unavailable" }
+        return stateLabel(status.health.rawValue)
+    }
+
+    private var healthColor: Color {
+        switch status?.health {
+        case .healthy: .green
+        case .degraded: .orange
+        case .unavailable, nil: .secondary
+        }
+    }
+
+    private var healthSymbol: String {
+        switch status?.health {
+        case .healthy: "checkmark.circle.fill"
+        case .degraded: "exclamationmark.circle.fill"
+        case .unavailable, nil: "questionmark.circle.fill"
+        }
+    }
+
+    private func configurationLabel(_ configuration: LocalAIConfigurationStatus) -> String {
+        switch configuration.state {
+        case .current:
+            "Current"
+        case .drifted:
+            "\(configuration.driftCount ?? 0) difference\(configuration.driftCount == 1 ? "" : "s")"
+        case .unavailable:
+            "Unavailable"
+        }
+    }
+
+    private func stateLabel(_ state: String) -> String {
+        switch state {
+        case "notBuilt": "Not built"
+        case "mislinked": "Mislinked"
+        default: state.capitalized
+        }
     }
 }
 

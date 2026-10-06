@@ -10,7 +10,41 @@ struct ManagementSnapshot: Codable {
     let updates: Updates
     let projects: [Project]
     let appState: AppStateStatus?
+    let localAI: LocalAIStatus?
     let warnings: [String]
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
+        generatedAt = try container.decode(String.self, forKey: .generatedAt)
+        host = try container.decode(Host.self, forKey: .host)
+        configuration = try container.decode(ConfigurationState.self, forKey: .configuration)
+        health = try container.decode(SystemHealth.self, forKey: .health)
+        inventory = try container.decode(Inventory.self, forKey: .inventory)
+        updates = try container.decode(Updates.self, forKey: .updates)
+        projects = try container.decode([Project].self, forKey: .projects)
+        appState = try container.decodeIfPresent(AppStateStatus.self, forKey: .appState)
+        do {
+            localAI = try container.decodeIfPresent(LocalAIStatus.self, forKey: .localAI)
+        } catch {
+            localAI = nil
+        }
+        warnings = try container.decode([String].self, forKey: .warnings)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion
+        case generatedAt
+        case host
+        case configuration
+        case health
+        case inventory
+        case updates
+        case projects
+        case appState
+        case localAI
+        case warnings
+    }
 
     var desiredSoftwareCount: Int {
         inventory.desired.nixPackages.count
@@ -143,6 +177,98 @@ struct AppStateLastApply: Codable {
 struct AppStateVerification: Codable {
     let verifiedRecipeCount: Int?
     let unverifiedRecipeCount: Int?
+}
+
+struct LocalAIStatus: Codable {
+    let schemaVersion: Int
+    let health: LocalAIHealth
+    let summary: String
+    let ds4Checkout: LocalAICheckout
+    let piDs4Checkout: LocalAICheckout
+    let `extension`: LocalAIExtension
+    let runtime: LocalAIRuntime
+    let model: LocalAIModel
+    let server: LocalAIServer
+    let configuration: LocalAIConfigurationStatus
+    let remediation: [String]
+
+    var needsAttention: Bool {
+        health != .healthy
+    }
+}
+
+enum LocalAIHealth: String, Codable {
+    case healthy
+    case degraded
+    case unavailable
+}
+
+struct LocalAICheckout: Codable {
+    let state: LocalAICheckoutState
+    let path: String
+}
+
+enum LocalAICheckoutState: String, Codable {
+    case ready
+    case missing
+    case invalid
+    case unavailable
+}
+
+struct LocalAIExtension: Codable {
+    let state: LocalAIExtensionState
+    let path: String
+}
+
+enum LocalAIExtensionState: String, Codable {
+    case linked
+    case missing
+    case mislinked
+    case unavailable
+}
+
+struct LocalAIRuntime: Codable {
+    let state: LocalAIRuntimeState
+    let path: String
+}
+
+enum LocalAIRuntimeState: String, Codable {
+    case built
+    case notBuilt
+    case unavailable
+}
+
+struct LocalAIModel: Codable {
+    let state: LocalAIModelState
+    let name: String
+    let path: String
+}
+
+enum LocalAIModelState: String, Codable {
+    case present
+    case missing
+    case unavailable
+}
+
+struct LocalAIServer: Codable {
+    let state: LocalAIServerState
+}
+
+enum LocalAIServerState: String, Codable {
+    case running
+    case stopped
+    case unavailable
+}
+
+struct LocalAIConfigurationStatus: Codable {
+    let state: LocalAIConfigurationState
+    let driftCount: Int?
+}
+
+enum LocalAIConfigurationState: String, Codable {
+    case current
+    case drifted
+    case unavailable
 }
 
 struct Inventory: Codable {

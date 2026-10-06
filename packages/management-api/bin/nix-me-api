@@ -32,6 +32,139 @@ command_exists() {
   command -v "$1" >/dev/null 2>&1
 }
 
+valid_local_ai_status() {
+  jq -e '
+    type == "object" and
+    .schemaVersion == 1 and
+    (.health | IN("healthy", "degraded", "unavailable")) and
+    (.summary | type == "string" and length > 0) and
+    (.ds4Checkout | type == "object") and
+    (.ds4Checkout.state | IN("ready", "missing", "invalid", "unavailable")) and
+    (.ds4Checkout.path | type == "string" and length > 0) and
+    (.piDs4Checkout | type == "object") and
+    (.piDs4Checkout.state | IN("ready", "missing", "invalid", "unavailable")) and
+    (.piDs4Checkout.path | type == "string" and length > 0) and
+    (.extension | type == "object") and
+    (.extension.state | IN("linked", "missing", "mislinked", "unavailable")) and
+    (.extension.path | type == "string" and length > 0) and
+    (.runtime | type == "object") and
+    (.runtime.state | IN("built", "notBuilt", "unavailable")) and
+    (.runtime.path | type == "string" and length > 0) and
+    (.model | type == "object") and
+    (.model.state | IN("present", "missing", "unavailable")) and
+    (.model.name | type == "string" and length > 0) and
+    (.model.path | type == "string" and length > 0) and
+    (.server | type == "object") and
+    (.server.state | IN("running", "stopped", "unavailable")) and
+    (.configuration | type == "object") and
+    (.configuration.state | IN("current", "drifted", "unavailable")) and
+    (
+      (.configuration.state == "current" and .configuration.driftCount == 0) or
+      (.configuration.state == "drifted" and
+        (.configuration.driftCount | type == "number" and . > 0 and floor == .)) or
+      (.configuration.state == "unavailable" and .configuration.driftCount == null)
+    ) and
+    (.remediation | type == "array") and
+    all(.remediation[]; type == "string" and length > 0) and
+    (if .health == "healthy" then (.remediation | length) == 0 else (.remediation | length) > 0 end) and
+    (
+      if .health == "healthy" then
+        .ds4Checkout.state == "ready" and
+        .piDs4Checkout.state == "ready" and
+        .extension.state == "linked" and
+        .runtime.state == "built" and
+        .model.state == "present" and
+        (.server.state | IN("running", "stopped")) and
+        .configuration.state == "current"
+      elif .health == "unavailable" then
+        any([
+          .ds4Checkout.state,
+          .piDs4Checkout.state,
+          .extension.state,
+          .runtime.state,
+          .model.state,
+          .server.state,
+          .configuration.state
+        ][]; . == "unavailable")
+      else
+        all([
+          .ds4Checkout.state,
+          .piDs4Checkout.state,
+          .extension.state,
+          .runtime.state,
+          .model.state,
+          .server.state,
+          .configuration.state
+        ][]; . != "unavailable")
+      end
+    )
+  ' >/dev/null 2>&1 <<<"$1"
+}
+
+unavailable_local_ai() {
+  local remediation="$1"
+  local ds4_dir pi_ds4_dir pi_agent_dir model_name model_path
+  ds4_dir="${DS4_RUNTIME_DIR:-$HOME/src/ai/ds4}"
+  pi_ds4_dir="${PI_DS4_DIR:-$HOME/src/ai/pi-ds4}"
+  pi_agent_dir="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
+  model_name="${LOCAL_AI_MODEL_NAME:-DeepSeek V4 Flash Q2}"
+  model_path="${LOCAL_AI_MODEL_PATH:-$ds4_dir/ds4flash.gguf}"
+
+  jq -n \
+    --arg remediation "$remediation" \
+    --arg ds4Path "$ds4_dir" \
+    --arg piDs4Path "$pi_ds4_dir" \
+    --arg extensionPath "${LOCAL_AI_EXTENSION_PATH:-$pi_agent_dir/extensions/pi-ds4}" \
+    --arg runtimePath "$ds4_dir/ds4-server" \
+    --arg modelName "$model_name" \
+    --arg modelPath "$model_path" \
+    '{
+      schemaVersion: 1,
+      health: "unavailable",
+      summary: "Local AI status is unavailable",
+      ds4Checkout: {state: "unavailable", path: $ds4Path},
+      piDs4Checkout: {state: "unavailable", path: $piDs4Path},
+      extension: {state: "unavailable", path: $extensionPath},
+      runtime: {state: "unavailable", path: $runtimePath},
+      model: {state: "unavailable", name: $modelName, path: $modelPath},
+      server: {state: "unavailable"},
+      configuration: {state: "unavailable", driftCount: null},
+      remediation: [$remediation]
+    }'
+}
+
+run_bounded_local_ai_status() {
+  local output_file="$1"
+  local error_file="$2"
+  shift 2
+  local timeout_seconds="${NIX_ME_LOCAL_AI_TIMEOUT_SECONDS:-5}"
+  local max_ticks ticks pid status
+
+  if [[ ! "$timeout_seconds" =~ ^[1-9][0-9]*$ ]] || ((timeout_seconds > 30)); then
+    timeout_seconds=5
+  fi
+  max_ticks=$((timeout_seconds * 10))
+  ticks=0
+
+  "$@" >"$output_file" 2>"$error_file" &
+  pid=$!
+  while kill -0 "$pid" >/dev/null 2>&1; do
+    if ((ticks >= max_ticks)); then
+      kill "$pid" >/dev/null 2>&1 || true
+      sleep 0.1
+      kill -9 "$pid" >/dev/null 2>&1 || true
+      wait "$pid" >/dev/null 2>&1 || true
+      return 124
+    fi
+    sleep 0.1
+    ticks=$((ticks + 1))
+  done
+
+  wait "$pid"
+  status=$?
+  return "$status"
+}
+
 app_state_warnings='[]'
 
 add_app_state_warning() {
@@ -395,6 +528,57 @@ else
   fi
 fi
 
+local_ai='null'
+if [[ -n "${NIX_ME_LOCAL_AI_STATUS:-}" ]]; then
+  if [[ -r "$NIX_ME_LOCAL_AI_STATUS" ]] &&
+    local_ai="$(jq -c . "$NIX_ME_LOCAL_AI_STATUS" 2>/dev/null)" &&
+    valid_local_ai_status "$local_ai"; then
+    :
+  else
+    add_warning "The local-AI status fixture is malformed or unreadable"
+    local_ai="$(unavailable_local_ai "Repair the local-AI status source, then refresh.")"
+  fi
+else
+  local_ai_command=()
+  if [[ -n "${NIX_ME_LOCAL_AI_DOCTOR+x}" ]]; then
+    local_ai_candidate="$NIX_ME_LOCAL_AI_DOCTOR"
+    if [[ -n "$local_ai_candidate" && "$local_ai_candidate" == */* && -x "$local_ai_candidate" ]]; then
+      local_ai_command=("$local_ai_candidate")
+    elif [[ -n "$local_ai_candidate" && "$local_ai_candidate" == */* && -r "$local_ai_candidate" ]]; then
+      local_ai_command=(bash "$local_ai_candidate")
+    elif [[ -n "$local_ai_candidate" ]] && command_exists "$local_ai_candidate"; then
+      local_ai_command=("$(command -v "$local_ai_candidate")")
+    fi
+  elif command_exists local-ai-doctor; then
+    local_ai_command=("$(command -v local-ai-doctor)")
+  elif [[ -r "$CONFIG_DIR/tools/local-ai/doctor.sh" ]]; then
+    local_ai_command=(bash "$CONFIG_DIR/tools/local-ai/doctor.sh")
+  fi
+
+  if ((${#local_ai_command[@]} == 0)); then
+    add_warning "The local-AI status tool is unavailable"
+    local_ai="$(unavailable_local_ai "Install or repair local-ai-doctor, then refresh.")"
+  elif run_bounded_local_ai_status \
+    "$TEMP_DIR/local-ai-status.json" \
+    "$TEMP_DIR/local-ai-status.err" \
+    "${local_ai_command[@]}" --json 2>/dev/null; then
+    local_ai="$(jq -c . "$TEMP_DIR/local-ai-status.json" 2>/dev/null || printf null)"
+    if ! valid_local_ai_status "$local_ai"; then
+      add_warning "The local-AI status does not match version 1"
+      local_ai="$(unavailable_local_ai "Repair local-ai-doctor, then refresh.")"
+    fi
+  else
+    local_ai_status_code=$?
+    local_ai_error="$(tail -1 "$TEMP_DIR/local-ai-status.err" 2>/dev/null || true)"
+    if [[ "$local_ai_status_code" == "124" ]]; then
+      add_warning "The local-AI status check timed out"
+    else
+      add_warning "The local-AI status is unavailable${local_ai_error:+: $local_ai_error}"
+    fi
+    local_ai="$(unavailable_local_ai "Run local-ai-doctor --json, resolve the reported error, then refresh.")"
+  fi
+fi
+
 git_state() {
   local directory="$1"
 
@@ -681,6 +865,7 @@ snapshot="$(jq -n \
   --argjson nixUpdates "$nix_updates" \
   --argjson projects "$projects" \
   --argjson appState "$app_state" \
+  --argjson localAI "$local_ai" \
   --argjson warnings "$warnings" \
   '{
     schemaVersion: $schemaVersion,
@@ -709,6 +894,7 @@ snapshot="$(jq -n \
     updates: {homebrew: $brewUpdates, macAppStore: $masUpdates, nixFlake: $nixUpdates},
     projects: $projects,
     appState: $appState,
+    localAI: $localAI,
     warnings: $warnings
   }')"
 
@@ -730,6 +916,9 @@ case "${1:-snapshot}" in
     ;;
   app-state)
     jq '{schemaVersion, generatedAt, host, appState, warnings: (.warnings + .appState.warnings)}' <<<"$snapshot"
+    ;;
+  local-ai)
+    jq '{schemaVersion, generatedAt, host, localAI, warnings}' <<<"$snapshot"
     ;;
   manifest)
     if [[ "$desired_manifest" == "null" ]]; then

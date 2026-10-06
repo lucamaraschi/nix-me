@@ -143,6 +143,17 @@ struct MenuBarView: View {
                 )
             }
             .buttonStyle(.plain)
+            Button {
+                openDashboard(section: .localAI)
+            } label: {
+                MenuStatusRow(
+                    title: "Local AI",
+                    value: localAILabel(snapshot.localAI),
+                    color: localAIColor(snapshot.localAI),
+                    showsDisclosure: true
+                )
+            }
+            .buttonStyle(.plain)
             MenuStatusRow(
                 title: "Projects",
                 value: snapshot.projectAttentionCount == 0 ? "Current" : "\(snapshot.projectAttentionCount) need attention",
@@ -179,6 +190,26 @@ struct MenuBarView: View {
     private func harnessColor(_ status: AppStateStatus?) -> Color {
         guard let status else { return .secondary }
         return status.needsAttention ? .orange : .green
+    }
+
+    private func localAILabel(_ status: LocalAIStatus?) -> String {
+        guard let status else { return "Unavailable" }
+        switch status.health {
+        case .healthy:
+            return status.server.state == .running ? "Serving" : "Ready"
+        case .degraded:
+            return "Needs attention"
+        case .unavailable:
+            return "Unavailable"
+        }
+    }
+
+    private func localAIColor(_ status: LocalAIStatus?) -> Color {
+        switch status?.health {
+        case .healthy: .green
+        case .degraded: .orange
+        case .unavailable, nil: .secondary
+        }
     }
 
     private func configurationLabel(_ snapshot: ManagementSnapshot) -> String {

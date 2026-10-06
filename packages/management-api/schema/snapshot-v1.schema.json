@@ -22,6 +22,7 @@
     "updates": { "type": "object" },
     "projects": { "type": "array" },
     "appState": { "$ref": "#/$defs/appState" },
+    "localAI": { "$ref": "#/$defs/localAI" },
     "warnings": {
       "type": "array",
       "items": { "type": "string" }
@@ -91,6 +92,119 @@
           "type": "array",
           "items": { "type": "string", "minLength": 1 }
         }
+      },
+      "additionalProperties": true
+    },
+    "localAI": {
+      "type": "object",
+      "required": [
+        "schemaVersion",
+        "health",
+        "summary",
+        "ds4Checkout",
+        "piDs4Checkout",
+        "extension",
+        "runtime",
+        "model",
+        "server",
+        "configuration",
+        "remediation"
+      ],
+      "properties": {
+        "schemaVersion": { "const": 1 },
+        "health": {
+          "type": "string",
+          "enum": ["healthy", "degraded", "unavailable"]
+        },
+        "summary": { "type": "string", "minLength": 1 },
+        "ds4Checkout": { "$ref": "#/$defs/localAICheckout" },
+        "piDs4Checkout": { "$ref": "#/$defs/localAICheckout" },
+        "extension": {
+          "type": "object",
+          "required": ["state", "path"],
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": ["linked", "missing", "mislinked", "unavailable"]
+            },
+            "path": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": true
+        },
+        "runtime": {
+          "type": "object",
+          "required": ["state", "path"],
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": ["built", "notBuilt", "unavailable"]
+            },
+            "path": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": true
+        },
+        "model": {
+          "type": "object",
+          "required": ["state", "name", "path"],
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": ["present", "missing", "unavailable"]
+            },
+            "name": { "type": "string", "minLength": 1 },
+            "path": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": true
+        },
+        "server": {
+          "type": "object",
+          "required": ["state"],
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": ["running", "stopped", "unavailable"]
+            }
+          },
+          "additionalProperties": true
+        },
+        "configuration": {
+          "type": "object",
+          "required": ["state", "driftCount"],
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": ["current", "drifted", "unavailable"]
+            },
+            "driftCount": { "$ref": "#/$defs/nullableCount" }
+          },
+          "additionalProperties": true
+        },
+        "remediation": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"health": {"const": "healthy"}}},
+          "then": {"properties": {"remediation": {"maxItems": 0}}}
+        },
+        {
+          "if": {"properties": {"health": {"enum": ["degraded", "unavailable"]}}},
+          "then": {"properties": {"remediation": {"minItems": 1}}}
+        }
+      ],
+      "additionalProperties": true
+    },
+    "localAICheckout": {
+      "type": "object",
+      "required": ["state", "path"],
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": ["ready", "missing", "invalid", "unavailable"]
+        },
+        "path": { "type": "string", "minLength": 1 }
       },
       "additionalProperties": true
     }

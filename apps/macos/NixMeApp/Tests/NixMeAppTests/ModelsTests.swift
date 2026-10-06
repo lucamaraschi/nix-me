@@ -74,6 +74,63 @@ final class ModelsTests: XCTestCase {
         XCTAssertTrue(unavailable.needsAttention)
     }
 
+    func testHealthyLocalAIStatusFixture() throws {
+        let snapshot = try decodeSnapshot(localAIStatusNamed: "local-ai-healthy-v1")
+        let status = try XCTUnwrap(snapshot.localAI)
+
+        XCTAssertEqual(status.schemaVersion, 1)
+        XCTAssertEqual(status.health, .healthy)
+        XCTAssertEqual(status.ds4Checkout.state, .ready)
+        XCTAssertEqual(status.piDs4Checkout.state, .ready)
+        XCTAssertEqual(status.extension.state, .linked)
+        XCTAssertEqual(status.runtime.state, .built)
+        XCTAssertEqual(status.model.state, .present)
+        XCTAssertEqual(status.server.state, .stopped)
+        XCTAssertEqual(status.configuration.state, .current)
+        XCTAssertEqual(status.configuration.driftCount, 0)
+        XCTAssertTrue(status.remediation.isEmpty)
+        XCTAssertFalse(status.needsAttention)
+    }
+
+    func testDegradedLocalAIStatusFixture() throws {
+        let status = try decodeLocalAIStatus(named: "local-ai-degraded-v1")
+
+        XCTAssertEqual(status.health, .degraded)
+        XCTAssertEqual(status.piDs4Checkout.state, .missing)
+        XCTAssertEqual(status.runtime.state, .notBuilt)
+        XCTAssertEqual(status.model.state, .missing)
+        XCTAssertEqual(status.configuration.state, .drifted)
+        XCTAssertEqual(status.configuration.driftCount, 2)
+        XCTAssertEqual(status.remediation.count, 5)
+        XCTAssertTrue(status.needsAttention)
+    }
+
+    func testUnavailableLocalAIStatusKeepsUnknownDistinctFromAbsent() throws {
+        let status = try decodeLocalAIStatus(named: "local-ai-unavailable-v1")
+
+        XCTAssertEqual(status.health, .unavailable)
+        XCTAssertEqual(status.ds4Checkout.state, .unavailable)
+        XCTAssertEqual(status.model.state, .unavailable)
+        XCTAssertEqual(status.server.state, .unavailable)
+        XCTAssertEqual(status.configuration.state, .unavailable)
+        XCTAssertNil(status.configuration.driftCount)
+        XCTAssertTrue(status.needsAttention)
+    }
+
+    func testMalformedOptionalLocalAIStatusDoesNotInvalidateSnapshot() throws {
+        var snapshotObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(fixture.utf8)) as? [String: Any]
+        )
+        snapshotObject["localAI"] = try JSONSerialization.jsonObject(
+            with: fixtureData(named: "local-ai-malformed")
+        )
+        let data = try JSONSerialization.data(withJSONObject: snapshotObject)
+        let snapshot = try JSONDecoder().decode(ManagementSnapshot.self, from: data)
+
+        XCTAssertNil(snapshot.localAI)
+        XCTAssertEqual(snapshot.host.hostname, "bellerofonte")
+    }
+
     func testConfigurationGraphResolvesActiveProfilesAndImports() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -155,6 +212,19 @@ final class ModelsTests: XCTestCase {
     private func fixtureData(named name: String) throws -> Data {
         let url = try XCTUnwrap(Bundle.module.url(forResource: name, withExtension: "json"))
         return try Data(contentsOf: url)
+    }
+
+    private func decodeLocalAIStatus(named name: String) throws -> LocalAIStatus {
+        try JSONDecoder().decode(LocalAIStatus.self, from: fixtureData(named: name))
+    }
+
+    private func decodeSnapshot(localAIStatusNamed name: String) throws -> ManagementSnapshot {
+        var snapshotObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(fixture.utf8)) as? [String: Any]
+        )
+        snapshotObject["localAI"] = try JSONSerialization.jsonObject(with: fixtureData(named: name))
+        let data = try JSONSerialization.data(withJSONObject: snapshotObject)
+        return try JSONDecoder().decode(ManagementSnapshot.self, from: data)
     }
 
     private let fixture = #"""

@@ -26,7 +26,8 @@ struct NixMeApp: App {
             } else if let snapshot = store.snapshot,
                       snapshot.configuration.applyState != "current"
                       || snapshot.projectAttentionCount > 0
-                      || snapshot.appState?.needsAttention == true {
+                      || snapshot.appState?.needsAttention == true
+                      || snapshot.localAI?.needsAttention == true {
                 Label("Nix Me", systemImage: "exclamationmark.circle.fill")
             } else {
                 Label("Nix Me", systemImage: "checkmark.circle")

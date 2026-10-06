@@ -13,6 +13,7 @@ export NIX_ME_DESIRED_MANIFEST="$TEMP_DIR/desired-manifest.json"
 FIXTURES_DIR="$REPO_DIR/packages/management-api/test/fixtures"
 export NIX_ME_APP_STATE_ENGINE_VERSION="0.1.0"
 export NIX_ME_APP_STATE_STATUS="$FIXTURES_DIR/app-state-status-v1.json"
+export NIX_ME_LOCAL_AI_STATUS="$FIXTURES_DIR/local-ai-status-healthy-v1.json"
 
 cat >"$NIX_ME_DESIRED_MANIFEST" <<'JSON'
 {
@@ -68,10 +69,20 @@ jq -e '
     unverifiedRecipeCount: 1
   } and
   .appState.warnings == [] and
+  .localAI.schemaVersion == 1 and
+  .localAI.health == "healthy" and
+  .localAI.ds4Checkout.state == "ready" and
+  .localAI.piDs4Checkout.state == "ready" and
+  .localAI.extension.state == "linked" and
+  .localAI.runtime.state == "built" and
+  .localAI.model.state == "present" and
+  .localAI.server.state == "stopped" and
+  .localAI.configuration == {state: "current", driftCount: 0} and
+  .localAI.remediation == [] and
   (.warnings | type == "array")
 ' "$TEMP_DIR/snapshot.json" >/dev/null
 
-for endpoint in status inventory updates projects app-state manifest; do
+for endpoint in status inventory updates projects app-state local-ai manifest; do
   "$REPO_DIR/apps/cli/bin/nix-me" api "$endpoint" >"$TEMP_DIR/$endpoint.json"
   jq -e '.schemaVersion == 1' "$TEMP_DIR/$endpoint.json" >/dev/null
 done
@@ -80,6 +91,11 @@ jq -e --slurpfile snapshot "$TEMP_DIR/snapshot.json" '
   .appState == $snapshot[0].appState and
   .warnings == ($snapshot[0].warnings + $snapshot[0].appState.warnings)
 ' "$TEMP_DIR/app-state.json" >/dev/null
+
+jq -e --slurpfile snapshot "$TEMP_DIR/snapshot.json" '
+  .localAI == $snapshot[0].localAI and
+  .warnings == $snapshot[0].warnings
+' "$TEMP_DIR/local-ai.json" >/dev/null
 
 jq -e '
   .properties.appState."$ref" == "#/$defs/appState" and
@@ -100,8 +116,93 @@ jq -e '
     "failed",
     null
   ] and
-  ."$defs".appState.additionalProperties == true
+  ."$defs".appState.additionalProperties == true and
+  .properties.localAI."$ref" == "#/$defs/localAI" and
+  ."$defs".localAI.required == [
+    "schemaVersion",
+    "health",
+    "summary",
+    "ds4Checkout",
+    "piDs4Checkout",
+    "extension",
+    "runtime",
+    "model",
+    "server",
+    "configuration",
+    "remediation"
+  ] and
+  ."$defs".localAI.properties.health.enum == ["healthy", "degraded", "unavailable"] and
+  ."$defs".localAI.properties.server.properties.state.enum == ["running", "stopped", "unavailable"] and
+  ."$defs".localAI.additionalProperties == true
 ' "$REPO_DIR/packages/management-api/schema/snapshot-v1.schema.json" >/dev/null
+
+cat >"$TEMP_DIR/fake-local-ai-doctor" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$FAKE_LOCAL_AI_LOG"
+cat "$FAKE_LOCAL_AI_STATUS"
+SH
+chmod +x "$TEMP_DIR/fake-local-ai-doctor"
+
+(
+  unset NIX_ME_LOCAL_AI_STATUS
+  export NIX_ME_LOCAL_AI_DOCTOR="$TEMP_DIR/fake-local-ai-doctor"
+  export FAKE_LOCAL_AI_LOG="$TEMP_DIR/fake-local-ai.log"
+  export FAKE_LOCAL_AI_STATUS="$FIXTURES_DIR/local-ai-status-degraded-v1.json"
+  "$REPO_DIR/apps/cli/bin/nix-me" api local-ai >"$TEMP_DIR/local-ai-live.json"
+)
+jq -e '
+  .localAI.health == "degraded" and
+  .localAI.piDs4Checkout.state == "missing" and
+  .localAI.runtime.state == "notBuilt" and
+  .localAI.model.state == "missing" and
+  .localAI.configuration == {state: "drifted", driftCount: 2} and
+  (.localAI.remediation | length) == 5
+' "$TEMP_DIR/local-ai-live.json" >/dev/null
+grep -qx -- '--json' "$TEMP_DIR/fake-local-ai.log"
+
+NIX_ME_LOCAL_AI_STATUS="$FIXTURES_DIR/local-ai-status-unavailable-v1.json" \
+  "$REPO_DIR/apps/cli/bin/nix-me" api local-ai >"$TEMP_DIR/local-ai-unavailable.json"
+jq -e '
+  .localAI.health == "unavailable" and
+  .localAI.ds4Checkout.state == "unavailable" and
+  .localAI.server.state == "unavailable" and
+  .localAI.configuration == {state: "unavailable", driftCount: null}
+' "$TEMP_DIR/local-ai-unavailable.json" >/dev/null
+
+NIX_ME_LOCAL_AI_STATUS="$FIXTURES_DIR/local-ai-status-malformed.json" \
+  "$REPO_DIR/apps/cli/bin/nix-me" api local-ai >"$TEMP_DIR/local-ai-malformed.json"
+jq -e '
+  .localAI.health == "unavailable" and
+  .localAI.model.state == "unavailable" and
+  .localAI.configuration.driftCount == null and
+  (.warnings | any(. == "The local-AI status fixture is malformed or unreadable"))
+' "$TEMP_DIR/local-ai-malformed.json" >/dev/null
+
+(
+  unset NIX_ME_LOCAL_AI_STATUS
+  export NIX_ME_LOCAL_AI_DOCTOR=""
+  "$REPO_DIR/apps/cli/bin/nix-me" api local-ai >"$TEMP_DIR/local-ai-tool-unavailable.json"
+)
+jq -e '
+  .localAI.health == "unavailable" and
+  (.warnings | any(. == "The local-AI status tool is unavailable"))
+' "$TEMP_DIR/local-ai-tool-unavailable.json" >/dev/null
+
+cat >"$TEMP_DIR/slow-local-ai-doctor" <<'SH'
+#!/bin/bash
+sleep 5
+SH
+chmod +x "$TEMP_DIR/slow-local-ai-doctor"
+(
+  unset NIX_ME_LOCAL_AI_STATUS
+  export NIX_ME_LOCAL_AI_DOCTOR="$TEMP_DIR/slow-local-ai-doctor"
+  export NIX_ME_LOCAL_AI_TIMEOUT_SECONDS=1
+  "$REPO_DIR/apps/cli/bin/nix-me" api local-ai >"$TEMP_DIR/local-ai-timeout.json"
+)
+jq -e '
+  .localAI.health == "unavailable" and
+  (.warnings | any(. == "The local-AI status check timed out"))
+' "$TEMP_DIR/local-ai-timeout.json" >/dev/null
 
 cat >"$TEMP_DIR/fake-nix-me-apps" <<'SH'
 #!/bin/bash

@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "health": "healthy",
+  "summary": "Local AI is ready; the server is stopped",
+  "ds4Checkout": {"state": "ready", "path": "/Users/tester/src/ai/ds4"},
+  "piDs4Checkout": {"state": "ready", "path": "/Users/tester/src/ai/pi-ds4"},
+  "extension": {"state": "linked", "path": "/Users/tester/.pi/agent/extensions/pi-ds4"},
+  "runtime": {"state": "built", "path": "/Users/tester/src/ai/ds4/ds4-server"},
+  "model": {
+    "state": "present",
+    "name": "DeepSeek V4 Flash Q2",
+    "path": "/Users/tester/src/ai/ds4/ds4flash.gguf"
+  },
+  "server": {"state": "stopped"},
+  "configuration": {"state": "current", "driftCount": 0},
+  "remediation": []
+}
