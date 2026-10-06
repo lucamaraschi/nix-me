@@ -6,6 +6,7 @@ use std::process::ExitCode;
 use anyhow::{anyhow, Result};
 use clap::{Args, Parser, Subcommand};
 use nix_me_apps::engine::{command_action_command, poke_command, Engine, Options};
+use nix_me_apps::migration::{DocumentKind, MigrationRequest};
 use nix_me_apps::model::{load_recipe, load_values, ConfigEntry, Recipe};
 use nix_me_apps::plan::Plan;
 use nix_me_apps::runner::{Clock, CommandExecutionError, RealCommandRunner, SystemClock};
@@ -36,8 +37,47 @@ enum Command {
     Apply(ApplyArgs),
     /// Capture preference changes or inspect/watch an exported artifact.
     Capture(CaptureArgs),
+    /// Explicitly inspect or apply a versioned document migration.
+    Migrate(MigrateArgs),
     /// Validate a recipe registry or compute its zero-click metric.
     Registry(RegistryArgs),
+}
+
+#[derive(Args)]
+struct MigrateArgs {
+    #[arg(long, value_enum)]
+    kind: MigrationKind,
+    #[arg(long)]
+    input: PathBuf,
+    #[arg(long = "from")]
+    source_version: u32,
+    #[arg(long = "to")]
+    target_version: u32,
+    /// Validate and print the canonical target without changing the input.
+    #[arg(long, required_unless_present = "apply", conflicts_with = "apply")]
+    dry_run: bool,
+    /// Create a backup and atomically replace the input.
+    #[arg(long, required_unless_present = "dry_run", conflicts_with = "dry_run")]
+    apply: bool,
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Clone, Copy, clap::ValueEnum)]
+enum MigrationKind {
+    Recipe,
+    Plan,
+    State,
+}
+
+impl From<MigrationKind> for DocumentKind {
+    fn from(value: MigrationKind) -> Self {
+        match value {
+            MigrationKind::Recipe => Self::Recipe,
+            MigrationKind::Plan => Self::Plan,
+            MigrationKind::State => Self::State,
+        }
+    }
 }
 
 #[derive(Args, Clone)]
@@ -170,10 +210,13 @@ fn main() -> ExitCode {
         Ok(code) => ExitCode::from(code as u8),
         Err((code, error, json)) => {
             if json {
-                eprintln!(
-                    "{}",
-                    serde_json::json!({"version":1,"exit_code":code,"error":error.to_string()})
-                );
+                let report = error
+                    .downcast_ref::<nix_me_apps::migration::MigrationError>()
+                    .map(|error| error.json_report(code))
+                    .unwrap_or_else(|| {
+                        serde_json::json!({"version":1,"exit_code":code,"error":error.to_string()})
+                    });
+                eprintln!("{report}");
             } else {
                 eprintln!("error: {error:#}");
             }
@@ -201,8 +244,44 @@ fn run() -> std::result::Result<i32, (i32, anyhow::Error, bool)> {
             let json = args.json;
             run_capture(args).map_err(|e| (4, e, json))
         }
+        Command::Migrate(args) => {
+            let json = args.json;
+            run_migrate(args).map_err(|error| {
+                let code = if error.is_preflight() { 4 } else { 5 };
+                (code, error.into(), json)
+            })
+        }
         Command::Registry(args) => run_registry(args),
     }
+}
+
+fn run_migrate(
+    args: MigrateArgs,
+) -> std::result::Result<i32, nix_me_apps::migration::MigrationError> {
+    let request = MigrationRequest {
+        kind: args.kind.into(),
+        input: args.input,
+        source_version: args.source_version,
+        target_version: args.target_version,
+    };
+    let report = if args.dry_run {
+        nix_me_apps::migration::inspect(&request)?
+    } else {
+        debug_assert!(args.apply);
+        nix_me_apps::migration::apply(&request)?
+    };
+    if args.json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&report).expect("migration report is serializable")
+        );
+    } else {
+        println!("{}", report.summary());
+        if let Some(output) = &report.canonical_output {
+            print!("{output}");
+        }
+    }
+    Ok(0)
 }
 
 fn run_status(args: StatusArgs) -> Result<i32> {

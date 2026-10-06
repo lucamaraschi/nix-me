@@ -1,5 +1,6 @@
 use std::fs;
 use std::io::Write;
+use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::process::Stdio;
 use std::process::{Command, Output};
@@ -34,6 +35,129 @@ fn run_with_stdin(dir: &TempDir, args: &[&str], input: &[u8]) -> Output {
 
 fn last_apply(dir: &TempDir) -> Value {
     serde_json::from_slice(&fs::read(dir.path().join("state/last-apply.json")).unwrap()).unwrap()
+}
+
+#[test]
+fn migration_cli_requires_explicit_mode_and_ordinary_diff_never_migrates() {
+    let dir = TempDir::new().unwrap();
+    let state_dir = dir.path().join("state");
+    fs::create_dir(&state_dir).unwrap();
+    let state = state_dir.join("apps.json");
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/fixtures");
+    let original = fs::read(fixtures.join("state/v1.json")).unwrap();
+    fs::write(&state, &original).unwrap();
+
+    let missing_mode = run(
+        &dir,
+        &[
+            "migrate",
+            "--kind",
+            "state",
+            "--input",
+            state.to_str().unwrap(),
+            "--from",
+            "1",
+            "--to",
+            "2",
+        ],
+    );
+    assert_eq!(missing_mode.status.code(), Some(2));
+
+    let preview = run(
+        &dir,
+        &[
+            "migrate",
+            "--kind",
+            "state",
+            "--input",
+            state.to_str().unwrap(),
+            "--from",
+            "1",
+            "--to",
+            "2",
+            "--dry-run",
+            "--json",
+        ],
+    );
+    assert!(preview.status.success());
+    assert_eq!(fs::read(&state).unwrap(), original);
+    assert_eq!(fs::read_dir(&state_dir).unwrap().count(), 1);
+
+    let applied = run(
+        &dir,
+        &[
+            "migrate",
+            "--kind",
+            "state",
+            "--input",
+            state.to_str().unwrap(),
+            "--from",
+            "1",
+            "--to",
+            "2",
+            "--apply",
+            "--json",
+        ],
+    );
+    assert!(applied.status.success());
+    let report: Value = serde_json::from_slice(&applied.stdout).unwrap();
+    let backup = Path::new(report["backup_path"].as_str().unwrap());
+    assert_eq!(fs::read(backup).unwrap(), original);
+    assert_eq!(
+        fs::metadata(backup).unwrap().permissions().mode() & 0o777,
+        0o600
+    );
+    let migrated = fs::read(&state).unwrap();
+
+    let recipe = dir.path().join("recipe.yaml");
+    let values = dir.path().join("values.yaml");
+    write(
+        &recipe,
+        "schema_version: 1\nid: example\nname: Example\nbundle_id: com.example.fixture\nconfig:\n  - kind: manual\n    step: Complete fixture setup\nverified: null\n",
+    );
+    write(&values, "example: {}\n");
+    let diff = run(
+        &dir,
+        &[
+            "diff",
+            "--recipe",
+            recipe.to_str().unwrap(),
+            "--values",
+            values.to_str().unwrap(),
+            "--no-exec",
+            "--json",
+        ],
+    );
+    assert_eq!(diff.status.code(), Some(4));
+    assert!(String::from_utf8_lossy(&diff.stderr).contains("unsupported app-state version 2"));
+    assert_eq!(fs::read(&state).unwrap(), migrated);
+
+    let unsupported = run(
+        &dir,
+        &[
+            "migrate",
+            "--kind",
+            "state",
+            "--input",
+            state.to_str().unwrap(),
+            "--from",
+            "2",
+            "--to",
+            "3",
+            "--apply",
+            "--json",
+        ],
+    );
+    assert_eq!(unsupported.status.code(), Some(4));
+    let failure: Value = serde_json::from_slice(&unsupported.stderr).unwrap();
+    assert_eq!(failure["input_path"], state.to_str().unwrap());
+    assert!(failure["reason"]
+        .as_str()
+        .unwrap()
+        .contains("only synthetic fixture transitions"));
+    assert!(failure["backup_path"].is_null());
+    assert!(failure["rollback_path"].is_null());
+    assert_eq!(fs::read(state).unwrap(), migrated);
 }
 
 #[test]
