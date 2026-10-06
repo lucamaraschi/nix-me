@@ -294,6 +294,15 @@ activation. After `make switch`, run `local-ai-doctor`, then
 `local-ai-setup --download-model`. Start `pi`, run `/model`, and select
 `ds4/dsv4-flash-q2`.
 
+Importing the profile runs `local-ai-preflight` before every activation.
+Unsupported hardware stops the switch; memory and initial-download disk
+shortfalls warn by default because DS4 can use SSD streaming. A host that
+requires predictable capacity can make those shortfalls fatal:
+
+```nix
+localAi.requirements.enforcement = "fail";
+```
+
 ---
 
 ## The `nix-me` CLI

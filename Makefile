@@ -14,7 +14,7 @@ USERNAME := $(shell whoami)
 # Force hostname to lowercase in all commands
 FINAL_HOSTNAME := $(shell echo "$(HOSTNAME)" | tr '[:upper:]' '[:lower:]')
 
-.PHONY: switch switch-fast build clean update check fmt help list-machines sync-projects reset-raycast-window api test-api test-actions test-details test-cli test-app-state app app-run app-package tui-build
+.PHONY: switch switch-fast build clean update check fmt help list-machines sync-projects reset-raycast-window api test-api test-actions test-details test-cli test-local-ai test-app-state app app-run app-package tui-build
 
 # Default target
 help:
@@ -31,6 +31,7 @@ help:
 	@echo "  test-actions    Validate update actions without changing the system"
 	@echo "  test-details    Validate package metadata responses"
 	@echo "  test-cli        Validate CLI syntax and management contracts"
+	@echo "  test-local-ai   Validate local AI model preflight policy"
 	@echo "  test-app-state  Run app-state formatting and tests"
 	@echo "  app             Build the native macOS app"
 	@echo "  app-run         Build and launch the native macOS app"
@@ -172,8 +173,12 @@ test-details:
 	@./tests/integration/test-details.sh
 
 test-cli:
-	@bash -n apps/cli/bin/nix-me apps/cli/lib/*.sh packages/management-api/bin/*
+	@bash -n apps/cli/bin/nix-me apps/cli/lib/*.sh packages/management-api/bin/* tools/local-ai/*.sh
+	@$(MAKE) test-local-ai
 	@$(MAKE) test-api test-actions test-details
+
+test-local-ai:
+	@./tests/integration/test-local-ai-preflight.sh
 
 test-app-state:
 	@cd packages/app-state/engine && cargo fmt --all -- --check

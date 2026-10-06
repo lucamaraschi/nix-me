@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+model_name="${LOCAL_AI_MODEL_NAME:-DeepSeek V4 Flash Q2}"
+download_size_gib="${LOCAL_AI_DOWNLOAD_SIZE_GIB:-81}"
+
 usage() {
-  cat <<'EOF'
+  cat <<EOF
 Usage: local-ai-setup [--download-model] [--force]
 
 Build DS4 and connect it to the Pi coding agent. Model downloads are opt-in.
 
 Options:
-  --download-model  Download DeepSeek V4 Flash Q2 after setup (about 81 GiB)
+  --download-model  Download ${model_name} after setup (about ${download_size_gib} GiB)
   --force           Replace an existing Pi DS4 support directory, preserving a backup
   -h, --help        Show this help
 EOF
@@ -40,8 +43,11 @@ done
 
 ds4_dir="${DS4_RUNTIME_DIR:-$HOME/src/ai/ds4}"
 pi_ds4_dir="${PI_DS4_DIR:-$HOME/src/ai/pi-ds4}"
+download_target="${LOCAL_AI_DOWNLOAD_TARGET:-ds4f-q2}"
+pi_model="${LOCAL_AI_PI_MODEL:-ds4/dsv4-flash-q2}"
 
-if [[ "$(uname -s)" != "Darwin" || "$(uname -m)" != "arm64" ]]; then
+arm64_supported="$(/usr/sbin/sysctl -n hw.optional.arm64 2>/dev/null || printf '0')"
+if [[ "$(uname -s)" != "Darwin" || "$arm64_supported" != "1" ]]; then
   echo "error: DS4 currently requires an Apple Silicon Mac" >&2
   exit 1
 fi
@@ -80,18 +86,13 @@ fi
 bash "$installer" "${installer_args[@]}"
 
 if [[ "$download_model" == true ]]; then
-  echo "==> Downloading DeepSeek V4 Flash Q2 (about 81 GiB)"
-  bash "$ds4_dir/download_model.sh" ds4f-q2
+  echo "==> Downloading ${model_name} (about ${download_size_gib} GiB)"
+  bash "$ds4_dir/download_model.sh" "$download_target"
 else
-  cat <<'EOF'
-
-DS4 and Pi are connected. The model was not downloaded automatically.
-
-Next steps:
-  1. Run: local-ai-setup --download-model
-  2. Start Pi: pi
-  3. Run /model and select ds4/dsv4-flash-q2
-
-You can also run /ds4 inside Pi to inspect or manage the runtime.
-EOF
+  printf '\nDS4 and Pi are connected. %s was not downloaded automatically.\n\n' "$model_name"
+  printf 'Next steps:\n'
+  printf '  1. Run: local-ai-setup --download-model\n'
+  printf '  2. Start Pi: pi\n'
+  printf '  3. Run /model and select %s\n\n' "$pi_model"
+  printf 'You can also run /ds4 inside Pi to inspect or manage the runtime.\n'
 fi

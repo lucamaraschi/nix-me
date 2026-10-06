@@ -92,8 +92,17 @@ make switch HOST=my-work-mac
 **Adds:**
 - Pi coding agent
 - Public DS4 and pi-ds4 checkouts under `~/src/ai`
-- `local-ai-setup` and `local-ai-doctor` commands
+- `local-ai-preflight`, `local-ai-setup`, and `local-ai-doctor` commands
 - Pi DS4 settings for the OpenAI Responses protocol
+
+Before activation, the profile rejects unsupported hardware and checks the
+selected model's recommended memory and initial-download disk requirement.
+Capacity shortfalls warn by default. To stop activation instead, add this to
+the host configuration:
+
+```nix
+localAi.requirements.enforcement = "fail";
+```
 
 **First-time setup:**
 ```bash

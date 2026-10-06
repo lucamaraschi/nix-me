@@ -4,6 +4,10 @@ set -u
 ds4_dir="${DS4_RUNTIME_DIR:-$HOME/src/ai/ds4}"
 pi_ds4_dir="${PI_DS4_DIR:-$HOME/src/ai/pi-ds4}"
 pi_agent_dir="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
+model_name="${LOCAL_AI_MODEL_NAME:-DeepSeek V4 Flash Q2}"
+model_path="${LOCAL_AI_MODEL_PATH:-$ds4_dir/ds4flash.gguf}"
+recommended_memory_gib="${LOCAL_AI_RECOMMENDED_MEMORY_GIB:-96}"
+required_free_disk_gib="${LOCAL_AI_REQUIRED_FREE_DISK_GIB:-100}"
 failures=0
 warnings=0
 
@@ -21,7 +25,8 @@ fail() {
   failures=$((failures + 1))
 }
 
-if [[ "$(uname -s)" == "Darwin" && "$(uname -m)" == "arm64" ]]; then
+arm64_supported="$(/usr/sbin/sysctl -n hw.optional.arm64 2>/dev/null || printf '0')"
+if [[ "$(uname -s)" == "Darwin" && "$arm64_supported" == "1" ]]; then
   pass "Apple Silicon Mac detected"
 else
   fail "DS4 requires an Apple Silicon Mac"
@@ -82,31 +87,37 @@ fi
 
 shopt -s nullglob
 model_files=("$ds4_dir"/gguf/*ds4*)
-if [[ -e "$ds4_dir/ds4flash.gguf" ]] || ((${#model_files[@]} > 0)); then
-  pass "A DS4 model is present"
+model_present=false
+if [[ -e "$model_path" ]] || ((${#model_files[@]} > 0)); then
+  model_present=true
+  pass "$model_name is present"
 else
-  warn "DeepSeek V4 Flash Q2 is not present; run: local-ai-setup --download-model"
+  warn "$model_name is not present; run: local-ai-setup --download-model"
 fi
 
 if [[ "$(uname -s)" == "Darwin" ]]; then
   ram_bytes="$(/usr/sbin/sysctl -n hw.memsize 2>/dev/null || printf '0')"
   ram_gib=$((ram_bytes / 1073741824))
-  if ((ram_gib >= 96)); then
-    pass "Memory is ${ram_gib} GiB (96 GiB or more recommended)"
+  if ((ram_gib >= recommended_memory_gib)); then
+    pass "Memory is ${ram_gib} GiB (${recommended_memory_gib} GiB or more recommended)"
   else
-    warn "Memory is ${ram_gib} GiB; DeepSeek V4 Flash Q2 recommends about 96 GiB"
+    warn "Memory is ${ram_gib} GiB; $model_name recommends about ${recommended_memory_gib} GiB"
   fi
 fi
 
-free_kib="$(df -Pk "$HOME" 2>/dev/null | awk 'NR == 2 { print $4 }')"
-if [[ ! "$free_kib" =~ ^[0-9]+$ ]]; then
-  free_kib=0
-fi
-free_gib=$((free_kib / 1048576))
-if ((free_gib >= 100)); then
-  pass "Home volume has ${free_gib} GiB free"
+if [[ "$model_present" == true ]]; then
+  pass "Initial model download disk check is no longer required"
 else
-  warn "Home volume has ${free_gib} GiB free; reserve at least 100 GiB for the model and build"
+  free_kib="$(df -Pk "$HOME" 2>/dev/null | awk 'NR == 2 { print $4 }')"
+  if [[ ! "$free_kib" =~ ^[0-9]+$ ]]; then
+    free_kib=0
+  fi
+  free_gib=$((free_kib / 1048576))
+  if ((free_gib >= required_free_disk_gib)); then
+    pass "Home volume has ${free_gib} GiB free (${required_free_disk_gib} GiB required before download)"
+  else
+    warn "Home volume has ${free_gib} GiB free; reserve at least ${required_free_disk_gib} GiB before downloading $model_name"
+  fi
 fi
 
 printf '\n%d failure(s), %d warning(s)\n' "$failures" "$warnings"
