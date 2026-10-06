@@ -1,5 +1,5 @@
 # Local DeepSeek inference through DS4 and the Pi coding agent.
-{ config, lib, pkgs, username, ... }:
+{ config, lib, options, pkgs, username, ... }:
 
 let
   models = {
@@ -20,6 +20,27 @@ let
   ds4RuntimeDir = "${userHome}/src/ai/ds4";
   piDs4Dir = "${userHome}/src/ai/pi-ds4";
   modelPath = "${ds4RuntimeDir}/${selectedModel.modelMarker}";
+  piModelParts = lib.splitString "/" selectedModel.piModel;
+  piProvider = builtins.head piModelParts;
+  piModelName = lib.concatStringsSep "/" (builtins.tail piModelParts);
+
+  localAiStateValues = pkgs.writeText "nix-me-local-ai-values.json" (builtins.toJSON {
+    "local-ai" = {
+      pi_settings = {
+        defaultProvider = piProvider;
+        defaultModel = piModelName;
+      };
+      ds4_settings = {
+        "$schema" = "https://raw.githubusercontent.com/mitsuhiko/pi-ds4/main/settings.schema.json";
+        protocol = "openai-responses";
+        runtimeDir = ds4RuntimeDir;
+        autoUpdate = false;
+        contextTokens = 32768;
+        power = 70;
+        readyTimeoutMs = 900000;
+      };
+    };
+  });
 
   localAiPreflight = pkgs.writeShellApplication {
     name = "local-ai-preflight";
@@ -95,6 +116,10 @@ in
       brewsToAdd = [
         "pi-coding-agent"
       ];
+      state = {
+        enable = lib.mkDefault true;
+        values = lib.mkAfter (options.apps.state.values.default ++ [ localAiStateValues ]);
+      };
     };
 
     environment = {
@@ -122,14 +147,5 @@ in
             ${localAiPreflight}/bin/local-ai-preflight
         '');
 
-    home-manager.users.${username}.home.file.".pi/ds4/settings.json".text = builtins.toJSON {
-      "$schema" = "https://raw.githubusercontent.com/mitsuhiko/pi-ds4/main/settings.schema.json";
-      protocol = "openai-responses";
-      runtimeDir = ds4RuntimeDir;
-      autoUpdate = false;
-      contextTokens = 32768;
-      power = 70;
-      readyTimeoutMs = 900000;
-    };
   };
 }
