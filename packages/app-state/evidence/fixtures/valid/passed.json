@@ -24,7 +24,7 @@
   "procedure": {
     "id": "sample-visible-behavior",
     "version": 1,
-    "harness_revision": "d24c30cb35da7819f4986fb6b7366b490f91a9a6"
+    "harness_revision": "c7a3322ae5f7b4be65b55f1a24cdcfe6a41b0051"
   },
   "run": {
     "id": "fixture-20261005T170000Z",
@@ -43,7 +43,7 @@
       "visible_behavior": {
         "status": "passed",
         "note": "The fixture visible behavior was observed.",
-        "artifact_ids": ["visible-behavior"]
+        "artifact_ids": ["operator-observation", "visible-artifact"]
       },
       "idempotence": {
         "status": "passed",
@@ -54,34 +54,54 @@
   },
   "artifacts": [
     {
+      "id": "run-record",
+      "kind": "report",
+      "path": "packages/app-state/evidence/fixtures/runs/fixture-20261005T170000Z/run-record.json",
+      "media_type": "application/json",
+      "sha256": "c2e7a11549d183aa80efaccd35225ed08a5c8573ed7d2e2138711999db19ba14",
+      "bytes": 2913,
+      "captured_at": "2026-10-05T17:03:00Z",
+      "description": "Synthetic interactive runner record."
+    },
+    {
       "id": "apply-log",
       "kind": "log",
-      "path": "packages/app-state/evidence/fixtures/artifacts/apply.log",
-      "media_type": "text/plain",
-      "sha256": "8ec256c788ab83a885b92c5c5031cea6d0c9272755aa7c1865948e2065c958c4",
-      "bytes": 40,
+      "path": "packages/app-state/evidence/fixtures/runs/fixture-20261005T170000Z/apply.log",
+      "media_type": "application/json",
+      "sha256": "e938b49a0fb99aa6507b5a3f09a017043185aa608efa65730f38e8e37ee47ad3",
+      "bytes": 80,
       "captured_at": "2026-10-05T17:01:00Z",
       "description": "Synthetic apply output."
     },
     {
-      "id": "visible-behavior",
-      "kind": "report",
-      "path": "packages/app-state/evidence/fixtures/artifacts/visible-behavior.txt",
-      "media_type": "text/plain",
-      "sha256": "d056b191a5abab98fdf5cd0b32b0b47bca007146dfeb5df72b2a29fcd1a92ee0",
-      "bytes": 65,
+      "id": "idempotence-log",
+      "kind": "log",
+      "path": "packages/app-state/evidence/fixtures/runs/fixture-20261005T170000Z/idempotence.log",
+      "media_type": "application/json",
+      "sha256": "d1cc525e8ace3e421b9b663c31d364128a1df53ac334ca92d016e48758773434",
+      "bytes": 79,
       "captured_at": "2026-10-05T17:02:00Z",
+      "description": "Synthetic second-apply output."
+    },
+    {
+      "id": "operator-observation",
+      "kind": "report",
+      "path": "packages/app-state/evidence/fixtures/runs/fixture-20261005T170000Z/operator-observation.txt",
+      "media_type": "text/plain",
+      "sha256": "5c9f73bed834e4d098e88521d055749bb19a91039902189466cbf0ee3ceba996",
+      "bytes": 67,
+      "captured_at": "2026-10-05T17:02:30Z",
       "description": "Synthetic operator observation."
     },
     {
-      "id": "idempotence-log",
-      "kind": "log",
-      "path": "packages/app-state/evidence/fixtures/artifacts/idempotence.log",
-      "media_type": "text/plain",
-      "sha256": "c667851bc942ea12660d607be271f7bce84808be528941ff2ed08d030371364f",
-      "bytes": 44,
-      "captured_at": "2026-10-05T17:03:00Z",
-      "description": "Synthetic second-apply output."
+      "id": "visible-artifact",
+      "kind": "screenshot",
+      "path": "packages/app-state/evidence/fixtures/runs/fixture-20261005T170000Z/visible-artifact.png",
+      "media_type": "image/png",
+      "sha256": "1400da1030558d0997ffeaae98a88aa9f091550589822de864ff81bdf8e10893",
+      "bytes": 64,
+      "captured_at": "2026-10-05T17:02:30Z",
+      "description": "Synthetic visible artifact."
     }
   ]
 }

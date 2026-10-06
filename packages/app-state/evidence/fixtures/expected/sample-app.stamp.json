@@ -1,6 +1,6 @@
 {
   "app": "1.2.3 (123)",
   "date": "2026-10-05",
-  "harness": "t3-evidence/v1@d24c30cb35da7819f4986fb6b7366b490f91a9a6#sha256:affc748b42ba6980874f831ab67a499bdddaa8ea9872fb4e07d693d4a49b728d",
+  "harness": "t3-evidence/v1@c7a3322ae5f7b4be65b55f1a24cdcfe6a41b0051#sha256:3a9eb2e72bec695d278cc8744d8ab53bd0390ad1dc62b3c078a959a9c5c71f1b",
   "macos": "15.6 (24G84)"
 }

@@ -21,7 +21,7 @@ on:
       - "tools/app-state/**"
       - "tools/update-homebrew-app-catalog.sh"
       - "packages/app-state/values/**"
-      - "packages/app-state/metrics/**"
+      - "packages/app-state/metrics/zero-click.json"
       - "packages/app-state/metrics/recipe-candidates.json"
       - "packages/app-state/metrics/recipe-candidates.schema.json"
       - "tests/vm/vm-test.sh"
@@ -42,7 +42,7 @@ on:
       - "tools/app-state/**"
       - "tools/update-homebrew-app-catalog.sh"
       - "packages/app-state/values/**"
-      - "packages/app-state/metrics/**"
+      - "packages/app-state/metrics/zero-click.json"
       - "packages/app-state/metrics/recipe-candidates.json"
       - "packages/app-state/metrics/recipe-candidates.schema.json"
       - "tests/vm/vm-test.sh"
@@ -59,6 +59,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - name: Validate T3 evidence contract and verification stamps
         run: packages/app-state/evidence/tests/run.sh
       - name: Validate recipe candidate scoring and freshness

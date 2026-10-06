@@ -1,0 +1,84 @@
+{
+  "$schema": "https://raw.githubusercontent.com/lucamaraschi/nix-me/main/packages/app-state/evidence/t3-run-record.schema.json",
+  "record_version": 1,
+  "origin": "interactive-t3-runner",
+  "procedure": {
+    "id": "sample-visible-behavior",
+    "version": 1,
+    "path": "packages/app-state/evidence/fixtures/procedures/sample-visible-behavior.v1.json",
+    "sha256": "84e30a6291c767f78cede177037cc9cad2b6c62c064c8808209be9857b8aef0d",
+    "harness_revision": "c7a3322ae5f7b4be65b55f1a24cdcfe6a41b0051",
+    "runner_sha256": "8c2aeebe0e147bffaa1a8290a5dfdf8d23286a7f57503d5814887d35f95d0c0d"
+  },
+  "recipe": {
+    "id": "sample-app",
+    "path": "packages/app-state/evidence/fixtures/recipes/sample-app.yaml",
+    "sha256": "b1efea169700f7210994f3ebb24e29df4895630055a398bed0cbf2716c7b356c"
+  },
+  "environment": {
+    "kind": "disposable_vm",
+    "identifier": "fixture-macos-base-1",
+    "macos": {
+      "version": "15.6",
+      "build": "24G84"
+    },
+    "architecture": "arm64"
+  },
+  "application": {
+    "bundle_id": "com.nix-me.fixture",
+    "version": "1.2.3",
+    "build": "123"
+  },
+  "engine": {
+    "path": "/fixture/bin/nix-me-apps",
+    "version": "nix-me-apps fixture"
+  },
+  "run": {
+    "id": "fixture-20261005T170000Z",
+    "started_at": "2026-10-05T17:00:00Z",
+    "finished_at": "2026-10-05T17:03:00Z"
+  },
+  "commands": {
+    "apply": {
+      "mode": "apply",
+      "output": "apply.log",
+      "output_sha256": "e938b49a0fb99aa6507b5a3f09a017043185aa608efa65730f38e8e37ee47ad3",
+      "output_bytes": 80,
+      "stderr": "apply.stderr.log",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_bytes": 0,
+      "exit_code": 0,
+      "started_at": "2026-10-05T17:00:00Z",
+      "finished_at": "2026-10-05T17:01:00Z"
+    },
+    "idempotence": {
+      "mode": "diff",
+      "output": "idempotence.log",
+      "output_sha256": "d1cc525e8ace3e421b9b663c31d364128a1df53ac334ca92d016e48758773434",
+      "output_bytes": 79,
+      "stderr": "idempotence.stderr.log",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_bytes": 0,
+      "exit_code": 0,
+      "started_at": "2026-10-05T17:01:00Z",
+      "finished_at": "2026-10-05T17:02:00Z"
+    }
+  },
+  "operator": {
+    "attested": true,
+    "identity": "Synthetic Fixture Operator",
+    "observed_at": "2026-10-05T17:02:30Z",
+    "challenge": "FIXTURE-CHALLENGE",
+    "confirmation": "PASS FIXTURE-CHALLENGE",
+    "observation": "The expected synthetic behavior was visible.",
+    "report": "operator-observation.txt",
+    "report_sha256": "5c9f73bed834e4d098e88521d055749bb19a91039902189466cbf0ee3ceba996",
+    "report_bytes": 67,
+    "artifact": {
+      "path": "visible-artifact.png",
+      "media_type": "image/png",
+      "sha256": "1400da1030558d0997ffeaae98a88aa9f091550589822de864ff81bdf8e10893",
+      "bytes": 64
+    }
+  }
+}
