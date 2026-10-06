@@ -9,6 +9,7 @@ use serde_json::Value;
 use std::collections::BTreeSet;
 use std::fs;
 use std::io::{self, IsTerminal, Write};
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, SystemTime};
@@ -560,12 +561,28 @@ fn captured_output(result: &Value) -> &Value {
     }
 }
 
-fn read_existing_output(path: &Path) -> Result<Option<Value>> {
+fn review_allowlist(result: &Value) -> BTreeSet<String> {
+    result["redaction"]["allowlisted_paths"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .map(ToOwned::to_owned)
+        .collect()
+}
+
+fn read_existing_output(
+    path: &Path,
+    include: &BTreeSet<String>,
+) -> Result<(Option<Value>, Vec<Redaction>)> {
     match fs::read(path) {
-        Ok(bytes) => serde_json::from_slice(&bytes)
-            .with_context(|| format!("parse existing capture output {}", path.display()))
-            .map(Some),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Ok(bytes) => {
+            let mut value: Value = serde_json::from_slice(&bytes)
+                .with_context(|| format!("parse existing capture output {}", path.display()))?;
+            let redactions = redact_secrets(&mut value, include);
+            Ok((Some(value), redactions))
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok((None, Vec::new())),
         Err(error) => Err(error).with_context(|| format!("read capture output {}", path.display())),
     }
 }
@@ -583,7 +600,8 @@ pub fn review_sniff_output(
         ));
     }
     let proposed = canonicalize(captured_output(result));
-    let existing = read_existing_output(output)?;
+    let include = review_allowlist(result);
+    let (existing, existing_redactions) = read_existing_output(output, &include)?;
     let diff = capture_diff(existing.as_ref(), &proposed);
     let has_changes = diff["changes"]
         .as_array()
@@ -594,6 +612,7 @@ pub fn review_sniff_output(
         "source_artifact":source,
         "output_artifact":output,
         "redaction":result.get("redaction").cloned().unwrap_or(Value::Null),
+        "existing_output_redactions":existing_redactions,
         "diff":diff
     });
     eprintln!(
@@ -666,8 +685,18 @@ fn write_capture_output(path: &Path, output: &Value) -> Result<()> {
     ));
     let mut bytes = serde_json::to_vec_pretty(output)?;
     bytes.push(b'\n');
-    fs::write(&temporary, bytes)?;
+    let mut file = fs::OpenOptions::new()
+        .create(true)
+        .truncate(true)
+        .write(true)
+        .mode(0o600)
+        .open(&temporary)?;
+    file.set_permissions(fs::Permissions::from_mode(0o600))?;
+    file.write_all(&bytes)?;
+    file.sync_all()?;
+    drop(file);
     fs::rename(&temporary, path)?;
+    fs::set_permissions(path, fs::Permissions::from_mode(0o600))?;
     Ok(())
 }
 
@@ -896,6 +925,34 @@ mod tests {
                 {"op":"add","path":"$/z","after":0}
             ])
         );
+    }
+
+    #[test]
+    fn existing_capture_is_redacted_before_review() {
+        let directory = tempfile::TempDir::new().unwrap();
+        let output = directory.path().join("capture.json");
+        fs::write(
+            &output,
+            br#"{"safe":"visible","password":"TOP-SECRET-EXISTING-VALUE"}"#,
+        )
+        .unwrap();
+
+        let (existing, redactions) = read_existing_output(&output, &BTreeSet::new()).unwrap();
+
+        assert_eq!(existing.unwrap(), serde_json::json!({"safe":"visible"}));
+        assert_eq!(redactions.len(), 1);
+        assert_eq!(redactions[0].path, "password");
+    }
+
+    #[test]
+    fn capture_output_is_always_user_only() {
+        let directory = tempfile::TempDir::new().unwrap();
+        let output = directory.path().join("capture.json");
+
+        write_capture_output(&output, &serde_json::json!({"password":"explicit"})).unwrap();
+
+        let mode = fs::metadata(output).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
     }
     #[test]
     fn sniffer_peels_encrypted_header_gzip_json() {

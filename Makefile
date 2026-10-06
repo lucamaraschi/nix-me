@@ -175,6 +175,7 @@ test-details:
 test-cli:
 	@bash -n apps/cli/bin/nix-me apps/cli/lib/*.sh packages/management-api/bin/* tools/local-ai/*.sh
 	@$(MAKE) test-local-ai
+	@./apps/cli/tests/test-harness-status.sh
 	@$(MAKE) test-api test-actions test-details
 
 test-local-ai:
