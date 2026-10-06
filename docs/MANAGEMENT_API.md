@@ -74,8 +74,9 @@ and returns an inspectable operation record. Status is strictly read-only: a
 dead worker is shown as failed, but its state and partial data are retained.
 Explicit start or cancel finalizes and cleans that stale operation. Cancellation,
 downloader failure, and checksum mismatch never replace a valid installed model.
-A checksum is marked verified only when the caller supplies an expected SHA-256
-and the completed artifact matches it.
+A checksum is marked verified only when a profile or caller supplies an expected
+SHA-256 and the completed artifact matches it. A profile checksum is
+authoritative and conflicting caller input is rejected before download.
 
 `nix-me action apply` runs the existing `switch-fast` activation path after a
 native macOS administrator prompt. The app passes the evaluated hostname and

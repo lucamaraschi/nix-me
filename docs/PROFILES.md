@@ -124,11 +124,13 @@ nix-me local-ai model start --checksum <sha256>
 ```
 
 For a host-wide trusted value, set `localAi.expectedSha256` to the same
-64-character digest. The lifecycle action validates it before replacing the
-installed model.
+64-character digest. That profile value is authoritative: callers may omit the
+checksum or repeat it, but cannot override it with a different digest.
 
-Without a caller-provided checksum, completion is reported as `notProvided`,
-not as verified. Refresh, doctor, and `make switch` never start a download.
+Without a profile or caller checksum, completion is reported as `notProvided`,
+not as verified. Cancellation remains effective during download and checksum
+verification; the final same-directory rename is the atomic commit point.
+Refresh, doctor, and `make switch` never start a download.
 
 Inside Pi, run `/model` and select `ds4/dsv4-flash-q2`. The DeepSeek V4 Flash
 Q2 model is about 81 GiB and is never downloaded by `make switch`. DS4 is for

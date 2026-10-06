@@ -21,6 +21,7 @@ final class DashboardStore: ObservableObject {
     private var client: ManagementAPIClient?
     private var monitoringTask: Task<Void, Never>?
     private var localAIModelMonitoringTask: Task<Void, Never>?
+    private var localAIModelMonitoringID: UUID?
 
     func startMonitoring() {
         guard monitoringTask == nil else { return }
@@ -258,8 +259,13 @@ final class DashboardStore: ObservableObject {
             self.client = managementClient
             let actionClient = ManagementActionClient(configurationDirectory: managementClient.configurationDirectory)
             localAIModelOperation = try await actionClient.cancelLocalAIModel().operation
-            localAIModelMonitoringTask?.cancel()
-            updateNotice = localAIModelOperation?.message ?? "Model download cancellation requested."
+            if localAIModelOperation?.isRunning == true {
+                updateNotice = "Model download cancellation requested; waiting for the worker to stop."
+                monitorLocalAIModelOperation()
+            } else {
+                stopLocalAIModelMonitoring()
+                updateNotice = localAIModelOperation?.message ?? "Model download cancelled."
+            }
         } catch {
             updateNotice = "Could not cancel the model download: \(error.localizedDescription)"
         }
@@ -267,12 +273,19 @@ final class DashboardStore: ObservableObject {
     }
 
     private func monitorLocalAIModelOperation() {
-        guard localAIModelMonitoringTask == nil else { return }
+        let monitoringID = UUID()
+        localAIModelMonitoringTask?.cancel()
+        localAIModelMonitoringID = monitoringID
         localAIModelMonitoringTask = Task { [weak self] in
-            defer { self?.localAIModelMonitoringTask = nil }
+            defer {
+                if self?.localAIModelMonitoringID == monitoringID {
+                    self?.localAIModelMonitoringTask = nil
+                    self?.localAIModelMonitoringID = nil
+                }
+            }
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
-                guard !Task.isCancelled, let self else { return }
+                guard !Task.isCancelled, let self, self.localAIModelMonitoringID == monitoringID else { return }
                 do {
                     let managementClient = try self.client ?? ManagementAPIClient()
                     self.client = managementClient
@@ -292,6 +305,12 @@ final class DashboardStore: ObservableObject {
                 }
             }
         }
+    }
+
+    private func stopLocalAIModelMonitoring() {
+        localAIModelMonitoringID = nil
+        localAIModelMonitoringTask?.cancel()
+        localAIModelMonitoringTask = nil
     }
 
     func clearUpdateNotice() {

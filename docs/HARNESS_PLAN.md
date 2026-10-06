@@ -48,10 +48,10 @@ Version 0.1 provides an opt-in, runtime-free `nix-me-apps` engine. It can:
 
 The persisted state format and JSON plan surface are version 1. Recipes remain
 local to this repository and are treated as untrusted until schema and semantic
-validation pass. The current integration branch also provides engine-owned
+validation pass. The current implementation also provides engine-owned
 status, guided capture review, signed T3 evidence tooling, explicit document
-migrations, and local-AI status. These additions do not change the production
-recipe, plan, or state format version.
+migrations, and local-AI status and lifecycle actions. These additions do not
+change the production recipe, plan, or state format version.
 
 ## Verification tiers
 

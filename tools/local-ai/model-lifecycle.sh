@@ -143,12 +143,18 @@ write_state() {
   local expected_bytes="${12}"
   local required_bytes="${13}"
   local available_bytes="${14}"
+  local worker_started=""
+
+  if [[ "$pid_json" != "null" ]] && is_uint "$pid_json" && ((pid_json > 1)); then
+    worker_started="$(process_started_at "$pid_json")"
+  fi
 
   jq -n \
     --arg operationId "$operation_id" \
     --arg status "$status" \
     --arg phase "$phase" \
     --argjson pid "$pid_json" \
+    --arg processStartedAt "$worker_started" \
     --arg startedAt "$started_at" \
     --arg updatedAt "$(timestamp)" \
     --arg finishedAt "$finished_at" \
@@ -170,6 +176,7 @@ write_state() {
       status: $status,
       phase: $phase,
       pid: $pid,
+      processStartedAt: (if $processStartedAt == "" then null else $processStartedAt end),
       startedAt: $startedAt,
       updatedAt: $updatedAt,
       finishedAt: (if $finishedAt == "" then null else $finishedAt end),
@@ -207,13 +214,14 @@ render_status() {
     return
   fi
 
-  local stage bytes expected percent state_status pid operation_id process_alive stale_worker latest_state
+  local stage bytes expected percent state_status pid operation_id process_started process_alive stale_worker latest_state
   state_status="$(jq -r '.status' <<<"$state_json")"
   pid="$(jq -r '.pid // 0' <<<"$state_json")"
   operation_id="$(jq -r '.operationId // ""' <<<"$state_json")"
+  process_started="$(jq -r '.processStartedAt // ""' <<<"$state_json")"
   process_alive=false
   stale_worker=false
-  if [[ "$state_status" == "running" ]] && worker_matches "$pid" "$operation_id"; then
+  if [[ "$state_status" == "running" ]] && worker_matches "$pid" "$operation_id" "$process_started"; then
     process_alive=true
   elif [[ "$state_status" == "running" ]]; then
     # The worker may have atomically published its terminal state between the
@@ -224,8 +232,9 @@ render_status() {
       state_status="$(jq -r '.status' <<<"$state_json")"
       pid="$(jq -r '.pid // 0' <<<"$state_json")"
       operation_id="$(jq -r '.operationId // ""' <<<"$state_json")"
+      process_started="$(jq -r '.processStartedAt // ""' <<<"$state_json")"
     fi
-    if [[ "$state_status" == "running" ]] && worker_matches "$pid" "$operation_id"; then
+    if [[ "$state_status" == "running" ]] && worker_matches "$pid" "$operation_id" "$process_started"; then
       process_alive=true
     elif [[ "$state_status" == "running" ]]; then
       stale_worker=true
@@ -276,23 +285,28 @@ render_status() {
 worker_matches() {
   local pid="$1"
   local operation_id="$2"
-  local command_line
-  if ! is_uint "$pid" || ((pid <= 1)) || [[ ! "$operation_id" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+  local expected_started="$3"
+  local command_line actual_started
+  if ! is_uint "$pid" || ((pid <= 1)) || [[ ! "$operation_id" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || \
+    [[ -z "$expected_started" ]]; then
     return 1
   fi
+  actual_started="$(process_started_at "$pid")"
+  [[ -n "$actual_started" && "$actual_started" == "$expected_started" ]] || return 1
   command_line="$(ps -ww -p "$pid" -o command= 2>/dev/null || true)"
   [[ "$command_line" == *"$SCRIPT_PATH __worker $operation_id "* ]]
 }
 
 finalize_stale_operation() {
-  local status pid operation_id stage_path runner_path stored_model_path temporary
+  local status pid operation_id process_started stage_path runner_path stored_model_path temporary
   local cleanup_message remaining_stage
   [[ -r "$STATE_FILE" ]] || return 0
   status="$(jq -r '.status // ""' "$STATE_FILE" 2>/dev/null || true)"
   [[ "$status" == "running" ]] || return 0
   pid="$(jq -r '.pid // 0' "$STATE_FILE" 2>/dev/null || true)"
   operation_id="$(jq -r '.operationId // ""' "$STATE_FILE" 2>/dev/null || true)"
-  worker_matches "$pid" "$operation_id" && return 0
+  process_started="$(jq -r '.processStartedAt // ""' "$STATE_FILE" 2>/dev/null || true)"
+  worker_matches "$pid" "$operation_id" "$process_started" && return 0
 
   stage_path="$(jq -r '.stagePath // ""' "$STATE_FILE" 2>/dev/null || true)"
   stored_model_path="$(jq -r '.model.path // ""' "$STATE_FILE" 2>/dev/null || true)"
@@ -399,6 +413,14 @@ worker() {
       kill -TERM "$child_pid" >/dev/null 2>&1 || true
     fi
   }
+
+  finish_cancelled() {
+    cleanup_stage "$operation_id" "$stage_path" "$runner_path" "$MODEL_PATH" || true
+    write_state "$operation_id" cancelled cancelled null "$started_at" "$(timestamp)" \
+      "Model download cancelled; partial data was removed" "" "$expected_sha" "" notChecked \
+      "$expected_bytes" "$required_bytes" "$available_bytes"
+    exit 0
+  }
   trap on_cancel TERM INT
 
   write_state "$operation_id" running downloading "$$" "$started_at" "" \
@@ -419,11 +441,7 @@ worker() {
   child_pid=0
 
   if [[ "$cancelled" == "true" ]]; then
-    cleanup_stage "$operation_id" "$stage_path" "$runner_path" "$MODEL_PATH" || true
-    write_state "$operation_id" cancelled cancelled null "$started_at" "$(timestamp)" \
-      "Model download cancelled; partial data was removed" "" "$expected_sha" "" notChecked \
-      "$expected_bytes" "$required_bytes" "$available_bytes"
-    exit 0
+    finish_cancelled
   fi
 
   if ((exit_code != 0)); then
@@ -443,13 +461,30 @@ worker() {
       "$expected_bytes" "$required_bytes" "$available_bytes"
     exit 0
   fi
+  [[ "$cancelled" == "true" ]] && finish_cancelled
 
   integrity_status=notProvided
   if [[ -n "$expected_sha" ]]; then
     write_state "$operation_id" running verifying "$$" "$started_at" "" \
       "Verifying SHA-256 integrity" "$stage_path" "$expected_sha" "" pending \
       "$expected_bytes" "$required_bytes" "$available_bytes"
-    actual_sha="$(sha256_file "$candidate")"
+    local checksum_file="$runner_path/model.sha256"
+    sha256_file "$candidate" >"$checksum_file" &
+    child_pid=$!
+    set +e
+    wait "$child_pid"
+    exit_code=$?
+    set -e
+    child_pid=0
+    [[ "$cancelled" == "true" ]] && finish_cancelled
+    if ((exit_code != 0)); then
+      cleanup_stage "$operation_id" "$stage_path" "$runner_path" "$MODEL_PATH" || true
+      write_state "$operation_id" failed failed null "$started_at" "$(timestamp)" \
+        "The model checksum could not be calculated" "" "$expected_sha" "" notChecked \
+        "$expected_bytes" "$required_bytes" "$available_bytes"
+      exit 0
+    fi
+    actual_sha="$(tr -d '[:space:]' <"$checksum_file")"
     if [[ "$actual_sha" != "$expected_sha" ]]; then
       cleanup_stage "$operation_id" "$stage_path" "$runner_path" "$MODEL_PATH" || true
       write_state "$operation_id" failed failed null "$started_at" "$(timestamp)" \
@@ -463,9 +498,25 @@ worker() {
   write_state "$operation_id" running installing "$$" "$started_at" "" \
     "Installing the verified model atomically" "$stage_path" "$expected_sha" "$actual_sha" "$integrity_status" \
     "$expected_bytes" "$required_bytes" "$available_bytes"
+  [[ "$cancelled" == "true" ]] && finish_cancelled
 
   local pending_install="${MODEL_PATH}.nix-me-install-${operation_id}"
-  if ! mv -- "$candidate" "$pending_install" || ! mv -f -- "$pending_install" "$MODEL_PATH"; then
+  if ! mv -- "$candidate" "$pending_install"; then
+    cleanup_stage "$operation_id" "$stage_path" "$runner_path" "$MODEL_PATH" || true
+    write_state "$operation_id" failed failed null "$started_at" "$(timestamp)" \
+      "The completed model could not be staged for installation" "" "$expected_sha" "$actual_sha" "$integrity_status" \
+      "$expected_bytes" "$required_bytes" "$available_bytes"
+    exit 0
+  fi
+
+  # Once the candidate is staged beside the destination, the final rename is
+  # the operation's atomic commit point and is intentionally non-interruptible.
+  trap '' TERM INT
+  if [[ "$cancelled" == "true" ]]; then
+    rm -f -- "$pending_install"
+    finish_cancelled
+  fi
+  if ! mv -f -- "$pending_install" "$MODEL_PATH"; then
     rm -f -- "$pending_install"
     cleanup_stage "$operation_id" "$stage_path" "$runner_path" "$MODEL_PATH" || true
     write_state "$operation_id" failed failed null "$started_at" "$(timestamp)" \
@@ -481,8 +532,8 @@ worker() {
 }
 
 start_operation() {
-  local payload expected_sha expected_bytes required_bytes available_kib available_bytes
-  local operation_id started_at model_parent stage_path runner_path worker_pid current_status current_pid current_operation_id
+  local payload request_sha configured_sha expected_sha expected_bytes required_bytes available_kib available_bytes
+  local operation_id started_at model_parent stage_path runner_path worker_pid worker_started state_process_started current_status current_pid current_operation_id current_process_started
 
   payload="$(cat)"
   [[ -n "$payload" ]] || payload='{}'
@@ -490,17 +541,27 @@ start_operation() {
     fail_json invalid_request "The model request must contain only expectedSha256"
     return 65
   fi
-  expected_sha="$(jq -r '.expectedSha256 // ""' <<<"$payload")"
-  if [[ -z "$expected_sha" ]]; then
-    expected_sha="${LOCAL_AI_EXPECTED_SHA256:-}"
-  fi
-  if [[ -n "$expected_sha" ]]; then
-    expected_sha="$(printf '%s' "$expected_sha" | tr '[:upper:]' '[:lower:]')"
-    if [[ ! "$expected_sha" =~ ^[0-9a-f]{64}$ ]]; then
+  request_sha="$(jq -r '.expectedSha256 // ""' <<<"$payload")"
+  configured_sha="${LOCAL_AI_EXPECTED_SHA256:-}"
+  if [[ -n "$request_sha" ]]; then
+    request_sha="$(printf '%s' "$request_sha" | tr '[:upper:]' '[:lower:]')"
+    if [[ ! "$request_sha" =~ ^[0-9a-f]{64}$ ]]; then
       fail_json invalid_checksum "expectedSha256 must contain exactly 64 hexadecimal characters"
       return 65
     fi
   fi
+  if [[ -n "$configured_sha" ]]; then
+    configured_sha="$(printf '%s' "$configured_sha" | tr '[:upper:]' '[:lower:]')"
+    if [[ ! "$configured_sha" =~ ^[0-9a-f]{64}$ ]]; then
+      fail_json invalid_configuration "The configured local-AI checksum is invalid"
+      return 78
+    fi
+  fi
+  if [[ -n "$configured_sha" && -n "$request_sha" && "$configured_sha" != "$request_sha" ]]; then
+    fail_json checksum_conflict "The requested checksum does not match the profile-configured checksum"
+    return 65
+  fi
+  expected_sha="${configured_sha:-$request_sha}"
 
   if ! valid_path "$MODEL_PATH" || ! valid_path "$DOWNLOAD_PROGRAM" || \
     [[ ! "$DOWNLOAD_TARGET" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || \
@@ -524,8 +585,9 @@ start_operation() {
     current_status="$(jq -r '.status // ""' "$STATE_FILE" 2>/dev/null || true)"
     current_pid="$(jq -r '.pid // 0' "$STATE_FILE" 2>/dev/null || true)"
     current_operation_id="$(jq -r '.operationId // ""' "$STATE_FILE" 2>/dev/null || true)"
+    current_process_started="$(jq -r '.processStartedAt // ""' "$STATE_FILE" 2>/dev/null || true)"
     if [[ "$current_status" == "running" ]]; then
-      if worker_matches "$current_pid" "$current_operation_id"; then
+      if worker_matches "$current_pid" "$current_operation_id" "$current_process_started"; then
         release_start_lock
         fail_json operation_busy "A model operation is already running"
         return 75
@@ -561,19 +623,30 @@ start_operation() {
     "$expected_sha" "$expected_bytes" "$required_bytes" "$available_bytes" \
     >>"$LOG_FILE" 2>&1 </dev/null &
   worker_pid=$!
+  worker_started=""
+
+  local identity_attempt=0
+  while [[ -z "$worker_started" ]] && ((identity_attempt < 25)) && kill -0 "$worker_pid" 2>/dev/null; do
+    worker_started="$(process_started_at "$worker_pid")"
+    [[ -n "$worker_started" ]] || sleep 0.02
+    identity_attempt=$((identity_attempt + 1))
+  done
 
   local attempt=0 state_pid=0
   while ((attempt < 100)); do
     state_pid="$(jq -r '.pid // 0' "$STATE_FILE" 2>/dev/null || printf 0)"
     current_operation_id="$(jq -r '.operationId // ""' "$STATE_FILE" 2>/dev/null || true)"
-    [[ "$state_pid" == "$worker_pid" && "$current_operation_id" == "$operation_id" ]] && break
-    worker_matches "$worker_pid" "$operation_id" || break
+    state_process_started="$(jq -r '.processStartedAt // ""' "$STATE_FILE" 2>/dev/null || true)"
+    [[ "$state_pid" == "$worker_pid" && "$current_operation_id" == "$operation_id" && \
+      "$state_process_started" == "$worker_started" && -n "$worker_started" ]] && break
+    worker_matches "$worker_pid" "$operation_id" "$worker_started" || break
     sleep 0.02
     attempt=$((attempt + 1))
   done
   release_start_lock
-  if [[ "$state_pid" != "$worker_pid" || "$current_operation_id" != "$operation_id" ]]; then
-    if worker_matches "$worker_pid" "$operation_id"; then
+  if [[ "$state_pid" != "$worker_pid" || "$current_operation_id" != "$operation_id" || \
+    "$state_process_started" != "$worker_started" || -z "$worker_started" ]]; then
+    if worker_matches "$worker_pid" "$operation_id" "$worker_started"; then
       kill -TERM "$worker_pid" 2>/dev/null || true
     fi
     cleanup_stage "$operation_id" "$stage_path" "$runner_path" "$MODEL_PATH" || true
@@ -585,7 +658,7 @@ start_operation() {
 }
 
 cancel_operation() {
-  local status pid operation_id attempt
+  local status pid operation_id process_started attempt
   mkdir -p -- "$STATE_ROOT"
   chmod 700 "$STATE_ROOT"
   if ! acquire_start_lock cancel; then
@@ -600,7 +673,8 @@ cancel_operation() {
   status="$(jq -r '.status // ""' "$STATE_FILE" 2>/dev/null || true)"
   pid="$(jq -r '.pid // 0' "$STATE_FILE" 2>/dev/null || true)"
   operation_id="$(jq -r '.operationId // ""' "$STATE_FILE" 2>/dev/null || true)"
-  if [[ "$status" != "running" ]] || ! worker_matches "$pid" "$operation_id"; then
+  process_started="$(jq -r '.processStartedAt // ""' "$STATE_FILE" 2>/dev/null || true)"
+  if [[ "$status" != "running" ]] || ! worker_matches "$pid" "$operation_id" "$process_started"; then
     if [[ "$status" == "running" ]]; then
       finalize_stale_operation
     fi
@@ -611,7 +685,7 @@ cancel_operation() {
 
   kill -TERM "$pid"
   attempt=0
-  while ((attempt < 100)) && worker_matches "$pid" "$operation_id"; do
+  while ((attempt < 100)) && worker_matches "$pid" "$operation_id" "$process_started"; do
     sleep 0.05
     attempt=$((attempt + 1))
   done

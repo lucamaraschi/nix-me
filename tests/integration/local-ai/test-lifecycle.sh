@@ -4,6 +4,7 @@ set -euo pipefail
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 lifecycle="$repo_dir/tools/local-ai/model-lifecycle.sh"
 fake_downloader="$repo_dir/tests/integration/local-ai/fake-downloader.sh"
+fake_sha256sum="$repo_dir/tests/integration/local-ai/fake-sha256sum.sh"
 temp_dir="$(mktemp -d "${TMPDIR:-/tmp}/nix-me-local-ai-lifecycle.XXXXXX")"
 trap 'rm -rf "$temp_dir"' EXIT
 
@@ -35,6 +36,7 @@ run_lifecycle() {
     FAKE_DOWNLOAD_MODE="${FAKE_DOWNLOAD_MODE:-success}" \
     FAKE_DOWNLOAD_LOG="$case_log" \
     FAKE_MODEL_CONTENT="${FAKE_MODEL_CONTENT:-model-data}" \
+    FAKE_SHA256_MARKER="${FAKE_SHA256_MARKER:-}" \
     "$lifecycle" "$@"
 }
 
@@ -138,6 +140,20 @@ jq -e '
 [[ "$(cat "$case_model")" == "old-model" ]] || fail "configured checksum mismatch replaced the valid model"
 assert_no_partial_data
 
+# A request cannot override the checksum trusted by the host profile.
+new_case checksum-override
+configured_sha="$(printf 'model-data' | shasum -a 256 | awk '{print $1}')"
+if LOCAL_AI_EXPECTED_SHA256="$configured_sha" run_lifecycle start <<<'{"expectedSha256":"0000000000000000000000000000000000000000000000000000000000000000"}' \
+  >"$temp_dir/checksum-override.json"; then
+  fail "caller checksum unexpectedly overrode the configured checksum"
+else
+  checksum_override_status=$?
+fi
+[[ "$checksum_override_status" == "65" ]] || fail "checksum override returned $checksum_override_status"
+jq -e '.error.code == "checksum_conflict"' "$temp_dir/checksum-override.json" >/dev/null
+[[ ! -e "$case_log" ]] || fail "downloader ran after a checksum conflict"
+[[ "$(cat "$case_model")" == "old-model" ]] || fail "checksum conflict changed the installed model"
+
 # Cancellation terminates the downloader and removes its partial artifact.
 new_case cancellation
 FAKE_DOWNLOAD_MODE=slow run_lifecycle start <<<'{}' >"$temp_dir/cancel-start.json"
@@ -153,7 +169,32 @@ jq -e '.operation.status == "cancelled" and .operation.phase == "cancelled"' \
 [[ "$(cat "$case_model")" == "old-model" ]] || fail "cancellation replaced the valid model"
 assert_no_partial_data
 
-# A reused PID that belongs to another command is never treated as our worker.
+# Verification is a cancellable child phase and cannot install after cancellation.
+new_case cancellation-during-verification
+fake_bin="$temp_dir/cancellation-during-verification/bin"
+verify_marker="$temp_dir/cancellation-during-verification/verifying"
+mkdir -p "$fake_bin"
+ln -s "$fake_sha256sum" "$fake_bin/sha256sum"
+PATH="$fake_bin:$PATH" \
+FAKE_SHA256_MARKER="$verify_marker" \
+  run_lifecycle start <<<"$(printf '{\"expectedSha256\":\"%s\"}' "$expected_sha")" \
+  >"$temp_dir/verify-cancel-start.json"
+attempt=0
+while [[ ! -s "$verify_marker" && $attempt -lt 100 ]]; do
+  sleep 0.05
+  attempt=$((attempt + 1))
+done
+[[ -s "$verify_marker" ]] || fail "operation never entered checksum verification"
+PATH="$fake_bin:$PATH" \
+FAKE_SHA256_MARKER="$verify_marker" \
+  run_lifecycle cancel >"$temp_dir/verify-cancel.json"
+verify_cancel_result="$(wait_for_terminal_state)"
+jq -e '.operation.status == "cancelled" and .operation.phase == "cancelled"' \
+  <<<"$verify_cancel_result" >/dev/null
+[[ "$(cat "$case_model")" == "old-model" ]] || fail "verification cancellation installed the candidate"
+assert_no_partial_data
+
+# Even a matching command line is not trusted when its process identity differs.
 new_case stale-worker
 stale_operation_id="stale-operation"
 stale_stage="$(dirname "$case_model")/.nix-me-model-$stale_operation_id"
@@ -161,8 +202,11 @@ stale_runner="$case_state/runner-$stale_operation_id"
 mkdir -p "$stale_stage" "$stale_runner"
 printf 'partial' >"$stale_stage/model.gguf.part"
 printf 'runner' >"$stale_runner/download_model.sh"
-sleep 30 &
+bash -c 'while true; do sleep 1; done' "$lifecycle" __worker "$stale_operation_id" fixture &
 unrelated_pid=$!
+unrelated_command="$(ps -ww -p "$unrelated_pid" -o command= 2>/dev/null || true)"
+[[ "$unrelated_command" == *"$lifecycle __worker $stale_operation_id "* ]] || \
+  fail "stale-worker fixture does not have the expected matching command line"
 mkdir -p "$case_state"
 jq -n \
   --arg operationId "$stale_operation_id" \
@@ -171,7 +215,7 @@ jq -n \
   --arg stagePath "$stale_stage" \
   '{
     schemaVersion: 1, operationId: $operationId, action: "local-ai-model-install",
-    status: "running", phase: "downloading", pid: $pid,
+    status: "running", phase: "downloading", pid: $pid, processStartedAt: "not-the-real-start-time",
     startedAt: "2026-10-05T20:00:00Z", updatedAt: "2026-10-05T20:00:01Z", finishedAt: null,
     message: "Downloading", model: {name:"Test",path:$modelPath,downloadTarget:"ds4f-q2"},
     progress: {bytesDownloaded:0,expectedBytes:10,percent:0},
