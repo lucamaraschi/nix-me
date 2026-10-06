@@ -214,15 +214,20 @@ render_status() {
     return
   fi
 
-  local stage bytes expected percent state_status pid operation_id process_started process_alive stale_worker latest_state
+  local stage bytes expected percent state_status pid operation_id process_started process_alive stale_worker unverifiable_worker latest_state
   state_status="$(jq -r '.status' <<<"$state_json")"
   pid="$(jq -r '.pid // 0' <<<"$state_json")"
   operation_id="$(jq -r '.operationId // ""' <<<"$state_json")"
   process_started="$(jq -r '.processStartedAt // ""' <<<"$state_json")"
   process_alive=false
   stale_worker=false
+  unverifiable_worker=false
   if [[ "$state_status" == "running" ]] && worker_matches "$pid" "$operation_id" "$process_started"; then
     process_alive=true
+  elif [[ "$state_status" == "running" && -z "$process_started" ]] && \
+    worker_command_matches "$pid" "$operation_id"; then
+    process_alive=true
+    unverifiable_worker=true
   elif [[ "$state_status" == "running" ]]; then
     # The worker may have atomically published its terminal state between the
     # state read and process inspection. Re-read once before declaring it stale.
@@ -236,6 +241,10 @@ render_status() {
     fi
     if [[ "$state_status" == "running" ]] && worker_matches "$pid" "$operation_id" "$process_started"; then
       process_alive=true
+    elif [[ "$state_status" == "running" && -z "$process_started" ]] && \
+      worker_command_matches "$pid" "$operation_id"; then
+      process_alive=true
+      unverifiable_worker=true
     elif [[ "$state_status" == "running" ]]; then
       stale_worker=true
     fi
@@ -263,6 +272,7 @@ render_status() {
     --argjson percent "$percent" \
     --argjson processAlive "$process_alive" \
     --argjson staleWorker "$stale_worker" \
+    --argjson unverifiableWorker "$unverifiable_worker" \
     --arg observedAt "$(timestamp)" \
     '{
       schemaVersion: 1,
@@ -270,7 +280,9 @@ render_status() {
         | .progress.bytesDownloaded = $bytesDownloaded
         | .progress.percent = $percent
         | .processAlive = $processAlive
-        | if $staleWorker then
+        | if $unverifiableWorker then
+            .message = "A pre-upgrade model worker is still active; start and cancel are disabled until it exits"
+          elif $staleWorker then
             .status = "failed"
             | .phase = "failed"
             | .pid = null
@@ -282,19 +294,29 @@ render_status() {
     }'
 }
 
+worker_command_matches() {
+  local pid="$1"
+  local operation_id="$2"
+  local command_line
+  if ! is_uint "$pid" || ((pid <= 1)) || [[ ! "$operation_id" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+    return 1
+  fi
+  command_line="$(ps -ww -p "$pid" -o command= 2>/dev/null || true)"
+  [[ "$command_line" == *"$SCRIPT_PATH __worker $operation_id "* ]]
+}
+
 worker_matches() {
   local pid="$1"
   local operation_id="$2"
   local expected_started="$3"
-  local command_line actual_started
+  local actual_started
   if ! is_uint "$pid" || ((pid <= 1)) || [[ ! "$operation_id" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || \
     [[ -z "$expected_started" ]]; then
     return 1
   fi
   actual_started="$(process_started_at "$pid")"
   [[ -n "$actual_started" && "$actual_started" == "$expected_started" ]] || return 1
-  command_line="$(ps -ww -p "$pid" -o command= 2>/dev/null || true)"
-  [[ "$command_line" == *"$SCRIPT_PATH __worker $operation_id "* ]]
+  worker_command_matches "$pid" "$operation_id"
 }
 
 finalize_stale_operation() {
@@ -306,6 +328,9 @@ finalize_stale_operation() {
   pid="$(jq -r '.pid // 0' "$STATE_FILE" 2>/dev/null || true)"
   operation_id="$(jq -r '.operationId // ""' "$STATE_FILE" 2>/dev/null || true)"
   process_started="$(jq -r '.processStartedAt // ""' "$STATE_FILE" 2>/dev/null || true)"
+  if [[ -z "$process_started" ]] && worker_command_matches "$pid" "$operation_id"; then
+    return 1
+  fi
   worker_matches "$pid" "$operation_id" "$process_started" && return 0
 
   stage_path="$(jq -r '.stagePath // ""' "$STATE_FILE" 2>/dev/null || true)"
@@ -587,6 +612,12 @@ start_operation() {
     current_operation_id="$(jq -r '.operationId // ""' "$STATE_FILE" 2>/dev/null || true)"
     current_process_started="$(jq -r '.processStartedAt // ""' "$STATE_FILE" 2>/dev/null || true)"
     if [[ "$current_status" == "running" ]]; then
+      if [[ -z "$current_process_started" ]] && worker_command_matches "$current_pid" "$current_operation_id"; then
+        release_start_lock
+        fail_json operation_identity_unavailable \
+          "A pre-upgrade model operation is still active; wait for it to finish before starting another"
+        return 75
+      fi
       if worker_matches "$current_pid" "$current_operation_id" "$current_process_started"; then
         release_start_lock
         fail_json operation_busy "A model operation is already running"
@@ -674,6 +705,12 @@ cancel_operation() {
   pid="$(jq -r '.pid // 0' "$STATE_FILE" 2>/dev/null || true)"
   operation_id="$(jq -r '.operationId // ""' "$STATE_FILE" 2>/dev/null || true)"
   process_started="$(jq -r '.processStartedAt // ""' "$STATE_FILE" 2>/dev/null || true)"
+  if [[ "$status" == "running" && -z "$process_started" ]] && worker_command_matches "$pid" "$operation_id"; then
+    release_start_lock
+    fail_json operation_identity_unavailable \
+      "A pre-upgrade model operation is still active and cannot be cancelled safely; wait for it to finish"
+    return 75
+  fi
   if [[ "$status" != "running" ]] || ! worker_matches "$pid" "$operation_id" "$process_started"; then
     if [[ "$status" == "running" ]]; then
       finalize_stale_operation

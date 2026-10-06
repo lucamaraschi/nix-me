@@ -194,6 +194,64 @@ jq -e '.operation.status == "cancelled" and .operation.phase == "cancelled"' \
 [[ "$(cat "$case_model")" == "old-model" ]] || fail "verification cancellation installed the candidate"
 assert_no_partial_data
 
+# A still-running operation from the pre-identity schema is never signalled or
+# cleaned until its matching worker exits.
+new_case legacy-active-worker
+legacy_operation_id="legacy-operation"
+legacy_stage="$(dirname "$case_model")/.nix-me-model-$legacy_operation_id"
+legacy_runner="$case_state/runner-$legacy_operation_id"
+mkdir -p "$legacy_stage" "$legacy_runner"
+printf 'partial' >"$legacy_stage/model.gguf.part"
+printf 'runner' >"$legacy_runner/download_model.sh"
+bash -c 'while true; do sleep 1; done' "$lifecycle" __worker "$legacy_operation_id" fixture &
+legacy_pid=$!
+mkdir -p "$case_state"
+jq -n \
+  --arg operationId "$legacy_operation_id" \
+  --argjson pid "$legacy_pid" \
+  --arg modelPath "$case_model" \
+  --arg stagePath "$legacy_stage" \
+  '{
+    schemaVersion: 1, operationId: $operationId, action: "local-ai-model-install",
+    status: "running", phase: "downloading", pid: $pid,
+    startedAt: "2026-10-05T20:00:00Z", updatedAt: "2026-10-05T20:00:01Z", finishedAt: null,
+    message: "Downloading", model: {name:"Test",path:$modelPath,downloadTarget:"ds4f-q2"},
+    progress: {bytesDownloaded:0,expectedBytes:10,percent:0},
+    disk: {requiredBytes:0,availableBytes:100},
+    integrity: {status:"pending",expectedSha256:null,actualSha256:null},
+    stagePath: $stagePath
+  }' >"$case_state/state.json"
+chmod 600 "$case_state/state.json"
+run_lifecycle status >"$temp_dir/legacy-status.json"
+jq -e '
+  .operation.status == "running" and
+  .operation.processAlive == true and
+  (.operation.message | contains("pre-upgrade model worker"))
+' "$temp_dir/legacy-status.json" >/dev/null
+if run_lifecycle start <<<'{}' >"$temp_dir/legacy-start.json"; then
+  fail "start accepted an active pre-upgrade operation"
+else
+  legacy_start_status=$?
+fi
+[[ "$legacy_start_status" == "75" ]] || fail "legacy start returned $legacy_start_status"
+jq -e '.error.code == "operation_identity_unavailable"' "$temp_dir/legacy-start.json" >/dev/null
+if run_lifecycle cancel >"$temp_dir/legacy-cancel.json"; then
+  fail "cancel accepted an unverifiable pre-upgrade operation"
+else
+  legacy_cancel_status=$?
+fi
+[[ "$legacy_cancel_status" == "75" ]] || fail "legacy cancel returned $legacy_cancel_status"
+jq -e '.error.code == "operation_identity_unavailable"' "$temp_dir/legacy-cancel.json" >/dev/null
+kill -0 "$legacy_pid" 2>/dev/null || fail "legacy mutation signalled the active worker"
+[[ -e "$legacy_stage/model.gguf.part" && -e "$legacy_runner/download_model.sh" ]] || \
+  fail "legacy mutation cleaned active operation data"
+kill "$legacy_pid"
+wait "$legacy_pid" 2>/dev/null || true
+run_lifecycle cancel >"$temp_dir/legacy-cleanup.json"
+jq -e '.operation.status == "failed" and (.operation.message | contains("partial data was removed"))' \
+  "$temp_dir/legacy-cleanup.json" >/dev/null
+assert_no_partial_data
+
 # Even a matching command line is not trusted when its process identity differs.
 new_case stale-worker
 stale_operation_id="stale-operation"

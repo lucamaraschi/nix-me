@@ -291,6 +291,7 @@ final class DashboardStore: ObservableObject {
                     self.client = managementClient
                     let actionClient = ManagementActionClient(configurationDirectory: managementClient.configurationDirectory)
                     let operation = try await actionClient.localAIModelStatus().operation
+                    guard !Task.isCancelled, self.localAIModelMonitoringID == monitoringID else { return }
                     self.localAIModelOperation = operation
                     if operation?.isRunning != true {
                         if let operation {
