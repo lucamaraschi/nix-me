@@ -1,0 +1,39 @@
+{
+  "$schema": "https://raw.githubusercontent.com/lucamaraschi/nix-me/main/packages/app-state/evidence/procedures/t3-procedure.schema.json",
+  "schema_version": 1,
+  "id": "sample-visible-behavior",
+  "version": 1,
+  "title": "Synthetic visible behavior fixture",
+  "recipe": {
+    "id": "sample-app",
+    "path": "packages/app-state/evidence/fixtures/recipes/sample-app.yaml",
+    "values_path": "packages/app-state/evidence/fixtures/recipes/sample-app.yaml",
+    "bundle_id": "com.nix-me.fixture",
+    "app_path": "/Applications/SyntheticFixture.app"
+  },
+  "environment": {
+    "kind": "disposable_vm"
+  },
+  "execution": {
+    "apply": {
+      "mode": "apply",
+      "accepted_exit_codes": [0],
+      "required_action_ops": []
+    },
+    "idempotence": {
+      "mode": "diff",
+      "accepted_exit_codes": [0],
+      "required_action_ops": []
+    }
+  },
+  "operator": {
+    "instructions": ["Exercise the synthetic fixture."],
+    "acceptance": ["The synthetic fixture is visibly correct."],
+    "artifact": {
+      "required": true,
+      "allowed_media_types": ["image/png"],
+      "description": "Synthetic visible artifact used only by evidence-tool tests."
+    }
+  },
+  "cleanup": ["Remove transient synthetic test output."]
+}

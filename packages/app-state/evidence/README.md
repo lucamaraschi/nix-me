@@ -9,7 +9,8 @@ stamp-eligible, even when their checks pass. `final` is written only by the T3
 finalizer after it revalidates the run, retained artifacts, recipe digest, and
 the committed procedure and runner at the recorded harness revision.
 
-The trust tool has no dependency beyond Bash and `jq`:
+The trust tool requires Bash, `jq`, Git, and an OpenSSH `ssh-keygen` with
+`-Y sign`/`-Y verify` support:
 
 ```sh
 packages/app-state/evidence/tools/evidence-tool validate-manifest manifest.json
@@ -21,7 +22,11 @@ packages/app-state/evidence/tests/run.sh
 ```
 
 `stamp-recipe` refuses schema-invalid evidence, failed required checks, missing
-or modified artifacts, and evidence for a different or changed recipe. It
+or modified artifacts, and evidence for a different or changed recipe. It also
+requires an exact-byte detached SSH signature from an explicitly allowed signer
+in the `nix-me-t3-evidence-v1` namespace. The verifier resolves the recorded Git
+commit, reads the procedure and runner from that commit, and binds the manifest
+to the retained run record and artifacts produced by the finalized flow. It
 normalizes only the top-level `verified` field when checking the recipe digest,
 then writes a deterministic stamp containing the canonical manifest digest.
 
@@ -29,6 +34,28 @@ Committed evidence belongs at `manifests/<recipe-id>.json`, and its retained
 files stay under this directory. Repository verification requires a one-to-one
 match between those manifests and non-null recipe stamps. Failed runs may be
 retained for diagnosis, but they cannot generate a stamp.
+
+### Production signer enrollment
+
+Production stamping is intentionally disabled while `trust/allowed_signers`
+contains no key. Do not commit a production private key. To deliberately enroll
+an operator-controlled public key, choose the operator principal locally and
+append exactly its key type and key data with the namespace restriction:
+
+```sh
+T3_SIGNER_IDENTITY=CHOOSE_AN_OPERATOR_PRINCIPAL
+T3_SIGNING_KEY=/secure/path/to/operator_ed25519
+awk -v principal="$T3_SIGNER_IDENTITY" \
+  '{print principal, "namespaces=\"nix-me-t3-evidence-v1\"", $1, $2}' \
+  "$T3_SIGNING_KEY.pub" \
+  >> packages/app-state/evidence/trust/allowed_signers
+git add packages/app-state/evidence/trust/allowed_signers
+```
+
+Review and commit that public-key enrollment before using it. The identity is a
+repository authorization principal, not a value carried by the signature. The
+private fixture key under `fixtures/trust/` is test-only: production verification
+rejects fixture signers independently of the production allowlist.
 
 ## Interactive procedures
 
@@ -107,15 +134,21 @@ jq '{lifecycle, recipe, environment, application, procedure, run, result, artifa
 mkdir -p packages/app-state/evidence/manifests
 packages/app-state/evidence/tools/t3-procedure finalize \
   "$RUN_DIR" "packages/app-state/evidence/manifests/$RECIPE_ID.json"
+ssh-keygen -Y sign \
+  -f "$T3_SIGNING_KEY" \
+  -n nix-me-t3-evidence-v1 \
+  "packages/app-state/evidence/manifests/$RECIPE_ID.json"
 packages/app-state/evidence/tools/evidence-tool generate-stamp \
   "packages/app-state/evidence/manifests/$RECIPE_ID.json" \
   "packages/app-state/recipes/$RECIPE_ID.yaml"
 ```
 
-`generate-stamp` is a review-only preview. After a real operator has reviewed
-the final manifest and artifact, `stamp-recipe` is the separate explicit action
-that replaces `verified: null`. Do not finalize or stamp a failed or incomplete
-run. This repository does not bundle a production T3 run or visual artifact.
+Signing must happen only after a real operator has reviewed the final manifest,
+run record, and retained artifacts. Any byte-level manifest change invalidates
+the adjacent `.sig`. `generate-stamp` is a review-only preview, and
+`stamp-recipe` is the separate explicit action that replaces `verified: null`.
+Do not sign or stamp a failed or incomplete run. This repository does not bundle
+a production T3 run, production signer identity, or visual artifact.
 
 ### Cleanup
 
