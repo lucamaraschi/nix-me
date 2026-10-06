@@ -1,0 +1,10 @@
+[package]
+name = "first-recipe-batch-tests"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+nix-me-apps = { path = "../../../../packages/app-state/engine/nix-me-apps" }
+serde_json = "=1.0.134"
+tempfile = "=3.15.0"

@@ -1,0 +1,22 @@
+schema_version: 1
+id: sublime-text
+name: Sublime Text
+bundle_id: com.sublimetext.4
+install:
+  cask: sublime-text
+detect:
+  app_path: /Applications/Sublime Text.app
+sandboxed: false
+requires: []
+config:
+  - kind: file
+    binds: preferences
+    path: ~/Library/Application Support/Sublime Text/Packages/User/Preferences.sublime-settings
+    format: jsonc
+    merge: deep_merge
+    mode: "0644"
+    confirm: none
+apply:
+  poke: none
+  unsafe_to_kill: false
+verified: null

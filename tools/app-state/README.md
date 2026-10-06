@@ -35,3 +35,10 @@ python3 -m unittest discover -s tools/app-state -p 'test_*.py'
 The output intentionally has no generation timestamp. Source SHA-256 values and
 the catalog analytics window identify its inputs without making repeated runs
 non-deterministic.
+
+The H-031 batch has a separate headless convergence suite that loads the shipped
+recipes without changing engine source or host application state:
+
+```sh
+cargo test --manifest-path tools/app-state/tests/first-recipe-batch/Cargo.toml
+```

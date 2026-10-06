@@ -3,21 +3,21 @@
   "generated_from": {
     "catalog": "packages/app-state/catalog/homebrew-top-200-apps.json",
     "catalog_version": 1,
-    "catalog_sha256": "5cb8965d0535c4c19f2e6964a3021f1ca6b449d87878da46acd9dcdf2da4aacc",
+    "catalog_sha256": "7809eb7e3146cc971249bf8aba0cb472cb8f2343f10669b30c0b69c4eeef3649",
     "metrics": "packages/app-state/metrics/zero-click.json",
     "metrics_version": 1,
-    "metrics_sha256": "3130b6c1c7e9c5a3bece9da81a107fb8525669500cc734914a36c3811609e0b2",
+    "metrics_sha256": "e9e279afd9f1e3c31780d7c3727e7deecdf8418934b40a1a7298b747eb737430",
     "analytics_start_date": "2025-09-08",
     "analytics_end_date": "2026-09-08"
   },
   "metric_summary": {
     "denominator": 200,
     "behavior_mapped_apps": 200,
-    "local_recipe_apps": 4,
-    "zero_click_apps": 3,
+    "local_recipe_apps": 7,
+    "zero_click_apps": 6,
     "one_click_apps": 1,
     "full_manual_apps": 0,
-    "uncovered_apps": 196
+    "uncovered_apps": 193
   },
   "policy": {
     "score_minimum": 0,
@@ -91,7 +91,7 @@
   },
   "exclusions": {
     "rule": "Exclude catalog entries whose local_recipe is not null.",
-    "already_supported_count": 4,
+    "already_supported_count": 7,
     "already_supported": [
       {
         "catalog_rank": 2,
@@ -104,6 +104,11 @@
         "local_recipe": "ghostty"
       },
       {
+        "catalog_rank": 6,
+        "cask": "iterm2",
+        "local_recipe": "iterm2"
+      },
+      {
         "catalog_rank": 19,
         "cask": "raycast",
         "local_recipe": "raycast"
@@ -112,10 +117,20 @@
         "catalog_rank": 20,
         "cask": "rectangle",
         "local_recipe": "rectangle"
+      },
+      {
+        "catalog_rank": 21,
+        "cask": "maccy",
+        "local_recipe": "maccy"
+      },
+      {
+        "catalog_rank": 37,
+        "cask": "sublime-text",
+        "local_recipe": "sublime-text"
       }
     ]
   },
-  "candidate_count": 196,
+  "candidate_count": 193,
   "candidates": [
     {
       "catalog_rank": 1,
@@ -304,117 +319,6 @@
       "candidate_rank": 5
     },
     {
-      "catalog_rank": 37,
-      "analytics_rank": 74,
-      "cask": "sublime-text",
-      "name": "Sublime Text",
-      "description": "Text editor for code, markup and prose",
-      "homepage": "https://www.sublimetext.com/",
-      "installs": 63979,
-      "percent": 0.25,
-      "behavior": {
-        "mechanism": "file_driven",
-        "confidence": "high",
-        "evidence": "curated",
-        "note": "Preferences, keymaps, and packages are files under Application Support/Sublime Text."
-      },
-      "signals": {
-        "preference_paths": [
-          "~/Library/Preferences/com.sublimetext.3.plist",
-          "~/Library/Preferences/com.sublimetext.4.plist"
-        ],
-        "config_paths": [
-          "~/Library/Application Support/Sublime Text",
-          "~/Library/Application Support/Sublime Text (Safe Mode)",
-          "~/Library/Application Support/Sublime Text 3"
-        ]
-      },
-      "score": {
-        "total": 69.05,
-        "impact": 32.88,
-        "feasibility": 100,
-        "risk": 5
-      },
-      "rationale": {
-        "impact": "11.83 normalized installs x 70%; 82.00 catalog reach x 30%",
-        "feasibility": "file_driven base 85; confidence high +10; evidence curated +5; preference signal +0; config signal +5",
-        "risk": "file_driven base 25; confidence high -10; evidence curated -10; no path +0; multi-surface +0"
-      },
-      "candidate_rank": 6
-    },
-    {
-      "catalog_rank": 6,
-      "analytics_rank": 14,
-      "cask": "iterm2",
-      "name": "iTerm2",
-      "description": "Terminal emulator as alternative to Apple's Terminal app",
-      "homepage": "https://iterm2.com/",
-      "installs": 325452,
-      "percent": 1.28,
-      "behavior": {
-        "mechanism": "hybrid",
-        "confidence": "medium",
-        "evidence": "homebrew_zap_paths",
-        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
-      },
-      "signals": {
-        "preference_paths": [
-          "~/Library/Preferences/com.googlecode.iterm2.plist",
-          "~/Library/Preferences/com.googlecode.iterm2.private.plist"
-        ],
-        "config_paths": [
-          "~/Library/Application Support/iTerm",
-          "~/Library/Application Support/iTerm2"
-        ]
-      },
-      "score": {
-        "total": 68.86,
-        "impact": 71.36,
-        "feasibility": 75,
-        "risk": 55
-      },
-      "rationale": {
-        "impact": "60.16 normalized installs x 70%; 97.50 catalog reach x 30%",
-        "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
-        "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
-      },
-      "candidate_rank": 7
-    },
-    {
-      "catalog_rank": 21,
-      "analytics_rank": 42,
-      "cask": "maccy",
-      "name": "Maccy",
-      "description": "Clipboard manager",
-      "homepage": "https://maccy.app/",
-      "installs": 114242,
-      "percent": 0.45,
-      "behavior": {
-        "mechanism": "defaults_dominant",
-        "confidence": "medium",
-        "evidence": "homebrew_zap_paths",
-        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
-      },
-      "signals": {
-        "preference_paths": [
-          "~/Library/Preferences/org.p0deje.Maccy.plist"
-        ],
-        "config_paths": []
-      },
-      "score": {
-        "total": 68.8,
-        "impact": 41.78,
-        "feasibility": 95,
-        "risk": 20
-      },
-      "rationale": {
-        "impact": "21.12 normalized installs x 70%; 90.00 catalog reach x 30%",
-        "feasibility": "defaults_dominant base 90; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +0",
-        "risk": "defaults_dominant base 20; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
-      },
-      "candidate_rank": 8
-    },
-    {
       "catalog_rank": 46,
       "analytics_rank": 87,
       "cask": "kitty",
@@ -448,7 +352,7 @@
         "feasibility": "file_driven base 85; confidence high +10; evidence curated +5; preference signal +0; config signal +5",
         "risk": "file_driven base 25; confidence high -10; evidence curated -10; no path +0; multi-surface +0"
       },
-      "candidate_rank": 9
+      "candidate_rank": 6
     },
     {
       "catalog_rank": 55,
@@ -485,7 +389,7 @@
         "feasibility": "file_driven base 85; confidence high +10; evidence curated +5; preference signal +0; config signal +5",
         "risk": "file_driven base 25; confidence high -10; evidence curated -10; no path +0; multi-surface +0"
       },
-      "candidate_rank": 10
+      "candidate_rank": 7
     },
     {
       "catalog_rank": 16,
@@ -527,7 +431,7 @@
         "feasibility": "file_driven base 85; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +0; config signal +5",
         "risk": "file_driven base 25; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 11
+      "candidate_rank": 8
     },
     {
       "catalog_rank": 63,
@@ -561,7 +465,7 @@
         "feasibility": "file_driven base 85; confidence high +10; evidence curated +5; preference signal +0; config signal +5",
         "risk": "file_driven base 25; confidence high -10; evidence curated -10; no path +0; multi-surface +0"
       },
-      "candidate_rank": 12
+      "candidate_rank": 9
     },
     {
       "catalog_rank": 35,
@@ -595,7 +499,7 @@
         "feasibility": "defaults_dominant base 90; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +0",
         "risk": "defaults_dominant base 20; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 13
+      "candidate_rank": 10
     },
     {
       "catalog_rank": 36,
@@ -629,7 +533,7 @@
         "feasibility": "defaults_dominant base 90; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +0",
         "risk": "defaults_dominant base 20; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 14
+      "candidate_rank": 11
     },
     {
       "catalog_rank": 41,
@@ -663,7 +567,7 @@
         "feasibility": "defaults_dominant base 90; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +0",
         "risk": "defaults_dominant base 20; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 15
+      "candidate_rank": 12
     },
     {
       "catalog_rank": 89,
@@ -700,7 +604,7 @@
         "feasibility": "file_driven base 85; confidence high +10; evidence curated +5; preference signal +0; config signal +5",
         "risk": "file_driven base 25; confidence high -10; evidence curated -10; no path +0; multi-surface +0"
       },
-      "candidate_rank": 16
+      "candidate_rank": 13
     },
     {
       "catalog_rank": 51,
@@ -735,7 +639,7 @@
         "feasibility": "defaults_dominant base 90; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +0",
         "risk": "defaults_dominant base 20; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 17
+      "candidate_rank": 14
     },
     {
       "catalog_rank": 56,
@@ -770,7 +674,7 @@
         "feasibility": "defaults_dominant base 90; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +0",
         "risk": "defaults_dominant base 20; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 18
+      "candidate_rank": 15
     },
     {
       "catalog_rank": 99,
@@ -804,7 +708,7 @@
         "feasibility": "file_driven base 85; confidence high +10; evidence curated +5; preference signal +0; config signal +0",
         "risk": "file_driven base 25; confidence high -10; evidence curated -10; no path +0; multi-surface +0"
       },
-      "candidate_rank": 19
+      "candidate_rank": 16
     },
     {
       "catalog_rank": 7,
@@ -840,7 +744,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 20
+      "candidate_rank": 17
     },
     {
       "catalog_rank": 39,
@@ -874,7 +778,7 @@
         "feasibility": "file_driven base 85; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +0; config signal +5",
         "risk": "file_driven base 25; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 21
+      "candidate_rank": 18
     },
     {
       "catalog_rank": 40,
@@ -908,7 +812,7 @@
         "feasibility": "file_driven base 85; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +0; config signal +5",
         "risk": "file_driven base 25; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 22
+      "candidate_rank": 19
     },
     {
       "catalog_rank": 8,
@@ -947,7 +851,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 23
+      "candidate_rank": 20
     },
     {
       "catalog_rank": 73,
@@ -981,7 +885,7 @@
         "feasibility": "defaults_dominant base 90; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +0",
         "risk": "defaults_dominant base 20; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 24
+      "candidate_rank": 21
     },
     {
       "catalog_rank": 78,
@@ -1015,7 +919,7 @@
         "feasibility": "defaults_dominant base 90; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +0",
         "risk": "defaults_dominant base 20; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 25
+      "candidate_rank": 22
     },
     {
       "catalog_rank": 10,
@@ -1051,7 +955,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 26
+      "candidate_rank": 23
     },
     {
       "catalog_rank": 88,
@@ -1085,7 +989,7 @@
         "feasibility": "defaults_dominant base 90; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +0",
         "risk": "defaults_dominant base 20; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 27
+      "candidate_rank": 24
     },
     {
       "catalog_rank": 97,
@@ -1119,7 +1023,7 @@
         "feasibility": "defaults_dominant base 90; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +0",
         "risk": "defaults_dominant base 20; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 28
+      "candidate_rank": 25
     },
     {
       "catalog_rank": 11,
@@ -1156,7 +1060,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 29
+      "candidate_rank": 26
     },
     {
       "catalog_rank": 12,
@@ -1194,7 +1098,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 30
+      "candidate_rank": 27
     },
     {
       "catalog_rank": 102,
@@ -1228,7 +1132,7 @@
         "feasibility": "defaults_dominant base 90; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +0",
         "risk": "defaults_dominant base 20; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 31
+      "candidate_rank": 28
     },
     {
       "catalog_rank": 103,
@@ -1262,7 +1166,7 @@
         "feasibility": "defaults_dominant base 90; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +0",
         "risk": "defaults_dominant base 20; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 32
+      "candidate_rank": 29
     },
     {
       "catalog_rank": 13,
@@ -1298,7 +1202,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 33
+      "candidate_rank": 30
     },
     {
       "catalog_rank": 109,
@@ -1332,7 +1236,7 @@
         "feasibility": "defaults_dominant base 90; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +0",
         "risk": "defaults_dominant base 20; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 34
+      "candidate_rank": 31
     },
     {
       "catalog_rank": 79,
@@ -1366,7 +1270,7 @@
         "feasibility": "file_driven base 85; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +0; config signal +5",
         "risk": "file_driven base 25; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 35
+      "candidate_rank": 32
     },
     {
       "catalog_rank": 117,
@@ -1400,7 +1304,7 @@
         "feasibility": "defaults_dominant base 90; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +0",
         "risk": "defaults_dominant base 20; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 36
+      "candidate_rank": 33
     },
     {
       "catalog_rank": 72,
@@ -1437,7 +1341,7 @@
         "feasibility": "hybrid base 65; confidence high +10; evidence curated +5; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence high -10; evidence curated -10; no path +0; multi-surface +5"
       },
-      "candidate_rank": 37
+      "candidate_rank": 34
     },
     {
       "catalog_rank": 15,
@@ -1476,7 +1380,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 38
+      "candidate_rank": 35
     },
     {
       "catalog_rank": 121,
@@ -1510,7 +1414,7 @@
         "feasibility": "defaults_dominant base 90; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +0",
         "risk": "defaults_dominant base 20; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 39
+      "candidate_rank": 36
     },
     {
       "catalog_rank": 17,
@@ -1547,7 +1451,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 40
+      "candidate_rank": 37
     },
     {
       "catalog_rank": 18,
@@ -1585,7 +1489,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 41
+      "candidate_rank": 38
     },
     {
       "catalog_rank": 129,
@@ -1619,7 +1523,7 @@
         "feasibility": "defaults_dominant base 90; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +0",
         "risk": "defaults_dominant base 20; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 42
+      "candidate_rank": 39
     },
     {
       "catalog_rank": 100,
@@ -1654,7 +1558,7 @@
         "feasibility": "file_driven base 85; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +0; config signal +5",
         "risk": "file_driven base 25; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 43
+      "candidate_rank": 40
     },
     {
       "catalog_rank": 22,
@@ -1691,7 +1595,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 44
+      "candidate_rank": 41
     },
     {
       "catalog_rank": 140,
@@ -1725,7 +1629,7 @@
         "feasibility": "defaults_dominant base 90; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +0",
         "risk": "defaults_dominant base 20; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 45
+      "candidate_rank": 42
     },
     {
       "catalog_rank": 23,
@@ -1762,7 +1666,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 46
+      "candidate_rank": 43
     },
     {
       "catalog_rank": 142,
@@ -1797,7 +1701,7 @@
         "feasibility": "defaults_dominant base 90; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +0",
         "risk": "defaults_dominant base 20; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 47
+      "candidate_rank": 44
     },
     {
       "catalog_rank": 143,
@@ -1831,7 +1735,7 @@
         "feasibility": "defaults_dominant base 90; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +0",
         "risk": "defaults_dominant base 20; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 48
+      "candidate_rank": 45
     },
     {
       "catalog_rank": 24,
@@ -1868,7 +1772,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 49
+      "candidate_rank": 46
     },
     {
       "catalog_rank": 114,
@@ -1903,7 +1807,7 @@
         "feasibility": "file_driven base 85; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +0; config signal +5",
         "risk": "file_driven base 25; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 50
+      "candidate_rank": 47
     },
     {
       "catalog_rank": 25,
@@ -1941,7 +1845,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 51
+      "candidate_rank": 48
     },
     {
       "catalog_rank": 151,
@@ -1977,7 +1881,7 @@
         "feasibility": "defaults_dominant base 90; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +0",
         "risk": "defaults_dominant base 20; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 52
+      "candidate_rank": 49
     },
     {
       "catalog_rank": 118,
@@ -2011,7 +1915,7 @@
         "feasibility": "file_driven base 85; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +0; config signal +5",
         "risk": "file_driven base 25; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 53
+      "candidate_rank": 50
     },
     {
       "catalog_rank": 26,
@@ -2048,7 +1952,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 54
+      "candidate_rank": 51
     },
     {
       "catalog_rank": 27,
@@ -2085,7 +1989,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 55
+      "candidate_rank": 52
     },
     {
       "catalog_rank": 159,
@@ -2120,7 +2024,7 @@
         "feasibility": "defaults_dominant base 90; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +0",
         "risk": "defaults_dominant base 20; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 56
+      "candidate_rank": 53
     },
     {
       "catalog_rank": 28,
@@ -2156,7 +2060,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 57
+      "candidate_rank": 54
     },
     {
       "catalog_rank": 29,
@@ -2197,7 +2101,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 58
+      "candidate_rank": 55
     },
     {
       "catalog_rank": 164,
@@ -2231,7 +2135,7 @@
         "feasibility": "defaults_dominant base 90; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +0",
         "risk": "defaults_dominant base 20; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 59
+      "candidate_rank": 56
     },
     {
       "catalog_rank": 165,
@@ -2265,7 +2169,7 @@
         "feasibility": "defaults_dominant base 90; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +0",
         "risk": "defaults_dominant base 20; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 60
+      "candidate_rank": 57
     },
     {
       "catalog_rank": 30,
@@ -2302,7 +2206,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 61
+      "candidate_rank": 58
     },
     {
       "catalog_rank": 132,
@@ -2336,7 +2240,7 @@
         "feasibility": "file_driven base 85; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +0; config signal +5",
         "risk": "file_driven base 25; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 62
+      "candidate_rank": 59
     },
     {
       "catalog_rank": 31,
@@ -2372,7 +2276,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 63
+      "candidate_rank": 60
     },
     {
       "catalog_rank": 170,
@@ -2406,7 +2310,7 @@
         "feasibility": "defaults_dominant base 90; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +0",
         "risk": "defaults_dominant base 20; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 64
+      "candidate_rank": 61
     },
     {
       "catalog_rank": 172,
@@ -2440,7 +2344,7 @@
         "feasibility": "defaults_dominant base 90; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +0",
         "risk": "defaults_dominant base 20; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 65
+      "candidate_rank": 62
     },
     {
       "catalog_rank": 32,
@@ -2476,7 +2380,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 66
+      "candidate_rank": 63
     },
     {
       "catalog_rank": 173,
@@ -2510,7 +2414,7 @@
         "feasibility": "defaults_dominant base 90; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +0",
         "risk": "defaults_dominant base 20; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 67
+      "candidate_rank": 64
     },
     {
       "catalog_rank": 33,
@@ -2547,7 +2451,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 68
+      "candidate_rank": 65
     },
     {
       "catalog_rank": 34,
@@ -2585,7 +2489,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 69
+      "candidate_rank": 66
     },
     {
       "catalog_rank": 147,
@@ -2619,7 +2523,7 @@
         "feasibility": "file_driven base 85; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +0; config signal +5",
         "risk": "file_driven base 25; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 70
+      "candidate_rank": 67
     },
     {
       "catalog_rank": 148,
@@ -2653,7 +2557,7 @@
         "feasibility": "file_driven base 85; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +0; config signal +5",
         "risk": "file_driven base 25; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 71
+      "candidate_rank": 68
     },
     {
       "catalog_rank": 185,
@@ -2687,7 +2591,7 @@
         "feasibility": "defaults_dominant base 90; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +0",
         "risk": "defaults_dominant base 20; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 72
+      "candidate_rank": 69
     },
     {
       "catalog_rank": 149,
@@ -2721,7 +2625,7 @@
         "feasibility": "file_driven base 85; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +0; config signal +5",
         "risk": "file_driven base 25; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 73
+      "candidate_rank": 70
     },
     {
       "catalog_rank": 150,
@@ -2756,7 +2660,7 @@
         "feasibility": "file_driven base 85; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +0; config signal +5",
         "risk": "file_driven base 25; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 74
+      "candidate_rank": 71
     },
     {
       "catalog_rank": 158,
@@ -2791,7 +2695,7 @@
         "feasibility": "file_driven base 85; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +0; config signal +5",
         "risk": "file_driven base 25; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 75
+      "candidate_rank": 72
     },
     {
       "catalog_rank": 42,
@@ -2840,7 +2744,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 76
+      "candidate_rank": 73
     },
     {
       "catalog_rank": 196,
@@ -2874,7 +2778,7 @@
         "feasibility": "defaults_dominant base 90; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +0",
         "risk": "defaults_dominant base 20; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 77
+      "candidate_rank": 74
     },
     {
       "catalog_rank": 43,
@@ -2913,7 +2817,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 78
+      "candidate_rank": 75
     },
     {
       "catalog_rank": 162,
@@ -2947,7 +2851,7 @@
         "feasibility": "file_driven base 85; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +0; config signal +5",
         "risk": "file_driven base 25; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 79
+      "candidate_rank": 76
     },
     {
       "catalog_rank": 44,
@@ -2985,7 +2889,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 80
+      "candidate_rank": 77
     },
     {
       "catalog_rank": 45,
@@ -3022,7 +2926,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 81
+      "candidate_rank": 78
     },
     {
       "catalog_rank": 47,
@@ -3059,7 +2963,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 82
+      "candidate_rank": 79
     },
     {
       "catalog_rank": 48,
@@ -3095,7 +2999,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 83
+      "candidate_rank": 80
     },
     {
       "catalog_rank": 49,
@@ -3133,7 +3037,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 84
+      "candidate_rank": 81
     },
     {
       "catalog_rank": 50,
@@ -3169,7 +3073,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 85
+      "candidate_rank": 82
     },
     {
       "catalog_rank": 52,
@@ -3207,7 +3111,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 86
+      "candidate_rank": 83
     },
     {
       "catalog_rank": 53,
@@ -3245,7 +3149,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 87
+      "candidate_rank": 84
     },
     {
       "catalog_rank": 54,
@@ -3288,7 +3192,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 88
+      "candidate_rank": 85
     },
     {
       "catalog_rank": 177,
@@ -3322,7 +3226,7 @@
         "feasibility": "file_driven base 85; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +0; config signal +5",
         "risk": "file_driven base 25; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 89
+      "candidate_rank": 86
     },
     {
       "catalog_rank": 57,
@@ -3358,7 +3262,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 90
+      "candidate_rank": 87
     },
     {
       "catalog_rank": 181,
@@ -3392,7 +3296,7 @@
         "feasibility": "file_driven base 85; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +0; config signal +5",
         "risk": "file_driven base 25; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 91
+      "candidate_rank": 88
     },
     {
       "catalog_rank": 182,
@@ -3427,7 +3331,7 @@
         "feasibility": "file_driven base 85; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +0; config signal +5",
         "risk": "file_driven base 25; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 92
+      "candidate_rank": 89
     },
     {
       "catalog_rank": 58,
@@ -3464,7 +3368,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 93
+      "candidate_rank": 90
     },
     {
       "catalog_rank": 59,
@@ -3502,7 +3406,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 94
+      "candidate_rank": 91
     },
     {
       "catalog_rank": 60,
@@ -3538,7 +3442,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 95
+      "candidate_rank": 92
     },
     {
       "catalog_rank": 61,
@@ -3575,7 +3479,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 96
+      "candidate_rank": 93
     },
     {
       "catalog_rank": 186,
@@ -3609,7 +3513,7 @@
         "feasibility": "file_driven base 85; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +0; config signal +5",
         "risk": "file_driven base 25; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 97
+      "candidate_rank": 94
     },
     {
       "catalog_rank": 62,
@@ -3647,7 +3551,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 98
+      "candidate_rank": 95
     },
     {
       "catalog_rank": 187,
@@ -3681,7 +3585,7 @@
         "feasibility": "file_driven base 85; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +0; config signal +5",
         "risk": "file_driven base 25; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 99
+      "candidate_rank": 96
     },
     {
       "catalog_rank": 188,
@@ -3715,7 +3619,7 @@
         "feasibility": "file_driven base 85; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +0; config signal +5",
         "risk": "file_driven base 25; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 100
+      "candidate_rank": 97
     },
     {
       "catalog_rank": 189,
@@ -3751,7 +3655,7 @@
         "feasibility": "file_driven base 85; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +0; config signal +5",
         "risk": "file_driven base 25; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +0"
       },
-      "candidate_rank": 101
+      "candidate_rank": 98
     },
     {
       "catalog_rank": 64,
@@ -3787,7 +3691,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 102
+      "candidate_rank": 99
     },
     {
       "catalog_rank": 65,
@@ -3823,7 +3727,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 103
+      "candidate_rank": 100
     },
     {
       "catalog_rank": 66,
@@ -3863,7 +3767,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 104
+      "candidate_rank": 101
     },
     {
       "catalog_rank": 67,
@@ -3899,7 +3803,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 105
+      "candidate_rank": 102
     },
     {
       "catalog_rank": 68,
@@ -3936,7 +3840,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 106
+      "candidate_rank": 103
     },
     {
       "catalog_rank": 69,
@@ -3972,7 +3876,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 107
+      "candidate_rank": 104
     },
     {
       "catalog_rank": 70,
@@ -4009,7 +3913,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 108
+      "candidate_rank": 105
     },
     {
       "catalog_rank": 71,
@@ -4046,7 +3950,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 109
+      "candidate_rank": 106
     },
     {
       "catalog_rank": 74,
@@ -4082,7 +3986,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 110
+      "candidate_rank": 107
     },
     {
       "catalog_rank": 75,
@@ -4119,7 +4023,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 111
+      "candidate_rank": 108
     },
     {
       "catalog_rank": 76,
@@ -4156,7 +4060,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 112
+      "candidate_rank": 109
     },
     {
       "catalog_rank": 77,
@@ -4193,7 +4097,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 113
+      "candidate_rank": 110
     },
     {
       "catalog_rank": 80,
@@ -4230,7 +4134,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 114
+      "candidate_rank": 111
     },
     {
       "catalog_rank": 81,
@@ -4266,7 +4170,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 115
+      "candidate_rank": 112
     },
     {
       "catalog_rank": 82,
@@ -4302,7 +4206,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 116
+      "candidate_rank": 113
     },
     {
       "catalog_rank": 83,
@@ -4338,7 +4242,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 117
+      "candidate_rank": 114
     },
     {
       "catalog_rank": 84,
@@ -4375,7 +4279,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 118
+      "candidate_rank": 115
     },
     {
       "catalog_rank": 85,
@@ -4414,7 +4318,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 119
+      "candidate_rank": 116
     },
     {
       "catalog_rank": 86,
@@ -4450,7 +4354,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 120
+      "candidate_rank": 117
     },
     {
       "catalog_rank": 87,
@@ -4486,7 +4390,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 121
+      "candidate_rank": 118
     },
     {
       "catalog_rank": 90,
@@ -4523,7 +4427,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 122
+      "candidate_rank": 119
     },
     {
       "catalog_rank": 91,
@@ -4559,7 +4463,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 123
+      "candidate_rank": 120
     },
     {
       "catalog_rank": 92,
@@ -4598,7 +4502,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 124
+      "candidate_rank": 121
     },
     {
       "catalog_rank": 94,
@@ -4635,7 +4539,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 125
+      "candidate_rank": 122
     },
     {
       "catalog_rank": 96,
@@ -4672,7 +4576,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 126
+      "candidate_rank": 123
     },
     {
       "catalog_rank": 98,
@@ -4709,7 +4613,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 127
+      "candidate_rank": 124
     },
     {
       "catalog_rank": 104,
@@ -4748,7 +4652,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 128
+      "candidate_rank": 125
     },
     {
       "catalog_rank": 105,
@@ -4785,7 +4689,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 129
+      "candidate_rank": 126
     },
     {
       "catalog_rank": 106,
@@ -4822,7 +4726,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 130
+      "candidate_rank": 127
     },
     {
       "catalog_rank": 107,
@@ -4858,7 +4762,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 131
+      "candidate_rank": 128
     },
     {
       "catalog_rank": 110,
@@ -4894,7 +4798,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 132
+      "candidate_rank": 129
     },
     {
       "catalog_rank": 111,
@@ -4932,7 +4836,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 133
+      "candidate_rank": 130
     },
     {
       "catalog_rank": 112,
@@ -4968,7 +4872,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 134
+      "candidate_rank": 131
     },
     {
       "catalog_rank": 113,
@@ -5004,7 +4908,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 135
+      "candidate_rank": 132
     },
     {
       "catalog_rank": 115,
@@ -5040,7 +4944,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 136
+      "candidate_rank": 133
     },
     {
       "catalog_rank": 116,
@@ -5077,7 +4981,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 137
+      "candidate_rank": 134
     },
     {
       "catalog_rank": 119,
@@ -5113,7 +5017,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 138
+      "candidate_rank": 135
     },
     {
       "catalog_rank": 120,
@@ -5150,7 +5054,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 139
+      "candidate_rank": 136
     },
     {
       "catalog_rank": 122,
@@ -5187,7 +5091,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 140
+      "candidate_rank": 137
     },
     {
       "catalog_rank": 123,
@@ -5226,7 +5130,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 141
+      "candidate_rank": 138
     },
     {
       "catalog_rank": 124,
@@ -5263,7 +5167,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 142
+      "candidate_rank": 139
     },
     {
       "catalog_rank": 125,
@@ -5299,7 +5203,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 143
+      "candidate_rank": 140
     },
     {
       "catalog_rank": 126,
@@ -5335,7 +5239,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 144
+      "candidate_rank": 141
     },
     {
       "catalog_rank": 127,
@@ -5371,7 +5275,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 145
+      "candidate_rank": 142
     },
     {
       "catalog_rank": 128,
@@ -5408,7 +5312,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 146
+      "candidate_rank": 143
     },
     {
       "catalog_rank": 130,
@@ -5444,7 +5348,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 147
+      "candidate_rank": 144
     },
     {
       "catalog_rank": 131,
@@ -5480,7 +5384,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 148
+      "candidate_rank": 145
     },
     {
       "catalog_rank": 133,
@@ -5520,7 +5424,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 149
+      "candidate_rank": 146
     },
     {
       "catalog_rank": 134,
@@ -5558,7 +5462,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 150
+      "candidate_rank": 147
     },
     {
       "catalog_rank": 135,
@@ -5595,7 +5499,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 151
+      "candidate_rank": 148
     },
     {
       "catalog_rank": 136,
@@ -5632,7 +5536,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 152
+      "candidate_rank": 149
     },
     {
       "catalog_rank": 137,
@@ -5674,7 +5578,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 153
+      "candidate_rank": 150
     },
     {
       "catalog_rank": 138,
@@ -5710,7 +5614,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 154
+      "candidate_rank": 151
     },
     {
       "catalog_rank": 139,
@@ -5747,7 +5651,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 155
+      "candidate_rank": 152
     },
     {
       "catalog_rank": 141,
@@ -5784,7 +5688,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 156
+      "candidate_rank": 153
     },
     {
       "catalog_rank": 145,
@@ -5821,7 +5725,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 157
+      "candidate_rank": 154
     },
     {
       "catalog_rank": 152,
@@ -5857,7 +5761,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 158
+      "candidate_rank": 155
     },
     {
       "catalog_rank": 153,
@@ -5893,7 +5797,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 159
+      "candidate_rank": 156
     },
     {
       "catalog_rank": 154,
@@ -5932,7 +5836,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 160
+      "candidate_rank": 157
     },
     {
       "catalog_rank": 155,
@@ -5968,7 +5872,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 161
+      "candidate_rank": 158
     },
     {
       "catalog_rank": 156,
@@ -6004,7 +5908,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 162
+      "candidate_rank": 159
     },
     {
       "catalog_rank": 157,
@@ -6040,7 +5944,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 163
+      "candidate_rank": 160
     },
     {
       "catalog_rank": 160,
@@ -6080,7 +5984,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 164
+      "candidate_rank": 161
     },
     {
       "catalog_rank": 163,
@@ -6117,7 +6021,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 165
+      "candidate_rank": 162
     },
     {
       "catalog_rank": 166,
@@ -6153,7 +6057,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 166
+      "candidate_rank": 163
     },
     {
       "catalog_rank": 167,
@@ -6190,7 +6094,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 167
+      "candidate_rank": 164
     },
     {
       "catalog_rank": 168,
@@ -6226,7 +6130,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 168
+      "candidate_rank": 165
     },
     {
       "catalog_rank": 169,
@@ -6264,7 +6168,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 169
+      "candidate_rank": 166
     },
     {
       "catalog_rank": 171,
@@ -6301,7 +6205,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 170
+      "candidate_rank": 167
     },
     {
       "catalog_rank": 174,
@@ -6338,7 +6242,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 171
+      "candidate_rank": 168
     },
     {
       "catalog_rank": 175,
@@ -6374,7 +6278,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 172
+      "candidate_rank": 169
     },
     {
       "catalog_rank": 176,
@@ -6411,7 +6315,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 173
+      "candidate_rank": 170
     },
     {
       "catalog_rank": 178,
@@ -6447,7 +6351,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 174
+      "candidate_rank": 171
     },
     {
       "catalog_rank": 179,
@@ -6484,7 +6388,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 175
+      "candidate_rank": 172
     },
     {
       "catalog_rank": 180,
@@ -6521,7 +6425,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 176
+      "candidate_rank": 173
     },
     {
       "catalog_rank": 183,
@@ -6559,7 +6463,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 177
+      "candidate_rank": 174
     },
     {
       "catalog_rank": 184,
@@ -6595,7 +6499,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 178
+      "candidate_rank": 175
     },
     {
       "catalog_rank": 190,
@@ -6631,7 +6535,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 179
+      "candidate_rank": 176
     },
     {
       "catalog_rank": 191,
@@ -6667,7 +6571,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 180
+      "candidate_rank": 177
     },
     {
       "catalog_rank": 192,
@@ -6704,7 +6608,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 181
+      "candidate_rank": 178
     },
     {
       "catalog_rank": 193,
@@ -6741,7 +6645,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 182
+      "candidate_rank": 179
     },
     {
       "catalog_rank": 194,
@@ -6780,7 +6684,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 183
+      "candidate_rank": 180
     },
     {
       "catalog_rank": 195,
@@ -6816,7 +6720,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 184
+      "candidate_rank": 181
     },
     {
       "catalog_rank": 197,
@@ -6853,7 +6757,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 185
+      "candidate_rank": 182
     },
     {
       "catalog_rank": 198,
@@ -6889,7 +6793,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 186
+      "candidate_rank": 183
     },
     {
       "catalog_rank": 199,
@@ -6927,7 +6831,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 187
+      "candidate_rank": 184
     },
     {
       "catalog_rank": 200,
@@ -6965,7 +6869,7 @@
         "feasibility": "hybrid base 65; confidence medium +0; evidence homebrew_zap_paths +0; preference signal +5; config signal +5",
         "risk": "hybrid base 50; confidence medium +0; evidence homebrew_zap_paths +0; no path +0; multi-surface +5"
       },
-      "candidate_rank": 188
+      "candidate_rank": 185
     },
     {
       "catalog_rank": 38,
@@ -6997,7 +6901,7 @@
         "feasibility": "cloud_or_opaque base 20; confidence low -15; evidence homebrew_app_artifact -10; preference signal +0; config signal +0",
         "risk": "cloud_or_opaque base 90; confidence low +15; evidence homebrew_app_artifact +10; no path +10; multi-surface +0"
       },
-      "candidate_rank": 189
+      "candidate_rank": 186
     },
     {
       "catalog_rank": 93,
@@ -7029,7 +6933,7 @@
         "feasibility": "cloud_or_opaque base 20; confidence low -15; evidence homebrew_app_artifact -10; preference signal +0; config signal +0",
         "risk": "cloud_or_opaque base 90; confidence low +15; evidence homebrew_app_artifact +10; no path +10; multi-surface +0"
       },
-      "candidate_rank": 190
+      "candidate_rank": 187
     },
     {
       "catalog_rank": 95,
@@ -7061,7 +6965,7 @@
         "feasibility": "cloud_or_opaque base 20; confidence low -15; evidence homebrew_app_artifact -10; preference signal +0; config signal +0",
         "risk": "cloud_or_opaque base 90; confidence low +15; evidence homebrew_app_artifact +10; no path +10; multi-surface +0"
       },
-      "candidate_rank": 191
+      "candidate_rank": 188
     },
     {
       "catalog_rank": 101,
@@ -7093,7 +6997,7 @@
         "feasibility": "cloud_or_opaque base 20; confidence low -15; evidence homebrew_app_artifact -10; preference signal +0; config signal +0",
         "risk": "cloud_or_opaque base 90; confidence low +15; evidence homebrew_app_artifact +10; no path +10; multi-surface +0"
       },
-      "candidate_rank": 192
+      "candidate_rank": 189
     },
     {
       "catalog_rank": 108,
@@ -7125,7 +7029,7 @@
         "feasibility": "cloud_or_opaque base 20; confidence low -15; evidence homebrew_app_artifact -10; preference signal +0; config signal +0",
         "risk": "cloud_or_opaque base 90; confidence low +15; evidence homebrew_app_artifact +10; no path +10; multi-surface +0"
       },
-      "candidate_rank": 193
+      "candidate_rank": 190
     },
     {
       "catalog_rank": 144,
@@ -7157,7 +7061,7 @@
         "feasibility": "cloud_or_opaque base 20; confidence low -15; evidence homebrew_app_artifact -10; preference signal +0; config signal +0",
         "risk": "cloud_or_opaque base 90; confidence low +15; evidence homebrew_app_artifact +10; no path +10; multi-surface +0"
       },
-      "candidate_rank": 194
+      "candidate_rank": 191
     },
     {
       "catalog_rank": 146,
@@ -7189,7 +7093,7 @@
         "feasibility": "cloud_or_opaque base 20; confidence low -15; evidence homebrew_app_artifact -10; preference signal +0; config signal +0",
         "risk": "cloud_or_opaque base 90; confidence low +15; evidence homebrew_app_artifact +10; no path +10; multi-surface +0"
       },
-      "candidate_rank": 195
+      "candidate_rank": 192
     },
     {
       "catalog_rank": 161,
@@ -7221,7 +7125,7 @@
         "feasibility": "cloud_or_opaque base 20; confidence low -15; evidence homebrew_app_artifact -10; preference signal +0; config signal +0",
         "risk": "cloud_or_opaque base 90; confidence low +15; evidence homebrew_app_artifact +10; no path +10; multi-surface +0"
       },
-      "candidate_rank": 196
+      "candidate_rank": 193
     }
   ]
 }
