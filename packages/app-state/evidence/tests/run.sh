@@ -29,6 +29,10 @@ expect_failure() {
 jq empty "$EVIDENCE_DIR/t3-evidence-manifest.schema.json"
 "$TOOL" validate-manifest "$PASSED" >/dev/null
 "$TOOL" validate-manifest "$FAILED" >/dev/null
+jq '.lifecycle = "draft"' "$PASSED" > "$TMP/draft.json"
+"$TOOL" validate-manifest "$TMP/draft.json" >/dev/null
+expect_failure 'lifecycle must be final' \
+  "$TOOL" generate-stamp "$TMP/draft.json" "$RECIPE"
 
 expect_failure '$.environment: is required' \
   "$TOOL" validate-manifest "$EVIDENCE_DIR/fixtures/invalid/missing-environment.json"
@@ -74,3 +78,4 @@ expect_failure "artifact 'apply-log' SHA-256 mismatch" \
   "$TOOL" validate-manifest "$TMP/tampered.json"
 
 printf 'Evidence tooling tests passed.\n'
+"$REPO_ROOT/tests/vm/test-t3-procedures.sh"

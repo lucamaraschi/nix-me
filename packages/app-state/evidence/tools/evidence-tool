@@ -145,6 +145,8 @@ assert_passing() {
   local manifest="$1"
   local failures
 
+  [ "$(jq -r '.lifecycle' "$manifest")" = "final" ] \
+    || die "$manifest: lifecycle must be final before a stamp can be generated"
   [ "$(jq -r '.result.status' "$manifest")" = "passed" ] \
     || die "$manifest: result.status must be passed before a stamp can be generated"
   failures="$(

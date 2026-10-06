@@ -7,6 +7,7 @@
   "required": [
     "$schema",
     "schema_version",
+    "lifecycle",
     "recipe",
     "environment",
     "application",
@@ -22,6 +23,10 @@
     },
     "schema_version": {
       "const": 1
+    },
+    "lifecycle": {
+      "enum": ["draft", "final"],
+      "description": "Draft evidence is reviewable but never eligible to stamp a recipe."
     },
     "recipe": {
       "type": "object",

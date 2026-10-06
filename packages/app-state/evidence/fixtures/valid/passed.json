@@ -1,6 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/lucamaraschi/nix-me/main/packages/app-state/evidence/t3-evidence-manifest.schema.json",
   "schema_version": 1,
+  "lifecycle": "final",
   "recipe": {
     "id": "sample-app",
     "path": "packages/app-state/evidence/fixtures/recipes/sample-app.yaml",

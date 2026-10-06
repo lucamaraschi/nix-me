@@ -34,6 +34,10 @@ VM_IP=""                  # VM IP address (optional, auto-detected if not provid
 APP_STATE_RECIPE=""        # Relative recipe path for app-state convergence verification
 APP_STATE_VALUES=""        # Relative values path paired with APP_STATE_RECIPE
 APP_STATE_ONLY=""          # Optional app id restriction
+T3_PROCEDURE=""            # Optional interactive T3 procedure id
+T3_PROCEDURE_FILE=""       # Resolved machine-readable procedure
+T3_RUN_ID=""               # Generated run directory name
+T3_LOCAL_RUN_DIR=""        # Populated after a T3 run is copied to the host
 
 # Logging functions
 log() { echo -e "${GREEN}[$(date '+%H:%M:%S')]${NC} $1"; }
@@ -74,6 +78,7 @@ OPTIONS:
     --app-state-recipe=PATH Verify this recipe with apply -> diff in the VM
     --app-state-values=PATH Values file for --app-state-recipe (required with it)
     --app-state-only=ID     Restrict the app-state verification to one recipe id
+    --t3-procedure=ID       Run an interactive evidence procedure in the visible VM
     -h, --help              Show this help message
 
 LEGACY OPTIONS (still supported):
@@ -93,6 +98,7 @@ EXAMPLES:
     $0 --vm-user=admin --source=local \
        --app-state-recipe=packages/app-state/recipes/rectangle.yaml \
        --app-state-values=packages/app-state/values/rectangle.yaml --app-state-only=rectangle
+    $0 --vm-user=admin --source=local --t3-procedure=rectangle-visible-window-management
 
 NOTE: Without guest agent in VM, you need to provide --vm-ip manually.
       Start the base VM first, get its IP from System Settings → Network,
@@ -183,6 +189,10 @@ while [[ $# -gt 0 ]]; do
             APP_STATE_ONLY="${1#*=}"
             shift
             ;;
+        --t3-procedure=*)
+            T3_PROCEDURE="${1#*=}"
+            shift
+            ;;
         -h|--help)
             usage
             ;;
@@ -202,6 +212,53 @@ if [ -z "$TEST_VM_NAME" ]; then
     # Generate random name with timestamp and random suffix
     RANDOM_SUFFIX=$(openssl rand -hex 4 2>/dev/null || echo $(date +%s | tail -c 5))
     TEST_VM_NAME="nix-me-test-$(date +%Y%m%d-%H%M%S)-${RANDOM_SUFFIX}"
+fi
+
+if [ -n "$T3_PROCEDURE" ]; then
+    if [ "$SOURCE" != "local" ]; then
+        error "--t3-procedure requires --source=local so the VM executes the checked-out procedure"
+        exit 1
+    fi
+    if [[ ! "$T3_PROCEDURE" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+        error "--t3-procedure must be a kebab-case procedure id"
+        exit 1
+    fi
+    if [[ ! "$TEST_VM_NAME" =~ ^[A-Za-z0-9._-]+$ ]]; then
+        error "--name may contain only letters, digits, dot, underscore, and hyphen for T3 runs"
+        exit 1
+    fi
+
+    while IFS= read -r candidate; do
+        if [ "$(jq -r '.id // empty' "$candidate" 2>/dev/null)" = "$T3_PROCEDURE" ]; then
+            if [ -n "$T3_PROCEDURE_FILE" ]; then
+                error "Duplicate T3 procedure id: $T3_PROCEDURE"
+                exit 1
+            fi
+            T3_PROCEDURE_FILE="$candidate"
+        fi
+    done < <(find "$PROJECT_DIR/packages/app-state/evidence/procedures" -type f -name '*.v*.json' -print | sort)
+    if [ -z "$T3_PROCEDURE_FILE" ]; then
+        error "Unknown T3 procedure id: $T3_PROCEDURE"
+        exit 1
+    fi
+    if ! "$PROJECT_DIR/packages/app-state/evidence/tools/t3-procedure" validate "$T3_PROCEDURE_FILE" >/dev/null; then
+        error "T3 procedure validation failed: $T3_PROCEDURE_FILE"
+        exit 1
+    fi
+
+    procedure_recipe=$(jq -r '.recipe.path' "$T3_PROCEDURE_FILE")
+    procedure_values=$(jq -r '.recipe.values_path' "$T3_PROCEDURE_FILE")
+    procedure_only=$(jq -r '.recipe.id' "$T3_PROCEDURE_FILE")
+    if { [ -n "$APP_STATE_RECIPE" ] && [ "$APP_STATE_RECIPE" != "$procedure_recipe" ]; } || \
+       { [ -n "$APP_STATE_VALUES" ] && [ "$APP_STATE_VALUES" != "$procedure_values" ]; } || \
+       { [ -n "$APP_STATE_ONLY" ] && [ "$APP_STATE_ONLY" != "$procedure_only" ]; }; then
+        error "App-state arguments conflict with procedure $T3_PROCEDURE"
+        exit 1
+    fi
+    APP_STATE_RECIPE="$procedure_recipe"
+    APP_STATE_VALUES="$procedure_values"
+    APP_STATE_ONLY="$procedure_only"
+    T3_RUN_ID="${APP_STATE_ONLY}-$(date -u +%Y%m%dT%H%M%SZ)-$(openssl rand -hex 3)"
 fi
 
 # Validate required parameters
@@ -293,7 +350,12 @@ start_vm() {
 
     log "Starting VM: $TEST_VM_NAME"
 
-    if ! $UTMCTL start "$TEST_VM_NAME" --hide; then
+    if [ -n "$T3_PROCEDURE" ]; then
+        start_args=("$TEST_VM_NAME")
+    else
+        start_args=("$TEST_VM_NAME" --hide)
+    fi
+    if ! $UTMCTL start "${start_args[@]}"; then
         error "Failed to start VM"
         cleanup_vm "$TEST_VM_NAME" true
         exit 1
@@ -740,17 +802,27 @@ run_verification() {
         if [ -n "$APP_STATE_ONLY" ]; then
             only_args="--only $APP_STATE_ONLY"
         fi
-        local verify_cmd="apps_bin=\$(command -v nix-me-apps || echo /run/current-system/sw/bin/nix-me-apps); \
-          \"\$apps_bin\" registry validate --recipe '$recipe_path' --json >/tmp/nix-me-registry-validation.json && \
-          \"\$apps_bin\" apply --recipe '$recipe_path' --values '$values_path' $only_args --yes --json >/tmp/nix-me-app-state-apply.json; \
-          apply_status=\$?; \
-          if [ \$apply_status -ne 0 ] && [ \$apply_status -ne 3 ]; then exit \$apply_status; fi; \
-          \"\$apps_bin\" diff --recipe '$recipe_path' --values '$values_path' $only_args --json >/tmp/nix-me-app-state-diff.json; \
-          diff_status=\$?; \
-          if [ \$diff_status -ne 0 ] && [ \$diff_status -ne 3 ]; then exit \$diff_status; fi; \
-          exit 0"
+        local verify_cmd=""
+        if [ -n "$T3_PROCEDURE" ]; then
+            verify_cmd="apps_bin=\$(command -v nix-me-apps || echo /run/current-system/sw/bin/nix-me-apps); \
+              \"\$apps_bin\" registry validate --recipe '$recipe_path' --json >/tmp/nix-me-registry-validation.json"
+        else
+            verify_cmd="apps_bin=\$(command -v nix-me-apps || echo /run/current-system/sw/bin/nix-me-apps); \
+              \"\$apps_bin\" registry validate --recipe '$recipe_path' --json >/tmp/nix-me-registry-validation.json && \
+              \"\$apps_bin\" apply --recipe '$recipe_path' --values '$values_path' $only_args --yes --json >/tmp/nix-me-app-state-apply.json; \
+              apply_status=\$?; \
+              if [ \$apply_status -ne 0 ] && [ \$apply_status -ne 3 ]; then exit \$apply_status; fi; \
+              \"\$apps_bin\" diff --recipe '$recipe_path' --values '$values_path' $only_args --json >/tmp/nix-me-app-state-diff.json; \
+              diff_status=\$?; \
+              if [ \$diff_status -ne 0 ] && [ \$diff_status -ne 3 ]; then exit \$diff_status; fi; \
+              exit 0"
+        fi
         if vm_exec "$verify_cmd" &>/dev/null; then
-            log "✓ app-state recipe converges and immediate diff is empty"
+            if [ -n "$T3_PROCEDURE" ]; then
+                log "✓ app-state recipe validates; apply is deferred to the interactive T3 runner"
+            else
+                log "✓ app-state recipe converges and immediate diff is empty"
+            fi
             tests_passed=$((tests_passed + 1))
         else
             error "✗ app-state apply/diff convergence failed"
@@ -766,6 +838,57 @@ run_verification() {
     else
         return 1
     fi
+}
+
+# Run the interactive procedure in the visible VM and copy its draft run back.
+run_t3_procedure() {
+    step "T3" "Running interactive visible-behavior procedure"
+
+    local revision
+    local vm_ip
+    local ssh_opts="-t -t -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10"
+    local scp_opts="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10"
+    local remote_root="/Users/$VM_USER/.config/nixpkgs"
+    local remote_run="$remote_root/packages/app-state/evidence/runs/$T3_RUN_ID"
+    local local_runs="$PROJECT_DIR/packages/app-state/evidence/runs"
+    local exit_code=0
+
+    revision=$(git -C "$PROJECT_DIR" rev-parse HEAD)
+    if ! git -C "$PROJECT_DIR" diff --quiet -- packages/app-state/evidence tests/vm || \
+       ! git -C "$PROJECT_DIR" diff --cached --quiet -- packages/app-state/evidence tests/vm; then
+        error "T3 tooling has uncommitted changes; commit it before collecting revision-bound evidence"
+        return 1
+    fi
+    vm_ip=$(get_vm_ip)
+    if [ -n "$VM_SSH_KEY" ]; then
+        ssh_opts="$ssh_opts -i $VM_SSH_KEY"
+        scp_opts="$scp_opts -i $VM_SSH_KEY"
+    fi
+    mkdir -p "$local_runs"
+    if [ -e "$local_runs/$T3_RUN_ID" ]; then
+        error "Local T3 run directory already exists: $local_runs/$T3_RUN_ID"
+        return 1
+    fi
+
+    info "The UTM display must remain visible. The harness cannot observe or approve the app UI."
+    set +e
+    ssh $ssh_opts "$VM_USER@$vm_ip" \
+        "source /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh 2>/dev/null || true; \
+         export PATH=/run/current-system/sw/bin:\$PATH; \
+         cd '$remote_root'; \
+         packages/app-state/evidence/tools/t3-procedure run '$T3_PROCEDURE' \
+           --output '$remote_run' --environment-id '$TEST_VM_NAME' --harness-revision '$revision'"
+    exit_code=$?
+    set -e
+
+    if ! scp $scp_opts -r "$VM_USER@$vm_ip:$remote_run" "$local_runs/"; then
+        error "Could not copy T3 run outputs from the VM"
+        return 1
+    fi
+    T3_LOCAL_RUN_DIR="$local_runs/$T3_RUN_ID"
+    info "Copied T3 draft run to: $T3_LOCAL_RUN_DIR"
+    info "This is draft evidence and cannot stamp a recipe without explicit finalization."
+    return "$exit_code"
 }
 
 # Main test flow
@@ -821,6 +944,16 @@ main() {
         fi
     fi
 
+    local t3_success=true
+    if [ -n "$T3_PROCEDURE" ]; then
+        t3_success=false
+        if [ "$verify_success" = "true" ]; then
+            if run_t3_procedure; then
+                t3_success=true
+            fi
+        fi
+    fi
+
     # Stop VM
     step "7/7" "Cleaning up"
     log "Stopping VM..."
@@ -828,7 +961,7 @@ main() {
 
     # Decide on cleanup based on test result
     local cleanup_action=""
-    if [ "$verify_success" = "true" ]; then
+    if [ "$verify_success" = "true" ] && [ "$t3_success" = "true" ]; then
         cleanup_action="$ON_SUCCESS"
     else
         cleanup_action="$ON_FAILURE"
@@ -843,7 +976,7 @@ main() {
     else
         # Ask user
         echo ""
-        if [ "$verify_success" = "true" ]; then
+        if [ "$verify_success" = "true" ] && [ "$t3_success" = "true" ]; then
             echo -e "${GREEN}✓ All tests passed!${NC}"
         else
             echo -e "${RED}✗ Tests failed${NC}"
@@ -868,11 +1001,21 @@ main() {
     echo "  VM Name:         $TEST_VM_NAME"
     echo "  Installation:    $([ "$install_success" = "true" ] && echo -e "${GREEN}✓ Success${NC}" || echo -e "${RED}✗ Failed${NC}")"
     echo "  Verification:    $([ "$verify_success" = "true" ] && echo -e "${GREEN}✓ Success${NC}" || echo -e "${RED}✗ Failed${NC}")"
+    if [ -n "$T3_PROCEDURE" ]; then
+        echo "  T3 collection:   $([ "$t3_success" = "true" ] && echo -e "${YELLOW}Draft ready; manual finalization required${NC}" || echo -e "${RED}Failed or incomplete draft${NC}")"
+        if [ -n "$T3_LOCAL_RUN_DIR" ]; then
+            echo "  T3 run:          $T3_LOCAL_RUN_DIR"
+        fi
+    fi
     echo "  VM Status:       $([ "$should_delete" = "true" ] && echo "Deleted" || echo "Kept for inspection")"
     echo ""
 
-    if [ "$verify_success" = "true" ]; then
-        log "VM testing completed successfully!"
+    if [ "$verify_success" = "true" ] && [ "$t3_success" = "true" ]; then
+        if [ -n "$T3_PROCEDURE" ]; then
+            log "VM testing completed and a T3 draft was collected; no visual verification was auto-approved."
+        else
+            log "VM testing completed successfully!"
+        fi
         exit 0
     else
         error "VM testing failed"

@@ -86,8 +86,8 @@ def artifact_errors($artifact; $index):
 [
   object_shape(
     .;
-    ["$schema", "schema_version", "recipe", "environment", "application", "procedure", "run", "result", "artifacts"];
-    ["$schema", "schema_version", "recipe", "environment", "application", "procedure", "run", "result", "artifacts"];
+    ["$schema", "schema_version", "lifecycle", "recipe", "environment", "application", "procedure", "run", "result", "artifacts"];
+    ["$schema", "schema_version", "lifecycle", "recipe", "environment", "application", "procedure", "run", "result", "artifacts"];
     "$"
   ),
   if type == "object" then
@@ -95,6 +95,9 @@ def artifact_errors($artifact; $index):
       message("$.$schema"; "must identify the versioned T3 evidence schema")
     else empty end,
     if .schema_version != 1 then message("$.schema_version"; "must equal 1") else empty end,
+    if enum_value(.lifecycle; ["draft", "final"]) | not then
+      message("$.lifecycle"; "must be draft or final")
+    else empty end,
 
     object_shape(.recipe; ["id", "path", "sha256"]; ["id", "path", "sha256"]; "$.recipe"),
     if (.recipe | type) == "object" then
