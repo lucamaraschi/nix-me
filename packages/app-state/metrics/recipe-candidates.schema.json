@@ -1,0 +1,310 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/lucamaraschi/nix-me/metrics/recipe-candidates.schema.json",
+  "title": "nix-me ranked app-state recipe candidates",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "generated_from",
+    "metric_summary",
+    "policy",
+    "exclusions",
+    "candidate_count",
+    "candidates"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": 1 },
+    "generated_from": {
+      "type": "object",
+      "required": [
+        "catalog",
+        "catalog_version",
+        "catalog_sha256",
+        "metrics",
+        "metrics_version",
+        "metrics_sha256",
+        "analytics_start_date",
+        "analytics_end_date"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "catalog": { "type": "string", "minLength": 1 },
+        "catalog_version": { "const": 1 },
+        "catalog_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "metrics": { "type": "string", "minLength": 1 },
+        "metrics_version": { "const": 1 },
+        "metrics_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "analytics_start_date": { "type": "string", "format": "date" },
+        "analytics_end_date": { "type": "string", "format": "date" }
+      }
+    },
+    "metric_summary": { "$ref": "#/definitions/metric_summary" },
+    "policy": { "$ref": "#/definitions/policy" },
+    "exclusions": {
+      "type": "object",
+      "required": ["rule", "already_supported_count", "already_supported"],
+      "additionalProperties": false,
+      "properties": {
+        "rule": { "type": "string", "minLength": 1 },
+        "already_supported_count": { "type": "integer", "minimum": 0 },
+        "already_supported": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["catalog_rank", "cask", "local_recipe"],
+            "additionalProperties": false,
+            "properties": {
+              "catalog_rank": { "type": "integer", "minimum": 1 },
+              "cask": { "type": "string", "minLength": 1 },
+              "local_recipe": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+    "candidate_count": { "type": "integer", "minimum": 1 },
+    "candidates": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/candidate" }
+    }
+  },
+  "definitions": {
+    "metric_summary": {
+      "type": "object",
+      "required": [
+        "denominator",
+        "behavior_mapped_apps",
+        "local_recipe_apps",
+        "zero_click_apps",
+        "one_click_apps",
+        "full_manual_apps",
+        "uncovered_apps"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "denominator": { "type": "integer", "minimum": 1 },
+        "behavior_mapped_apps": { "type": "integer", "minimum": 1 },
+        "local_recipe_apps": { "type": "integer", "minimum": 0 },
+        "zero_click_apps": { "type": "integer", "minimum": 0 },
+        "one_click_apps": { "type": "integer", "minimum": 0 },
+        "full_manual_apps": { "type": "integer", "minimum": 0 },
+        "uncovered_apps": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "required": [
+        "score_minimum",
+        "score_maximum",
+        "formula",
+        "weights",
+        "backlog_dimensions",
+        "tie_breakers",
+        "impact",
+        "feasibility",
+        "risk"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "score_minimum": { "const": 0 },
+        "score_maximum": { "const": 100 },
+        "formula": { "type": "string", "minLength": 1 },
+        "weights": {
+          "type": "object",
+          "required": ["impact", "feasibility", "risk_adjusted"],
+          "additionalProperties": false,
+          "properties": {
+            "impact": { "const": 0.45 },
+            "feasibility": { "const": 0.4 },
+            "risk_adjusted": { "const": 0.15 }
+          }
+        },
+        "backlog_dimensions": {
+          "type": "object",
+          "required": [
+            "installed_profile_frequency",
+            "configurability",
+            "impact",
+            "implementation_confidence",
+            "t3_cost"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "installed_profile_frequency": { "type": "string", "minLength": 1 },
+            "configurability": { "type": "string", "minLength": 1 },
+            "impact": { "type": "string", "minLength": 1 },
+            "implementation_confidence": { "type": "string", "minLength": 1 },
+            "t3_cost": { "type": "string", "minLength": 1 }
+          }
+        },
+        "tie_breakers": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "impact": {
+          "type": "object",
+          "required": ["rationale", "installs_weight", "catalog_reach_weight", "normalization"],
+          "additionalProperties": false,
+          "properties": {
+            "rationale": { "type": "string", "minLength": 1 },
+            "installs_weight": { "const": 0.7 },
+            "catalog_reach_weight": { "const": 0.3 },
+            "normalization": { "type": "string", "minLength": 1 }
+          }
+        },
+        "feasibility": {
+          "type": "object",
+          "required": [
+            "rationale",
+            "mechanism_base",
+            "confidence_adjustment",
+            "evidence_adjustment",
+            "preference_signal_bonus",
+            "config_signal_bonus"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "rationale": { "type": "string", "minLength": 1 },
+            "mechanism_base": { "$ref": "#/definitions/mechanism_values" },
+            "confidence_adjustment": { "$ref": "#/definitions/confidence_values" },
+            "evidence_adjustment": { "$ref": "#/definitions/evidence_values" },
+            "preference_signal_bonus": { "type": "integer" },
+            "config_signal_bonus": { "type": "integer" }
+          }
+        },
+        "risk": {
+          "type": "object",
+          "required": [
+            "rationale",
+            "mechanism_base",
+            "confidence_adjustment",
+            "evidence_adjustment",
+            "no_path_penalty",
+            "hybrid_multi_surface_penalty"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "rationale": { "type": "string", "minLength": 1 },
+            "mechanism_base": { "$ref": "#/definitions/mechanism_values" },
+            "confidence_adjustment": { "$ref": "#/definitions/confidence_values" },
+            "evidence_adjustment": { "$ref": "#/definitions/evidence_values" },
+            "no_path_penalty": { "type": "integer" },
+            "hybrid_multi_surface_penalty": { "type": "integer" }
+          }
+        }
+      }
+    },
+    "mechanism_values": {
+      "type": "object",
+      "required": ["defaults_dominant", "file_driven", "hybrid", "cloud_or_opaque"],
+      "additionalProperties": false,
+      "properties": {
+        "defaults_dominant": { "type": "integer" },
+        "file_driven": { "type": "integer" },
+        "hybrid": { "type": "integer" },
+        "cloud_or_opaque": { "type": "integer" }
+      }
+    },
+    "confidence_values": {
+      "type": "object",
+      "required": ["high", "medium", "low"],
+      "additionalProperties": false,
+      "properties": {
+        "high": { "type": "integer" },
+        "medium": { "type": "integer" },
+        "low": { "type": "integer" }
+      }
+    },
+    "evidence_values": {
+      "type": "object",
+      "required": ["curated", "homebrew_zap_paths", "homebrew_app_artifact"],
+      "additionalProperties": false,
+      "properties": {
+        "curated": { "type": "integer" },
+        "homebrew_zap_paths": { "type": "integer" },
+        "homebrew_app_artifact": { "type": "integer" }
+      }
+    },
+    "candidate": {
+      "type": "object",
+      "required": [
+        "catalog_rank",
+        "analytics_rank",
+        "cask",
+        "name",
+        "description",
+        "homepage",
+        "installs",
+        "percent",
+        "behavior",
+        "signals",
+        "score",
+        "rationale",
+        "candidate_rank"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "catalog_rank": { "type": "integer", "minimum": 1, "maximum": 200 },
+        "analytics_rank": { "type": "integer", "minimum": 1 },
+        "cask": { "type": "string", "pattern": "^[a-z0-9@+._-]+$" },
+        "name": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 },
+        "homepage": { "type": "string", "format": "uri" },
+        "installs": { "type": "integer", "minimum": 1 },
+        "percent": { "type": "number", "minimum": 0, "maximum": 100 },
+        "behavior": {
+          "type": "object",
+          "required": ["mechanism", "confidence", "evidence", "note"],
+          "additionalProperties": false,
+          "properties": {
+            "mechanism": { "enum": ["defaults_dominant", "file_driven", "hybrid", "cloud_or_opaque"] },
+            "confidence": { "enum": ["high", "medium", "low"] },
+            "evidence": { "enum": ["curated", "homebrew_zap_paths", "homebrew_app_artifact"] },
+            "note": { "type": "string", "minLength": 1 }
+          }
+        },
+        "signals": {
+          "type": "object",
+          "required": ["preference_paths", "config_paths"],
+          "additionalProperties": false,
+          "properties": {
+            "preference_paths": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+            "config_paths": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+          }
+        },
+        "score": {
+          "type": "object",
+          "required": ["total", "impact", "feasibility", "risk"],
+          "additionalProperties": false,
+          "properties": {
+            "total": { "$ref": "#/definitions/score" },
+            "impact": { "$ref": "#/definitions/score" },
+            "feasibility": { "$ref": "#/definitions/score" },
+            "risk": { "$ref": "#/definitions/score" }
+          }
+        },
+        "rationale": {
+          "type": "object",
+          "required": ["impact", "feasibility", "risk"],
+          "additionalProperties": false,
+          "properties": {
+            "impact": { "type": "string", "minLength": 1 },
+            "feasibility": { "type": "string", "minLength": 1 },
+            "risk": { "type": "string", "minLength": 1 }
+          }
+        },
+        "candidate_rank": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100,
+      "multipleOf": 0.01
+    }
+  }
+}
