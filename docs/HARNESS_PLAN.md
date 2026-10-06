@@ -48,7 +48,10 @@ Version 0.1 provides an opt-in, runtime-free `nix-me-apps` engine. It can:
 
 The persisted state format and JSON plan surface are version 1. Recipes remain
 local to this repository and are treated as untrusted until schema and semantic
-validation pass.
+validation pass. The current integration branch also provides engine-owned
+status, guided capture review, signed T3 evidence tooling, explicit document
+migrations, and local-AI status. These additions do not change the production
+recipe, plan, or state format version.
 
 ## Verification tiers
 
@@ -94,20 +97,20 @@ persisted-state format.
 
 | ID | Priority | Status | Depends on | Deliverable and acceptance criteria |
 |---|---|---|---|---|
-| H-001 | P0 | Ready | - | Define a machine-readable T3 evidence manifest and JSON Schema. Validation rejects missing environment, procedure, result, or artifact metadata. |
-| H-002 | P0 | Ready | H-001 | Run Rectangle T3 in a disposable macOS VM. A second operator can follow the documented procedure and reproduce the visible window-management behavior. |
-| H-003 | P0 | Ready | H-001 | Run Raycast generated-import T3. Evidence proves the import was accepted and the corresponding setting is visible in Raycast. |
-| H-004 | P0 | Ready | H-001 | Add verification-stamp generation and CI validation. Stamps are derived from passing evidence and cannot be accepted when hand-authored or stale. |
-| H-010 | P1 | Ready | H-004 | Define an internal status model covering engine availability, configured recipes, drift, manual residue, last apply, and verification. Unit tests cover every state. |
-| H-011 | P1 | Ready | H-010 | Expose the status model through a versioned, read-only management API. Contract tests lock response shape and error semantics. |
-| H-012 | P1 | Ready | H-011 | Render harness status, diffs, residue, and apply results in the macOS app and CLI without reading engine files directly. Mutations remain explicit. |
-| H-020 | P1 | Ready | H-012 | Add guided application/domain discovery. Output names each source, confidence level, unsupported container, and next safe action. |
-| H-021 | P1 | Ready | H-020 | Add a reviewable capture diff that separates additions, changes, deletions, ignored keys, and uncertain values before writing files. |
-| H-022 | P1 | Ready | H-021 | Add default secret redaction and explicit inclusion controls. Fixtures cover tokens, credentials, encrypted containers, and false positives. |
-| H-030 | P2 | Ready | H-012 | Score recipe candidates by installed-profile frequency, configurability, impact, implementation confidence, and T3 cost. Publish the ranked queue. |
-| H-031 | P2 | Ready | H-030 | Deliver the first scored recipe batch with values, catalog mapping, tests, metrics, documentation, and either T3 evidence or `verified: null`. |
-| H-040 | P2 | Ready | H-012 | Create forward/backward migration fixtures for recipes, plans, and persisted state before any version-2 implementation starts. |
-| H-041 | P2 | Ready | H-040 | Add atomic backup, migration rollback, and failure reporting. Tests prove the prior state remains usable after an interrupted migration. |
+| H-001 | P0 | Done | - | Define a machine-readable T3 evidence manifest and JSON Schema. Validation rejects missing environment, procedure, result, or artifact metadata. |
+| H-002 | P0 | Ready for run | H-001 | Run Rectangle T3 in a disposable macOS VM. A second operator can follow the documented procedure and reproduce the visible window-management behavior. |
+| H-003 | P0 | Ready for run | H-001 | Run Raycast generated-import T3. Evidence proves the import was accepted and the corresponding setting is visible in Raycast. |
+| H-004 | P0 | Done | H-001 | Add verification-stamp generation and CI validation. Stamps are derived from passing evidence and cannot be accepted when hand-authored or stale. |
+| H-010 | P1 | Done | H-004 | Define an internal status model covering engine availability, configured recipes, drift, manual residue, last apply, and verification. Unit tests cover every state. |
+| H-011 | P1 | Done | H-010 | Expose the status model through a versioned, read-only management API. Contract tests lock response shape and error semantics. |
+| H-012 | P1 | Done | H-011 | Render harness status, diffs, residue, and apply results in the macOS app and CLI without reading engine files directly. Mutations remain explicit. |
+| H-020 | P1 | Done | H-012 | Add guided application/domain discovery. Output names each source, confidence level, unsupported container, and next safe action. |
+| H-021 | P1 | Done | H-020 | Add a reviewable capture diff that separates additions, changes, deletions, ignored keys, and uncertain values before writing files. |
+| H-022 | P1 | Done | H-021 | Add default secret redaction and explicit inclusion controls. Fixtures cover tokens, credentials, encrypted containers, and false positives. |
+| H-030 | P2 | Done | H-012 | Score recipe candidates by installed-profile frequency, configurability, impact, implementation confidence, and T3 cost. Publish the ranked queue. |
+| H-031 | P2 | Done | H-030 | Deliver the first scored recipe batch with values, catalog mapping, tests, metrics, documentation, and either T3 evidence or `verified: null`. |
+| H-040 | P2 | Done | H-012 | Create forward/backward migration fixtures for recipes, plans, and persisted state before any version-2 implementation starts. |
+| H-041 | P2 | Done | H-040 | Add atomic backup, migration rollback, and failure reporting. Tests prove the prior state remains usable after an interrupted migration. |
 
 ## Local AI pilot
 
@@ -120,9 +123,9 @@ weights remain outside the Nix store and require an explicit download.
 |---|---|---|---|---|
 | LAI-001 | P0 | Done | - | Add a composable `local-ai` profile that installs Pi and syncs the public DS4 and pi-ds4 repositories under `~/src/ai`. It is not assigned to an existing host implicitly. |
 | LAI-002 | P0 | Done | LAI-001 | Provide `local-ai-doctor` and `local-ai-setup`. Setup builds DS4, links Pi, and downloads DeepSeek V4 Flash Q2 only with `--download-model`; doctor reports prerequisites, memory, disk, runtime, extension, and model state. |
-| LAI-003 | P1 | Ready | H-020, LAI-002 | Model Pi/DS4 settings as a harness recipe. Capture excludes model binaries and secrets; plan/apply converges settings without disrupting a running server. |
-| LAI-004 | P1 | Ready | H-011, LAI-003 | Add local-AI status to the management API and macOS app: checkout health, runtime build, model presence, server state, configuration drift, and actionable remediation. |
-| LAI-005 | P2 | Ready | LAI-004 | Add explicit model lifecycle actions with progress, disk preflight, checksum/error reporting, cancellation, and cleanup of partial downloads. |
+| LAI-003 | P1 | Done | H-020, LAI-002 | Model Pi/DS4 settings as a harness recipe. Capture excludes model binaries and secrets; plan/apply converges settings without disrupting a running server. |
+| LAI-004 | P1 | Done | H-011, LAI-003 | Add local-AI status to the management API and macOS app: checkout health, runtime build, model presence, server state, configuration drift, and actionable remediation. |
+| LAI-005 | P2 | In progress | LAI-004 | Add explicit model lifecycle actions with progress, disk preflight, checksum/error reporting, cancellation, and cleanup of partial downloads. |
 | LAI-006 | P0 | Done | LAI-001 | Declare model requirements in the profile and run a pre-activation hardware/capacity check. Unsupported hardware fails; capacity uses host-selectable `warn` or `fail` enforcement. |
 
 ## Release gates
@@ -156,12 +159,24 @@ cargo run -p nix-me-apps -- registry catalog-validate \
   --catalog ../catalog/homebrew-top-200-apps.json --recipe ../recipes --json
 cargo run -p nix-me-apps -- registry catalog-metric \
   --catalog ../catalog/homebrew-top-200-apps.json --recipe ../recipes --json
+cd ../../..
+make test-app-state test-api test-cli
+packages/app-state/evidence/tests/run.sh
+python3 tools/app-state/test_score_recipe_candidates.py
+python3 tools/app-state/score_recipe_candidates.py --check
 ```
 
 The manual VM command and trust model are documented in `docs/REGISTRY.md`.
 
 ## Decision log
 
+- 2026-10-05: Require exact-byte SSH signatures from explicitly enrolled
+  operators for production T3 evidence. Fixture signers cannot authorize
+  production recipes, and no production signer is enrolled by default.
+- 2026-10-05: Keep version-2 migration documents synthetic until a real v2
+  contract is designed. Production readers continue to reject unknown versions.
+- 2026-10-05: Keep focused app-state and local-AI reads isolated from Homebrew,
+  MAS, and Nix update discovery so status refreshes stay bounded and read-only.
 - 2026-10-05: Use stable backlog IDs and release gates so engine, API, CLI, and
   macOS app work can reference the same deliverables.
 - 2026-10-05: Treat local AI as an external-runtime pilot. Declare tools and
