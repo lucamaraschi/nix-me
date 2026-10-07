@@ -214,7 +214,7 @@ render_status() {
     return
   fi
 
-  local stage bytes expected percent state_status pid operation_id process_started process_alive stale_worker unverifiable_worker latest_state
+  local stage bytes expected percent state_status pid operation_id process_started process_alive stale_worker unverifiable_worker latest_state identity_attempt
   state_status="$(jq -r '.status' <<<"$state_json")"
   pid="$(jq -r '.pid // 0' <<<"$state_json")"
   operation_id="$(jq -r '.operationId // ""' <<<"$state_json")"
@@ -222,32 +222,33 @@ render_status() {
   process_alive=false
   stale_worker=false
   unverifiable_worker=false
-  if [[ "$state_status" == "running" ]] && worker_matches "$pid" "$operation_id" "$process_started"; then
-    process_alive=true
-  elif [[ "$state_status" == "running" && -z "$process_started" ]] && \
-    worker_command_matches "$pid" "$operation_id"; then
-    process_alive=true
-    unverifiable_worker=true
-  elif [[ "$state_status" == "running" ]]; then
-    # The worker may have atomically published its terminal state between the
-    # state read and process inspection. Re-read once before declaring it stale.
+  identity_attempt=0
+  while [[ "$state_status" == "running" ]] && ((identity_attempt < 5)); do
+    if worker_matches "$pid" "$operation_id" "$process_started"; then
+      process_alive=true
+      break
+    elif [[ -z "$process_started" ]] && worker_command_matches "$pid" "$operation_id"; then
+      process_alive=true
+      unverifiable_worker=true
+      break
+    fi
+
+    # A worker can publish its terminal state immediately after process
+    # inspection. Give that atomic rename a bounded window before reporting
+    # stale metadata to read-only clients.
+    sleep 0.01
     latest_state="$(cat "$STATE_FILE")"
-    if [[ "$latest_state" != "$state_json" ]] && jq -e '.schemaVersion == 1' >/dev/null 2>&1 <<<"$latest_state"; then
+    if jq -e '.schemaVersion == 1' >/dev/null 2>&1 <<<"$latest_state"; then
       state_json="$latest_state"
       state_status="$(jq -r '.status' <<<"$state_json")"
       pid="$(jq -r '.pid // 0' <<<"$state_json")"
       operation_id="$(jq -r '.operationId // ""' <<<"$state_json")"
       process_started="$(jq -r '.processStartedAt // ""' <<<"$state_json")"
     fi
-    if [[ "$state_status" == "running" ]] && worker_matches "$pid" "$operation_id" "$process_started"; then
-      process_alive=true
-    elif [[ "$state_status" == "running" && -z "$process_started" ]] && \
-      worker_command_matches "$pid" "$operation_id"; then
-      process_alive=true
-      unverifiable_worker=true
-    elif [[ "$state_status" == "running" ]]; then
-      stale_worker=true
-    fi
+    identity_attempt=$((identity_attempt + 1))
+  done
+  if [[ "$state_status" == "running" && "$process_alive" == "false" ]]; then
+    stale_worker=true
   fi
 
   stage="$(jq -r '.stagePath // ""' <<<"$state_json")"
