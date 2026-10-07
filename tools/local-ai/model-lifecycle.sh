@@ -559,7 +559,7 @@ worker() {
 
 start_operation() {
   local payload request_sha configured_sha expected_sha expected_bytes required_bytes available_kib available_bytes
-  local operation_id started_at model_parent stage_path runner_path worker_pid worker_started state_process_started current_status current_pid current_operation_id current_process_started
+  local operation_id started_at model_parent stage_path runner_path worker_pid worker_started state_process_started current_status current_pid current_operation_id current_process_started worker_initialized
 
   payload="$(cat)"
   [[ -n "$payload" ]] || payload='{}'
@@ -665,19 +665,31 @@ start_operation() {
   done
 
   local attempt=0 state_pid=0
+  worker_initialized=false
   while ((attempt < 100)); do
     state_pid="$(jq -r '.pid // 0' "$STATE_FILE" 2>/dev/null || printf 0)"
+    current_status="$(jq -r '.status // ""' "$STATE_FILE" 2>/dev/null || true)"
     current_operation_id="$(jq -r '.operationId // ""' "$STATE_FILE" 2>/dev/null || true)"
     state_process_started="$(jq -r '.processStartedAt // ""' "$STATE_FILE" 2>/dev/null || true)"
-    [[ "$state_pid" == "$worker_pid" && "$current_operation_id" == "$operation_id" && \
-      "$state_process_started" == "$worker_started" && -n "$worker_started" ]] && break
-    worker_matches "$worker_pid" "$operation_id" "$worker_started" || break
+    if [[ "$current_operation_id" == "$operation_id" ]]; then
+      if [[ "$current_status" =~ ^(succeeded|failed|cancelled)$ ]]; then
+        worker_initialized=true
+        break
+      fi
+      if [[ "$current_status" == "running" && "$state_pid" == "$worker_pid" && \
+        "$state_process_started" == "$worker_started" && -n "$worker_started" ]]; then
+        worker_initialized=true
+        break
+      fi
+    fi
+    if [[ -z "$worker_started" ]] && kill -0 "$worker_pid" 2>/dev/null; then
+      worker_started="$(process_started_at "$worker_pid")"
+    fi
     sleep 0.02
     attempt=$((attempt + 1))
   done
   release_start_lock
-  if [[ "$state_pid" != "$worker_pid" || "$current_operation_id" != "$operation_id" || \
-    "$state_process_started" != "$worker_started" || -z "$worker_started" ]]; then
+  if [[ "$worker_initialized" == "false" ]]; then
     if worker_matches "$worker_pid" "$operation_id" "$worker_started"; then
       kill -TERM "$worker_pid" 2>/dev/null || true
     fi
