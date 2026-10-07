@@ -103,6 +103,14 @@ file_mode() {
   fi
 }
 
+file_metadata() {
+  if stat -f '%m:%c:%z' "$1" >/dev/null 2>&1; then
+    stat -f '%m:%c:%z' "$1"
+  else
+    stat -c '%Y:%Z:%s' "$1"
+  fi
+}
+
 state_mode="$(file_mode "$case_state/state.json")"
 root_mode="$(file_mode "$case_state")"
 [[ "$state_mode" == "600" && "$root_mode" == "700" ]] || fail "operation files are not private"
@@ -291,7 +299,7 @@ jq -n \
   }' >"$case_state/state.json"
 chmod 600 "$case_state/state.json"
 state_hash_before="$(shasum -a 256 "$case_state/state.json" | awk '{print $1}')"
-state_stat_before="$(stat -f '%m:%c:%z' "$case_state/state.json" 2>/dev/null || stat -c '%Y:%Z:%s' "$case_state/state.json")"
+state_stat_before="$(file_metadata "$case_state/state.json")"
 run_lifecycle status >"$temp_dir/stale-worker-status.json"
 jq -e '
   .operation.status == "failed" and
@@ -300,7 +308,7 @@ jq -e '
   (.operation.message | contains("partial data has not been removed"))
 ' "$temp_dir/stale-worker-status.json" >/dev/null
 state_hash_after="$(shasum -a 256 "$case_state/state.json" | awk '{print $1}')"
-state_stat_after="$(stat -f '%m:%c:%z' "$case_state/state.json" 2>/dev/null || stat -c '%Y:%Z:%s' "$case_state/state.json")"
+state_stat_after="$(file_metadata "$case_state/state.json")"
 [[ "$state_hash_before" == "$state_hash_after" ]] || fail "status rewrote stale operation state"
 [[ "$state_stat_before" == "$state_stat_after" ]] || fail "status changed stale operation metadata"
 [[ -e "$stale_stage/model.gguf.part" && -e "$stale_runner/download_model.sh" ]] || \
