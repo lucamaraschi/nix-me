@@ -1,0 +1,50 @@
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/Vancouver
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  - package-ecosystem: npm
+    directory: "/apps/post-install-tui"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:15"
+      timezone: America/Vancouver
+    groups:
+      post-install-tui:
+        patterns:
+          - "*"
+
+  - package-ecosystem: cargo
+    directory: "/packages/app-state/engine"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:30"
+      timezone: America/Vancouver
+    groups:
+      app-state-engine:
+        patterns:
+          - "*"
+
+  - package-ecosystem: swift
+    directory: "/apps/macos/NixMeApp"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:45"
+      timezone: America/Vancouver
+    groups:
+      macos-app:
+        patterns:
+          - "*"
