@@ -13,6 +13,14 @@ fail() {
   exit 1
 }
 
+report_unexpected_error() {
+  local status=$?
+  printf 'local AI lifecycle test command failed at line %s: %s (exit %s)\n' \
+    "${BASH_LINENO[0]}" "$BASH_COMMAND" "$status" >&2
+  exit "$status"
+}
+trap report_unexpected_error ERR
+
 new_case() {
   local name="$1"
   case_home="$temp_dir/$name/home"
