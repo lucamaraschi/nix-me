@@ -93,7 +93,19 @@ vm_create_wizard() {
                 --header="↑↓ Navigate | Enter: Select | ESC: Cancel" \
                 --preview='case {} in
                     test-macos) echo "🧪 Test macOS VM"; echo ""; echo "Clone your base macOS VM to test nix-me installation."; echo "Perfect for validating changes before applying to your main system."; echo ""; echo "✨ Features:"; echo "  • Full installation testing"; echo "  • Auto-delete on success"; echo "  • Test from local or GitHub"; echo "  • Complete automation" ;;
+                esac' \
+                --preview-window=right:60%:wrap)
+    else
+        echo -e "  ${GREEN}[1]${NC} test-macos"
+        echo -e "      Test your nix-me installation in a VM"
+        echo ""
+        echo -e "  ${GREEN}[0]${NC} Cancel"
+        echo ""
+        read -p "  Select type [0]: " type_choice
+        case "${type_choice}" in
+            1) vm_type="test-macos" ;;
             0|"") return 0 ;;
+            *) print_error "Invalid VM type"; return 1 ;;
         esac
     fi
 
@@ -678,9 +690,8 @@ vm_download_iso_menu() {
     clear
     print_header "Download ISOs"
     echo ""
-    echo -e "  ${CYAN}[1]${NC} Omarchy (Arch + Hyprland)"
-    echo -e "  ${CYAN}[2]${NC} NixOS (GNOME)"
-    echo -e "  ${CYAN}[3]${NC} Ubuntu Server"
+    echo -e "  ${CYAN}[1]${NC} NixOS (GNOME)"
+    echo -e "  ${CYAN}[2]${NC} Ubuntu Server"
     echo ""
     echo -e "  ${CYAN}[0]${NC} Back"
     echo ""
@@ -689,54 +700,13 @@ vm_download_iso_menu() {
     choice=${choice:-0}
 
     case "$choice" in
-        2) vm_download_nixos_iso ;;
-        3) vm_download_ubuntu_iso ;;
+        1) vm_download_nixos_iso ;;
+        2) vm_download_ubuntu_iso ;;
         0) return 0 ;;
+        *) print_error "Invalid ISO type"; return 1 ;;
     esac
 
     read -p "Press Enter to continue..."
-}
-
-# Download Omarchy ISO
-
-    if [[ -f "$iso_path" ]]; then
-        print_success "✓ Omarchy ISO already cached"
-        return 0
-    fi
-
-    print_info "Opening browser to download Omarchy ISO..."
-    echo ""
-    echo -e "  ${YELLOW}Manual download required${NC}"
-    echo -e "  ${BULLET} Click: ${GREEN}'Download the ISO'${NC}"
-    echo -e "  ${BULLET} Move to: ${CYAN}$(dirname "$iso_path")/${NC}"
-    echo ""
-
-    # Open browser
-    if command -v open &>/dev/null; then
-    fi
-
-    echo -e "  ${YELLOW}Waiting for ISO download...${NC}"
-    echo ""
-
-    # Wait for user to download
-    local attempts=0
-    while [[ $attempts -lt 60 ]]; do
-        if [[ -f "$iso_path" ]]; then
-            print_success "✓ ISO downloaded successfully!"
-            return 0
-        fi
-
-        # Show progress indicator
-        echo -ne "  \r  Checking... ${attempts}s (Press Ctrl+C to cancel)  "
-        sleep 5
-        attempts=$((attempts + 5))
-    done
-
-    echo ""
-    print_error "ISO download timeout"
-    print_info "Please download manually and place at:"
-    echo -e "  ${CYAN}$iso_path${NC}"
-    return 1
 }
 
 # Download NixOS ISO

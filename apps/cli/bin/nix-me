@@ -6,6 +6,7 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB_DIR="$SCRIPT_DIR/../lib"
 REPO_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+MANAGEMENT_API_BIN="${NIX_ME_API_BIN:-$REPO_DIR/packages/management-api/bin/nix-me-api}"
 
 # Detect CONFIG_DIR - prefer current project if running from nix-me repo
 if [[ -f "$REPO_DIR/flake.nix" ]]; then
@@ -19,7 +20,7 @@ fi
 # JSON API calls bypass the interactive libraries and always write JSON to stdout.
 if [[ "${1:-}" == "api" ]]; then
     shift
-    exec "$REPO_DIR/packages/management-api/bin/nix-me-api" "$@"
+    exec "$MANAGEMENT_API_BIN" "$@"
 fi
 
 if [[ "${1:-}" == "action" ]]; then
@@ -30,6 +31,37 @@ fi
 if [[ "${1:-}" == "details" ]]; then
     shift
     exec "$REPO_DIR/packages/management-api/bin/nix-me-details" "$@"
+fi
+
+if [[ "${1:-}" == "local-ai" && "${2:-}" == "model" ]]; then
+    subcommand="${3:-status}"
+    action_bin="$REPO_DIR/packages/management-api/bin/nix-me-action"
+    case "$subcommand" in
+        start)
+            shift 3
+            if [[ $# -eq 0 ]]; then
+                printf '{}\n' | "$action_bin" local-ai-model-start
+            elif [[ $# -eq 2 && "$1" == "--checksum" ]]; then
+                jq -n --arg checksum "$2" '{expectedSha256: $checksum}' | \
+                    "$action_bin" local-ai-model-start
+            else
+                echo "Usage: nix-me local-ai model start [--checksum SHA256]" >&2
+                exit 64
+            fi
+            ;;
+        status | cancel)
+            [[ $# -eq 3 ]] || {
+                echo "Usage: nix-me local-ai model $subcommand" >&2
+                exit 64
+            }
+            "$action_bin" "local-ai-model-$subcommand" </dev/null
+            ;;
+        *)
+            echo "Usage: nix-me local-ai model <start|status|cancel> [--checksum SHA256]" >&2
+            exit 64
+            ;;
+    esac
+    exit $?
 fi
 
 # The application-state engine is a separate, runtime-free Rust binary.
@@ -52,6 +84,7 @@ source "$LIB_DIR/package-manager.sh" 2>/dev/null || true
 source "$LIB_DIR/config-wizard.sh" 2>/dev/null || true
 source "$LIB_DIR/vm-manager.sh" 2>/dev/null || true
 source "$LIB_DIR/tui.sh" 2>/dev/null || true
+source "$LIB_DIR/harness-status.sh"
 
 # ============================================================================
 # Help and Documentation
@@ -83,6 +116,8 @@ ${CYAN}System Management:${NC}
   ${GREEN}action${NC} <action>     Validated action API for native clients
   ${GREEN}details${NC} <kind> <id> Package metadata API for native clients
   ${GREEN}apps${NC} <command>      Diff, apply, or capture declarative app state
+  ${GREEN}harness${NC} [status|diff] Read-only application-state harness summary
+  ${GREEN}local-ai model${NC} <start|status|cancel> Manage the configured local model
 
 ${CYAN}VM Management:${NC}
   ${GREEN}vm${NC}                  Interactive VM management menu
@@ -121,6 +156,9 @@ ${CYAN}Examples:${NC}
 
   ${YELLOW}# Check system health${NC}
   nix-me doctor
+
+  ${YELLOW}# Review application-state harness drift${NC}
+  nix-me harness diff
 
   ${YELLOW}# Manage VMs${NC}
   nix-me vm
@@ -699,6 +737,10 @@ case "${1:-menu}" in
         ;;
     rollback)
         cmd_rollback
+        ;;
+    harness)
+        shift
+        cmd_harness "$@"
         ;;
 
     # VM Management

@@ -16,6 +16,10 @@ let package = Package(
             name: "NixMeApp",
             dependencies: [.product(name: "Sparkle", package: "Sparkle")]
         ),
-        .testTarget(name: "NixMeAppTests", dependencies: ["NixMeApp"])
+        .testTarget(
+            name: "NixMeAppTests",
+            dependencies: ["NixMeApp"],
+            resources: [.process("Fixtures")]
+        )
     ]
 )

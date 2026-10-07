@@ -1,0 +1,22 @@
+{
+  "apps": {
+    "example": {
+      "entries": {
+        "manual-0": {
+          "applied_at": "2026-10-05T00:00:00Z",
+          "last_applied": {
+            "done": true
+          }
+        }
+      },
+      "future_app_field": "preserve-me"
+    }
+  },
+  "extension_data": {
+    "nested": {
+      "keep": true
+    }
+  },
+  "updated_at": "2026-10-05T00:00:00Z",
+  "version": 1
+}

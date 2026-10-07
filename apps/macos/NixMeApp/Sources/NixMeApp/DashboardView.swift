@@ -1,8 +1,10 @@
 import SwiftUI
 
-private enum DashboardSection: String, Identifiable {
+enum DashboardSection: String, Identifiable {
     case overview = "Overview"
     case configuration = "Configuration"
+    case harness = "Harness"
+    case localAI = "Local AI"
     case managedSoftware = "Managed"
     case installedSoftware = "Installed"
     case configurationChanges = "Changes"
@@ -15,6 +17,8 @@ private enum DashboardSection: String, Identifiable {
         switch self {
         case .overview: "square.grid.2x2"
         case .configuration: "point.3.connected.trianglepath.dotted"
+        case .harness: "checklist.checked"
+        case .localAI: "cpu"
         case .managedSoftware: "shippingbox"
         case .installedSoftware: "internaldrive"
         case .configurationChanges: "arrow.left.arrow.right"
@@ -26,14 +30,13 @@ private enum DashboardSection: String, Identifiable {
 
 struct DashboardView: View {
     @ObservedObject var store: DashboardStore
-    @State private var selection: DashboardSection = .overview
     @State private var projectFilter = ProjectFilter.all
     @State private var selectedUpdateIDs = Set<String>()
     @State private var showingApplyConfirmation = false
 
     var body: some View {
         NavigationSplitView {
-            List(selection: $selection) {
+            List(selection: $store.selectedSection) {
                 SidebarRow(section: .overview)
                 SidebarRow(section: .configuration, count: store.configurationGraph?.activeNodes.count)
 
@@ -48,6 +51,16 @@ struct DashboardView: View {
                 }
 
                 Section("Maintenance") {
+                    SidebarRow(
+                        section: .harness,
+                        count: store.snapshot?.appState?.differenceCount,
+                        needsAttention: store.snapshot?.appState?.needsAttention ?? false
+                    )
+                    SidebarRow(
+                        section: .localAI,
+                        count: store.snapshot?.localAI?.remediation.count,
+                        needsAttention: store.snapshot?.localAI?.needsAttention ?? false
+                    )
                     SidebarRow(section: .projects, count: store.snapshot?.projectAttentionCount)
                     SidebarRow(section: .updates, count: store.snapshot?.softwareUpdateCount)
                 }
@@ -57,7 +70,7 @@ struct DashboardView: View {
         } detail: {
             Group {
                 if let snapshot = store.snapshot {
-                    content(for: selection, snapshot: snapshot)
+                    content(for: store.selectedSection, snapshot: snapshot)
                 } else if let errorMessage = store.errorMessage {
                     ConfigurationSetupView(
                         errorMessage: errorMessage,
@@ -84,8 +97,10 @@ struct DashboardView: View {
                     .disabled(store.snapshot == nil)
 
                     if store.snapshot?.configuration.applyState != "current",
-                       selection != .overview,
-                       selection != .configurationChanges {
+                       store.selectedSection != .overview,
+                       store.selectedSection != .configurationChanges,
+                       store.selectedSection != .harness,
+                       store.selectedSection != .localAI {
                         Button("Apply", systemImage: "checkmark.circle") {
                             showingApplyConfirmation = true
                         }
@@ -138,20 +153,20 @@ struct DashboardView: View {
             OverviewView(
                 snapshot: snapshot,
                 openManagedSoftware: {
-                    selection = .managedSoftware
+                    store.selectedSection = .managedSoftware
                 },
                 openInstalledSoftware: {
-                    selection = .installedSoftware
+                    store.selectedSection = .installedSoftware
                 },
                 openUpdates: {
-                    selection = .updates
+                    store.selectedSection = .updates
                 },
                 openProjectAttention: {
                     projectFilter = .attention
-                    selection = .projects
+                    store.selectedSection = .projects
                 },
                 openConfigurationChanges: {
-                    selection = .configurationChanges
+                    store.selectedSection = .configurationChanges
                 },
                 applyConfiguration: { showingApplyConfirmation = true },
                 isApplying: store.isApplying
@@ -163,6 +178,17 @@ struct DashboardView: View {
                 host: snapshot.host,
                 openFile: store.openConfigurationFile,
                 revealFile: store.revealConfigurationFile
+            )
+        case .harness:
+            HarnessStatusView(status: snapshot.appState)
+        case .localAI:
+            LocalAIStatusView(
+                status: snapshot.localAI,
+                operation: store.localAIModelOperation,
+                isActionRunning: store.isLocalAIModelActionRunning,
+                startDownload: { Task { await store.startLocalAIModelDownload() } },
+                cancelDownload: { Task { await store.cancelLocalAIModelDownload() } },
+                refreshOperation: { Task { await store.refreshLocalAIModelOperation() } }
             )
         case .managedSoftware:
             SoftwareView(snapshot: snapshot, mode: .managed, loadDetails: store.packageDetails)
@@ -389,6 +415,308 @@ private struct OverviewView: View {
         guard let revision, revision != "unknown" else { return "Unavailable" }
         let clean = revision.replacingOccurrences(of: "-dirty", with: "")
         return String(clean.prefix(9)) + (revision.hasSuffix("-dirty") ? " (modified)" : "")
+    }
+}
+
+private struct HarnessStatusView: View {
+    let status: AppStateStatus?
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Application state")
+                            .font(.system(size: 34, weight: .semibold, design: .rounded))
+                        Text("Read-only status from the management API")
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    StatusBadge(label: statusLabel, color: statusColor, symbol: statusSymbol)
+                }
+
+                if let status {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 170), spacing: 14)], spacing: 14) {
+                        HarnessMetricCard(
+                            title: "Configured recipes",
+                            value: status.configuredRecipeCount,
+                            symbol: "list.bullet.rectangle",
+                            tint: status.configuredRecipeCount == nil ? .secondary : .blue
+                        )
+                        HarnessMetricCard(
+                            title: "Configuration drift",
+                            value: status.driftCount,
+                            symbol: "arrow.left.arrow.right",
+                            tint: countTint(status.driftCount)
+                        )
+                        HarnessMetricCard(
+                            title: "Manual residue",
+                            value: status.manualResidueCount,
+                            symbol: "hand.raised.fill",
+                            tint: countTint(status.manualResidueCount)
+                        )
+                        HarnessMetricCard(
+                            title: "Verified recipes",
+                            value: status.verification.verifiedRecipeCount,
+                            symbol: "checkmark.seal.fill",
+                            tint: status.verification.verifiedRecipeCount == nil ? .secondary : .green
+                        )
+                        HarnessMetricCard(
+                            title: "Unverified recipes",
+                            value: status.verification.unverifiedRecipeCount,
+                            symbol: "questionmark.diamond.fill",
+                            tint: countTint(status.verification.unverifiedRecipeCount)
+                        )
+                    }
+
+                    SectionCard(title: "Engine", symbol: "gearshape.2.fill") {
+                        DetailRow(label: "Availability", value: status.engine.available ? "Available" : "Unavailable")
+                        DetailRow(label: "Version", value: status.engine.version ?? "Unavailable")
+                    }
+
+                    SectionCard(title: "Last apply", symbol: "clock.arrow.circlepath") {
+                        DetailRow(label: "Result", value: applyResult(status.lastApply.status))
+                        DetailRow(label: "Time", value: applyTime(status.lastApply.time))
+                        DetailRow(label: "Message", value: status.lastApply.message ?? "Unavailable")
+                    }
+
+                    SectionCard(title: "Warnings", symbol: "exclamationmark.triangle.fill") {
+                        if status.warnings.isEmpty {
+                            Label("No harness warnings", systemImage: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                        } else {
+                            ForEach(status.warnings, id: \.self) { warning in
+                                Label(warning, systemImage: "exclamationmark.circle")
+                                    .foregroundStyle(.orange)
+                            }
+                        }
+                    }
+                } else {
+                    ContentUnavailableView {
+                        Label("Harness status unavailable", systemImage: "questionmark.circle")
+                    } description: {
+                        Text("This snapshot predates the optional app-state status contract. Refresh after updating the management API.")
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 360)
+                }
+            }
+            .padding(28)
+        }
+        .navigationTitle("Harness")
+    }
+
+    private var statusLabel: String {
+        guard let status else { return "Status unavailable" }
+        if !status.engine.available { return "Engine unavailable" }
+        if status.hasUnavailableCounts { return "Status incomplete" }
+        if status.hasDifferences { return "Differences found" }
+        if status.verification.unverifiedRecipeCount.map({ $0 > 0 }) == true {
+            return "Verification needed"
+        }
+        if status.lastApply.status == "failed" { return "Last apply failed" }
+        if status.lastApply.status == "partial" { return "Last apply partial" }
+        if !status.warnings.isEmpty { return "Needs attention" }
+        return "In sync"
+    }
+
+    private var statusColor: Color {
+        guard let status else { return .secondary }
+        return status.needsAttention ? .orange : .green
+    }
+
+    private var statusSymbol: String {
+        guard let status else { return "questionmark.circle.fill" }
+        return status.needsAttention ? "exclamationmark.circle.fill" : "checkmark.circle.fill"
+    }
+
+    private func countTint(_ count: Int?) -> Color {
+        guard let count else { return .secondary }
+        return count == 0 ? .green : .orange
+    }
+
+    private func applyResult(_ result: String?) -> String {
+        switch result {
+        case "succeeded": "Succeeded"
+        case "partial": "Partially succeeded"
+        case "failed": "Failed"
+        case let result?: result.capitalized
+        case nil: "Unavailable"
+        }
+    }
+
+    private func applyTime(_ value: String?) -> String {
+        guard let value else { return "Unavailable" }
+        guard let date = ISO8601DateFormatter().date(from: value) else { return value }
+        return date.formatted(date: .abbreviated, time: .shortened)
+    }
+}
+
+private struct LocalAIStatusView: View {
+    let status: LocalAIStatus?
+    let operation: LocalAIModelOperation?
+    let isActionRunning: Bool
+    let startDownload: () -> Void
+    let cancelDownload: () -> Void
+    let refreshOperation: () -> Void
+    @State private var confirmingDownload = false
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("DS4 + Pi")
+                            .font(.system(size: 34, weight: .semibold, design: .rounded))
+                        Text(status?.summary ?? "Local AI status is not present in this snapshot")
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    StatusBadge(label: healthLabel, color: healthColor, symbol: healthSymbol)
+                }
+
+                if let status {
+                    SectionCard(title: "Operational status", symbol: "waveform.path.ecg") {
+                        DetailRow(label: "DS4 checkout", value: stateLabel(status.ds4Checkout.state.rawValue))
+                        DetailRow(label: "pi-ds4 checkout", value: stateLabel(status.piDs4Checkout.state.rawValue))
+                        DetailRow(label: "Extension link", value: stateLabel(status.extension.state.rawValue))
+                        DetailRow(label: "Runtime build", value: stateLabel(status.runtime.state.rawValue))
+                        DetailRow(label: status.model.name, value: stateLabel(status.model.state.rawValue))
+                        DetailRow(label: "DS4 server", value: stateLabel(status.server.state.rawValue))
+                        DetailRow(label: "Harness configuration", value: configurationLabel(status.configuration))
+                    }
+
+                    SectionCard(title: "Remediation", symbol: "wrench.and.screwdriver.fill") {
+                        if status.remediation.isEmpty {
+                            Label("No action needed", systemImage: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                        } else {
+                            ForEach(status.remediation, id: \.self) { remediation in
+                                Label(remediation, systemImage: "arrow.right.circle")
+                                    .foregroundStyle(.orange)
+                            }
+                        }
+                        Text("Refresh is read-only. Model downloads and lifecycle operations remain explicit actions.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    SectionCard(title: "Model lifecycle", symbol: "externaldrive.badge.arrow.down") {
+                        if let operation {
+                            DetailRow(label: "Operation", value: stateLabel(operation.status))
+                            DetailRow(label: "Phase", value: stateLabel(operation.phase))
+                            DetailRow(label: "Integrity", value: integrityLabel(operation.integrity.status))
+                            if operation.isRunning {
+                                ProgressView(value: Double(operation.progress.percent), total: 100) {
+                                    Text(operation.message)
+                                } currentValueLabel: {
+                                    Text("\(operation.progress.percent)%")
+                                }
+                                Text("\(byteCount(operation.progress.bytesDownloaded)) of approximately \(byteCount(operation.progress.expectedBytes))")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Button("Cancel download", role: .destructive, action: cancelDownload)
+                                    .disabled(isActionRunning)
+                            } else {
+                                Text(operation.message)
+                                    .foregroundStyle(operation.status == "failed" ? .red : .secondary)
+                            }
+                        } else {
+                            Text("No model lifecycle operation has been started on this Mac.")
+                                .foregroundStyle(.secondary)
+                        }
+
+                        if operation?.isRunning != true {
+                            Button(status.model.state == .present ? "Reinstall model…" : "Download model…") {
+                                confirmingDownload = true
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(isActionRunning || status.ds4Checkout.state != .ready)
+                        }
+
+                        Text("A download starts only after confirmation. The existing model remains available until the new artifact passes any configured checksum and is installed atomically.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    ContentUnavailableView {
+                        Label("Local AI status unavailable", systemImage: "questionmark.circle")
+                    } description: {
+                        Text("This snapshot predates the optional local-AI status contract. Refresh after updating the management API.")
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 360)
+                }
+            }
+            .padding(28)
+        }
+        .navigationTitle("Local AI")
+        .task { refreshOperation() }
+        .confirmationDialog(
+            status?.model.state == .present ? "Reinstall the local model?" : "Download the local model?",
+            isPresented: $confirmingDownload,
+            titleVisibility: .visible
+        ) {
+            Button(status?.model.state == .present ? "Reinstall Model" : "Download Model") {
+                startDownload()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This explicitly starts a large download after a disk-space preflight. You can monitor or cancel it from this view.")
+        }
+    }
+
+    private var healthLabel: String {
+        guard let status else { return "Unavailable" }
+        return stateLabel(status.health.rawValue)
+    }
+
+    private var healthColor: Color {
+        switch status?.health {
+        case .healthy: .green
+        case .degraded: .orange
+        case .unavailable, nil: .secondary
+        }
+    }
+
+    private var healthSymbol: String {
+        switch status?.health {
+        case .healthy: "checkmark.circle.fill"
+        case .degraded: "exclamationmark.circle.fill"
+        case .unavailable, nil: "questionmark.circle.fill"
+        }
+    }
+
+    private func byteCount(_ bytes: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+
+    private func integrityLabel(_ value: String) -> String {
+        switch value {
+        case "verified": "SHA-256 verified"
+        case "mismatch": "Checksum mismatch"
+        case "notProvided": "No checksum provided"
+        case "notChecked": "Not checked"
+        case "pending": "Pending"
+        default: stateLabel(value)
+        }
+    }
+
+    private func configurationLabel(_ configuration: LocalAIConfigurationStatus) -> String {
+        switch configuration.state {
+        case .current:
+            "Current"
+        case .drifted:
+            "\(configuration.driftCount ?? 0) difference\(configuration.driftCount == 1 ? "" : "s")"
+        case .unavailable:
+            "Unavailable"
+        }
+    }
+
+    private func stateLabel(_ state: String) -> String {
+        switch state {
+        case "notBuilt": "Not built"
+        case "mislinked": "Mislinked"
+        default: state.capitalized
+        }
     }
 }
 
@@ -1498,6 +1826,41 @@ private struct MetricCard: View {
         .onHover { isHovered = $0 }
         .accessibilityLabel("\(title), \(value)")
         .accessibilityHint("Open details")
+    }
+}
+
+private struct HarnessMetricCard: View {
+    let title: String
+    let value: Int?
+    let symbol: String
+    let tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Image(systemName: symbol)
+                .font(.title2)
+                .foregroundStyle(tint)
+            if let value {
+                Text(value, format: .number)
+                    .font(.system(size: 30, weight: .semibold, design: .rounded))
+            } else {
+                Text("Unavailable")
+                    .font(.system(size: 20, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+            Text(title)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(18)
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color(nsColor: .separatorColor).opacity(0.4), lineWidth: 1)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title), \(value.map(String.init) ?? "unavailable")")
     }
 }
 

@@ -16,10 +16,14 @@ on:
     paths:
       - "packages/app-state/engine/**"
       - "packages/app-state/recipes/**"
+      - "packages/app-state/evidence/**"
       - "packages/app-state/catalog/**"
+      - "tools/app-state/**"
       - "tools/update-homebrew-app-catalog.sh"
       - "packages/app-state/values/**"
-      - "packages/app-state/metrics/**"
+      - "packages/app-state/metrics/zero-click.json"
+      - "packages/app-state/metrics/recipe-candidates.json"
+      - "packages/app-state/metrics/recipe-candidates.schema.json"
       - "tests/vm/vm-test.sh"
       - "docs/APP_STATE.md"
       - "docs/CAPTURE.md"
@@ -33,10 +37,14 @@ on:
     paths:
       - "packages/app-state/engine/**"
       - "packages/app-state/recipes/**"
+      - "packages/app-state/evidence/**"
       - "packages/app-state/catalog/**"
+      - "tools/app-state/**"
       - "tools/update-homebrew-app-catalog.sh"
       - "packages/app-state/values/**"
-      - "packages/app-state/metrics/**"
+      - "packages/app-state/metrics/zero-click.json"
+      - "packages/app-state/metrics/recipe-candidates.json"
+      - "packages/app-state/metrics/recipe-candidates.schema.json"
       - "tests/vm/vm-test.sh"
       - "nix/modules/darwin/apps/nix-me.nix"
       - "nix/modules/home-manager/rectangle.nix"
@@ -51,6 +59,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Validate T3 evidence contract and verification stamps
+        run: packages/app-state/evidence/tests/run.sh
+      - name: Validate recipe candidate scoring and freshness
+        run: |
+          python3 -m unittest discover -s tools/app-state -p 'test_*.py'
+          python3 tools/app-state/score_recipe_candidates.py --check
       - uses: dtolnay/rust-toolchain@stable
       - name: Validate every recipe
         working-directory: packages/app-state/engine

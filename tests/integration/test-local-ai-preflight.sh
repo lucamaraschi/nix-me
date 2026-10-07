@@ -6,6 +6,9 @@ preflight="$repo_dir/tools/local-ai/preflight.sh"
 fixture_dir="$(mktemp -d)"
 missing_model="$fixture_dir/missing-model.gguf"
 
+bash "$repo_dir/tests/integration/local-ai/test-status.sh"
+bash "$repo_dir/tests/integration/local-ai/test-lifecycle.sh"
+
 if [[ "$(uname -s)" != "Darwin" ]] ||
   [[ "$(/usr/sbin/sysctl -n hw.optional.arm64 2>/dev/null || printf '0')" != "1" ]]; then
   if output="$(LOCAL_AI_MODEL_PATH="$missing_model" bash "$preflight" 2>&1)"; then

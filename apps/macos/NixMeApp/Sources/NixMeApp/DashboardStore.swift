@@ -3,6 +3,7 @@ import Foundation
 
 @MainActor
 final class DashboardStore: ObservableObject {
+    @Published var selectedSection: DashboardSection = .overview
     @Published private(set) var snapshot: ManagementSnapshot?
     @Published private(set) var configurationGraph: ConfigurationGraph?
     @Published private(set) var configurationGraphError: String?
@@ -11,12 +12,16 @@ final class DashboardStore: ObservableObject {
     @Published private(set) var isApplying = false
     @Published private(set) var isSyncingProjects = false
     @Published private(set) var isConfiguring = false
+    @Published private(set) var isLocalAIModelActionRunning = false
+    @Published private(set) var localAIModelOperation: LocalAIModelOperation?
     @Published private(set) var updatingItemCount = 0
     @Published private(set) var errorMessage: String?
     @Published private(set) var updateNotice: String?
 
     private var client: ManagementAPIClient?
     private var monitoringTask: Task<Void, Never>?
+    private var localAIModelMonitoringTask: Task<Void, Never>?
+    private var localAIModelMonitoringID: UUID?
 
     func startMonitoring() {
         guard monitoringTask == nil else { return }
@@ -210,6 +215,103 @@ final class DashboardStore: ObservableObject {
         await refresh()
         isSyncingProjects = false
         updateNotice = notice
+    }
+
+    func refreshLocalAIModelOperation() async {
+        do {
+            let managementClient = try client ?? ManagementAPIClient()
+            self.client = managementClient
+            let actionClient = ManagementActionClient(configurationDirectory: managementClient.configurationDirectory)
+            localAIModelOperation = try await actionClient.localAIModelStatus().operation
+            if localAIModelOperation?.isRunning == true {
+                monitorLocalAIModelOperation()
+            }
+        } catch {
+            updateNotice = "Could not read model operation status: \(error.localizedDescription)"
+        }
+    }
+
+    func startLocalAIModelDownload() async {
+        guard !isLocalAIModelActionRunning, localAIModelOperation?.isRunning != true else { return }
+        isLocalAIModelActionRunning = true
+        updateNotice = nil
+        do {
+            let managementClient = try client ?? ManagementAPIClient()
+            self.client = managementClient
+            let actionClient = ManagementActionClient(configurationDirectory: managementClient.configurationDirectory)
+            localAIModelOperation = try await actionClient.startLocalAIModel().operation
+            if localAIModelOperation?.isRunning == true {
+                monitorLocalAIModelOperation()
+            } else if let operation = localAIModelOperation {
+                updateNotice = operation.message
+            }
+        } catch {
+            updateNotice = "Could not start the model download: \(error.localizedDescription)"
+        }
+        isLocalAIModelActionRunning = false
+    }
+
+    func cancelLocalAIModelDownload() async {
+        guard !isLocalAIModelActionRunning, localAIModelOperation?.isRunning == true else { return }
+        isLocalAIModelActionRunning = true
+        do {
+            let managementClient = try client ?? ManagementAPIClient()
+            self.client = managementClient
+            let actionClient = ManagementActionClient(configurationDirectory: managementClient.configurationDirectory)
+            localAIModelOperation = try await actionClient.cancelLocalAIModel().operation
+            if localAIModelOperation?.isRunning == true {
+                updateNotice = "Model download cancellation requested; waiting for the worker to stop."
+                monitorLocalAIModelOperation()
+            } else {
+                stopLocalAIModelMonitoring()
+                updateNotice = localAIModelOperation?.message ?? "Model download cancelled."
+            }
+        } catch {
+            updateNotice = "Could not cancel the model download: \(error.localizedDescription)"
+        }
+        isLocalAIModelActionRunning = false
+    }
+
+    private func monitorLocalAIModelOperation() {
+        let monitoringID = UUID()
+        localAIModelMonitoringTask?.cancel()
+        localAIModelMonitoringID = monitoringID
+        localAIModelMonitoringTask = Task { [weak self] in
+            defer {
+                if self?.localAIModelMonitoringID == monitoringID {
+                    self?.localAIModelMonitoringTask = nil
+                    self?.localAIModelMonitoringID = nil
+                }
+            }
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                guard !Task.isCancelled, let self, self.localAIModelMonitoringID == monitoringID else { return }
+                do {
+                    let managementClient = try self.client ?? ManagementAPIClient()
+                    self.client = managementClient
+                    let actionClient = ManagementActionClient(configurationDirectory: managementClient.configurationDirectory)
+                    let operation = try await actionClient.localAIModelStatus().operation
+                    guard !Task.isCancelled, self.localAIModelMonitoringID == monitoringID else { return }
+                    self.localAIModelOperation = operation
+                    if operation?.isRunning != true {
+                        if let operation {
+                            self.updateNotice = operation.message
+                        }
+                        await self.refresh()
+                        return
+                    }
+                } catch {
+                    self.updateNotice = "Could not monitor the model download: \(error.localizedDescription)"
+                    return
+                }
+            }
+        }
+    }
+
+    private func stopLocalAIModelMonitoring() {
+        localAIModelMonitoringID = nil
+        localAIModelMonitoringTask?.cancel()
+        localAIModelMonitoringTask = nil
     }
 
     func clearUpdateNotice() {

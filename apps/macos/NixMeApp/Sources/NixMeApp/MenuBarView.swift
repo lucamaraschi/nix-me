@@ -58,8 +58,7 @@ struct MenuBarView: View {
 
             HStack {
                 Button("Open Dashboard") {
-                    openWindow(id: "dashboard")
-                    NSApplication.shared.activate(ignoringOtherApps: true)
+                    openDashboard()
                 }
                 .buttonStyle(.borderedProminent)
 
@@ -133,6 +132,28 @@ struct MenuBarView: View {
                 value: configurationLabel(snapshot),
                 color: snapshot.configuration.applyState == "current" ? .green : .orange
             )
+            Button {
+                openDashboard(section: .harness)
+            } label: {
+                MenuStatusRow(
+                    title: "App state",
+                    value: harnessLabel(snapshot.appState),
+                    color: harnessColor(snapshot.appState),
+                    showsDisclosure: true
+                )
+            }
+            .buttonStyle(.plain)
+            Button {
+                openDashboard(section: .localAI)
+            } label: {
+                MenuStatusRow(
+                    title: "Local AI",
+                    value: localAILabel(snapshot.localAI),
+                    color: localAIColor(snapshot.localAI),
+                    showsDisclosure: true
+                )
+            }
+            .buttonStyle(.plain)
             MenuStatusRow(
                 title: "Projects",
                 value: snapshot.projectAttentionCount == 0 ? "Current" : "\(snapshot.projectAttentionCount) need attention",
@@ -141,6 +162,54 @@ struct MenuBarView: View {
         }
         .padding(10)
         .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    private func openDashboard(section: DashboardSection? = nil) {
+        if let section {
+            store.selectedSection = section
+        }
+        openWindow(id: "dashboard")
+        NSApplication.shared.activate(ignoringOtherApps: true)
+    }
+
+    private func harnessLabel(_ status: AppStateStatus?) -> String {
+        guard let status else { return "Unavailable" }
+        if !status.engine.available { return "Engine unavailable" }
+        guard let drift = status.driftCount, let residue = status.manualResidueCount else {
+            return "Status unavailable"
+        }
+        if drift > 0 || residue > 0 {
+            return "\(drift) drift · \(residue) manual"
+        }
+        if status.lastApply.status == "failed" { return "Last apply failed" }
+        if status.lastApply.status == "partial" { return "Last apply partial" }
+        if status.needsAttention { return "Needs attention" }
+        return "Current"
+    }
+
+    private func harnessColor(_ status: AppStateStatus?) -> Color {
+        guard let status else { return .secondary }
+        return status.needsAttention ? .orange : .green
+    }
+
+    private func localAILabel(_ status: LocalAIStatus?) -> String {
+        guard let status else { return "Unavailable" }
+        switch status.health {
+        case .healthy:
+            return status.server.state == .running ? "Serving" : "Ready"
+        case .degraded:
+            return "Needs attention"
+        case .unavailable:
+            return "Unavailable"
+        }
+    }
+
+    private func localAIColor(_ status: LocalAIStatus?) -> Color {
+        switch status?.health {
+        case .healthy: .green
+        case .degraded: .orange
+        case .unavailable, nil: .secondary
+        }
     }
 
     private func configurationLabel(_ snapshot: ManagementSnapshot) -> String {
@@ -181,6 +250,7 @@ private struct MenuStatusRow: View {
     let title: String
     let value: String
     let color: Color
+    var showsDisclosure = false
 
     var body: some View {
         HStack {
@@ -191,6 +261,11 @@ private struct MenuStatusRow: View {
             Spacer()
             Text(value)
                 .foregroundStyle(.secondary)
+            if showsDisclosure {
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
         }
         .font(.caption)
     }

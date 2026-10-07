@@ -33,3 +33,10 @@ jobs:
         run: tools/release/build-macos-app.sh
       - name: Package local DMG
         run: tools/release/package-macos-app.sh
+      - name: Upload beta DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: nix-me-macos-arm64-${{ github.run_id }}
+          path: dist/*.dmg
+          if-no-files-found: error
+          retention-days: 14

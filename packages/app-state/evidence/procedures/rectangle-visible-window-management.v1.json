@@ -1,0 +1,52 @@
+{
+  "$schema": "https://raw.githubusercontent.com/lucamaraschi/nix-me/main/packages/app-state/evidence/procedures/t3-procedure.schema.json",
+  "schema_version": 1,
+  "id": "rectangle-visible-window-management",
+  "version": 1,
+  "title": "Rectangle visible left-half window management",
+  "recipe": {
+    "id": "rectangle",
+    "path": "packages/app-state/recipes/rectangle.yaml",
+    "values_path": "packages/app-state/values/rectangle.yaml",
+    "bundle_id": "com.knollsoft.Rectangle",
+    "app_path": "/Applications/Rectangle.app"
+  },
+  "environment": {
+    "kind": "disposable_vm"
+  },
+  "execution": {
+    "apply": {
+      "mode": "apply",
+      "accepted_exit_codes": [0],
+      "required_action_ops": ["write"]
+    },
+    "idempotence": {
+      "mode": "diff",
+      "accepted_exit_codes": [0],
+      "required_action_ops": []
+    }
+  },
+  "operator": {
+    "instructions": [
+      "In the visible disposable VM, grant Rectangle Accessibility permission if macOS requests it, then relaunch Rectangle if required.",
+      "Open one Finder window on the desktop and keep it away from any full-screen Space.",
+      "Use the Rectangle menu-bar menu and choose Left Half; do not resize the Finder window manually.",
+      "Open Rectangle Settings > Layout and show the configured 5 point gaps before retaining the visual artifact."
+    ],
+    "acceptance": [
+      "The Rectangle Left Half action visibly moves and resizes the Finder window to the left half of the usable display.",
+      "A visible gap remains at the configured display and split edges, and Rectangle Settings > Layout shows 5 point gaps.",
+      "The retained screenshot or video shows the resulting window placement and enough Rectangle UI to identify the action or configured gap."
+    ],
+    "artifact": {
+      "required": true,
+      "allowed_media_types": ["image/png", "image/jpeg", "video/quicktime", "video/mp4"],
+      "description": "Operator-captured Rectangle window-management result in the disposable VM."
+    }
+  },
+  "cleanup": [
+    "Quit Rectangle and close the test Finder window.",
+    "After copying the run directory to the host, stop and delete the disposable UTM clone.",
+    "Delete failed run directories; retain a successful run directory only when its finalized manifest will retain those artifacts."
+  ]
+}

@@ -1,5 +1,5 @@
 # Local DeepSeek inference through DS4 and the Pi coding agent.
-{ config, lib, pkgs, username, ... }:
+{ config, lib, options, pkgs, username, ... }:
 
 let
   models = {
@@ -20,6 +20,27 @@ let
   ds4RuntimeDir = "${userHome}/src/ai/ds4";
   piDs4Dir = "${userHome}/src/ai/pi-ds4";
   modelPath = "${ds4RuntimeDir}/${selectedModel.modelMarker}";
+  piModelParts = lib.splitString "/" selectedModel.piModel;
+  piProvider = builtins.head piModelParts;
+  piModelName = lib.concatStringsSep "/" (builtins.tail piModelParts);
+
+  localAiStateValues = pkgs.writeText "nix-me-local-ai-values.json" (builtins.toJSON {
+    "local-ai" = {
+      pi_settings = {
+        defaultProvider = piProvider;
+        defaultModel = piModelName;
+      };
+      ds4_settings = {
+        "$schema" = "https://raw.githubusercontent.com/mitsuhiko/pi-ds4/main/settings.schema.json";
+        protocol = "openai-responses";
+        runtimeDir = ds4RuntimeDir;
+        autoUpdate = false;
+        contextTokens = 32768;
+        power = 70;
+        readyTimeoutMs = 900000;
+      };
+    };
+  });
 
   localAiPreflight = pkgs.writeShellApplication {
     name = "local-ai-preflight";
@@ -47,6 +68,18 @@ let
     text = builtins.readFile ../../../tools/local-ai/doctor.sh;
   };
 
+  localAiModel = pkgs.writeShellApplication {
+    name = "local-ai-model";
+    runtimeInputs = with pkgs; [
+      coreutils
+      findutils
+      jq
+    ];
+    text = lib.optionalString (cfg.expectedSha256 != null) ''
+      export LOCAL_AI_EXPECTED_SHA256=${lib.escapeShellArg cfg.expectedSha256}
+    '' + builtins.readFile ../../../tools/local-ai/model-lifecycle.sh;
+  };
+
   modelEnvironment = {
     LOCAL_AI_MODEL = cfg.model;
     LOCAL_AI_MODEL_NAME = selectedModel.displayName;
@@ -57,6 +90,8 @@ let
     LOCAL_AI_RECOMMENDED_MEMORY_GIB = toString selectedModel.recommendedMemoryGiB;
     LOCAL_AI_REQUIRED_FREE_DISK_GIB = toString selectedModel.requiredFreeDiskGiB;
     LOCAL_AI_REQUIREMENTS_ENFORCEMENT = cfg.requirements.enforcement;
+  } // lib.optionalAttrs (cfg.expectedSha256 != null) {
+    LOCAL_AI_EXPECTED_SHA256 = cfg.expectedSha256;
   };
 in
 {
@@ -65,6 +100,12 @@ in
       type = lib.types.enum (builtins.attrNames models);
       default = "dsv4-flash-q2";
       description = "Local model configured for DS4 and Pi.";
+    };
+
+    expectedSha256 = lib.mkOption {
+      type = lib.types.nullOr (lib.types.strMatching "[0-9a-fA-F]{64}");
+      default = null;
+      description = "Trusted SHA-256 expected for the selected model, or null when none is available.";
     };
 
     requirements = {
@@ -95,6 +136,10 @@ in
       brewsToAdd = [
         "pi-coding-agent"
       ];
+      state = {
+        enable = lib.mkDefault true;
+        values = lib.mkAfter (options.apps.state.values.default ++ [ localAiStateValues ]);
+      };
     };
 
     environment = {
@@ -102,6 +147,7 @@ in
         localAiPreflight
         localAiSetup
         localAiDoctor
+        localAiModel
       ];
       variables = modelEnvironment // {
         DS4_RUNTIME_DIR = ds4RuntimeDir;
@@ -122,14 +168,5 @@ in
             ${localAiPreflight}/bin/local-ai-preflight
         '');
 
-    home-manager.users.${username}.home.file.".pi/ds4/settings.json".text = builtins.toJSON {
-      "$schema" = "https://raw.githubusercontent.com/mitsuhiko/pi-ds4/main/settings.schema.json";
-      protocol = "openai-responses";
-      runtimeDir = ds4RuntimeDir;
-      autoUpdate = false;
-      contextTokens = 32768;
-      power = 70;
-      readyTimeoutMs = 900000;
-    };
   };
 }

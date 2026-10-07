@@ -19,6 +19,169 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(snapshot.softwareDifferences.first?.change, .versionChanged)
         XCTAssertEqual(snapshot.softwareDifferences.first?.appliedVersion, "2.52.0")
         XCTAssertEqual(snapshot.softwareDifferences.first?.desiredVersion, "2.53.0")
+        XCTAssertNil(snapshot.appState)
+    }
+
+    func testSnapshotDecodesOptionalAppStateStatus() throws {
+        let data = try fixtureData(named: "snapshot-v1-app-state")
+        let snapshot = try JSONDecoder().decode(ManagementSnapshot.self, from: data)
+        let status = try XCTUnwrap(snapshot.appState)
+
+        XCTAssertTrue(status.engine.available)
+        XCTAssertEqual(status.engine.version, "0.1.0")
+        XCTAssertEqual(status.configuredRecipeCount, 4)
+        XCTAssertEqual(status.driftCount, 2)
+        XCTAssertEqual(status.manualResidueCount, 1)
+        XCTAssertEqual(status.differenceCount, 3)
+        XCTAssertEqual(status.verification.verifiedRecipeCount, 1)
+        XCTAssertEqual(status.verification.unverifiedRecipeCount, 3)
+        XCTAssertEqual(status.lastApply.status, "succeeded")
+        XCTAssertEqual(status.lastApply.time, "2026-10-05T17:56:00Z")
+        XCTAssertEqual(status.lastApply.message, "Applied 4 configured recipes")
+        XCTAssertEqual(status.warnings, ["One recipe needs review"])
+        XCTAssertTrue(status.needsAttention)
+    }
+
+    func testAppStateCountsKeepZeroDistinctFromUnavailable() {
+        let engine = AppStateEngine(available: true, version: nil)
+        let lastApply = AppStateLastApply(status: nil, time: nil, message: nil)
+        let current = AppStateStatus(
+            schemaVersion: 1,
+            engine: engine,
+            configuredRecipeCount: 0,
+            driftCount: 0,
+            manualResidueCount: 0,
+            lastApply: lastApply,
+            verification: AppStateVerification(verifiedRecipeCount: 0, unverifiedRecipeCount: 0),
+            warnings: []
+        )
+        let unavailable = AppStateStatus(
+            schemaVersion: 1,
+            engine: engine,
+            configuredRecipeCount: nil,
+            driftCount: nil,
+            manualResidueCount: nil,
+            lastApply: lastApply,
+            verification: AppStateVerification(verifiedRecipeCount: nil, unverifiedRecipeCount: nil),
+            warnings: []
+        )
+
+        XCTAssertEqual(current.differenceCount, 0)
+        XCTAssertFalse(current.hasUnavailableCounts)
+        XCTAssertFalse(current.needsAttention)
+        XCTAssertNil(unavailable.differenceCount)
+        XCTAssertTrue(unavailable.hasUnavailableCounts)
+        XCTAssertTrue(unavailable.needsAttention)
+    }
+
+    func testHealthyLocalAIStatusFixture() throws {
+        let snapshot = try decodeSnapshot(localAIStatusNamed: "local-ai-healthy-v1")
+        let status = try XCTUnwrap(snapshot.localAI)
+
+        XCTAssertEqual(status.schemaVersion, 1)
+        XCTAssertEqual(status.health, .healthy)
+        XCTAssertEqual(status.ds4Checkout.state, .ready)
+        XCTAssertEqual(status.piDs4Checkout.state, .ready)
+        XCTAssertEqual(status.extension.state, .linked)
+        XCTAssertEqual(status.runtime.state, .built)
+        XCTAssertEqual(status.model.state, .present)
+        XCTAssertEqual(status.server.state, .stopped)
+        XCTAssertEqual(status.configuration.state, .current)
+        XCTAssertEqual(status.configuration.driftCount, 0)
+        XCTAssertTrue(status.remediation.isEmpty)
+        XCTAssertFalse(status.needsAttention)
+    }
+
+    func testDegradedLocalAIStatusFixture() throws {
+        let status = try decodeLocalAIStatus(named: "local-ai-degraded-v1")
+
+        XCTAssertEqual(status.health, .degraded)
+        XCTAssertEqual(status.piDs4Checkout.state, .missing)
+        XCTAssertEqual(status.runtime.state, .notBuilt)
+        XCTAssertEqual(status.model.state, .missing)
+        XCTAssertEqual(status.configuration.state, .drifted)
+        XCTAssertEqual(status.configuration.driftCount, 2)
+        XCTAssertEqual(status.remediation.count, 5)
+        XCTAssertTrue(status.needsAttention)
+    }
+
+    func testUnavailableLocalAIStatusKeepsUnknownDistinctFromAbsent() throws {
+        let status = try decodeLocalAIStatus(named: "local-ai-unavailable-v1")
+
+        XCTAssertEqual(status.health, .unavailable)
+        XCTAssertEqual(status.ds4Checkout.state, .unavailable)
+        XCTAssertEqual(status.model.state, .unavailable)
+        XCTAssertEqual(status.server.state, .unavailable)
+        XCTAssertEqual(status.configuration.state, .unavailable)
+        XCTAssertNil(status.configuration.driftCount)
+        XCTAssertTrue(status.needsAttention)
+    }
+
+    func testMalformedOptionalLocalAIStatusDoesNotInvalidateSnapshot() throws {
+        var snapshotObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(fixture.utf8)) as? [String: Any]
+        )
+        snapshotObject["localAI"] = try JSONSerialization.jsonObject(
+            with: fixtureData(named: "local-ai-malformed")
+        )
+        let data = try JSONSerialization.data(withJSONObject: snapshotObject)
+        let snapshot = try JSONDecoder().decode(ManagementSnapshot.self, from: data)
+
+        XCTAssertNil(snapshot.localAI)
+        XCTAssertEqual(snapshot.host.hostname, "bellerofonte")
+    }
+
+    func testLocalAIModelOperationDecodesProgressAndIntegrity() throws {
+        let data = Data(#"""
+        {
+          "schemaVersion": 1,
+          "operation": {
+            "operationId": "model-123",
+            "status": "running",
+            "phase": "downloading",
+            "pid": 123,
+            "startedAt": "2026-10-05T20:00:00Z",
+            "updatedAt": "2026-10-05T20:01:00Z",
+            "finishedAt": null,
+            "message": "Downloading DeepSeek V4 Flash Q2",
+            "model": {"name":"DeepSeek V4 Flash Q2","path":"/tmp/ds4flash.gguf","downloadTarget":"ds4f-q2"},
+            "progress": {"bytesDownloaded":1073741824,"expectedBytes":86973087744,"percent":1},
+            "disk": {"requiredBytes":107374182400,"availableBytes":214748364800},
+            "integrity": {"status":"pending","expectedSha256":null,"actualSha256":null},
+            "stagePath": "/tmp/.nix-me-model-model-123",
+            "processAlive": true
+          }
+        }
+        """#.utf8)
+
+        let response = try JSONDecoder().decode(LocalAIModelActionResponse.self, from: data)
+        let operation = try XCTUnwrap(response.operation)
+        XCTAssertTrue(operation.isRunning)
+        XCTAssertEqual(operation.progress.percent, 1)
+        XCTAssertEqual(operation.integrity.status, "pending")
+        XCTAssertEqual(operation.processAlive, true)
+    }
+
+    func testActionClientPreservesStructuredFailureMessage() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try write(
+            #"""
+            #!/bin/bash
+            printf '%s\n' '{"schemaVersion":1,"error":{"code":"missing_downloader","message":"Configured downloader is unavailable"}}'
+            exit 69
+            """#,
+            to: root.appendingPathComponent("packages/management-api/bin/nix-me-action")
+        )
+
+        let client = ManagementActionClient(configurationDirectory: root)
+        do {
+            _ = try await client.startLocalAIModel()
+            XCTFail("Expected the action to fail")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("Configured downloader is unavailable"))
+        }
     }
 
     func testConfigurationGraphResolvesActiveProfilesAndImports() throws {
@@ -97,6 +260,24 @@ final class ModelsTests: XCTestCase {
             withIntermediateDirectories: true
         )
         try contents.write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    private func fixtureData(named name: String) throws -> Data {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: name, withExtension: "json"))
+        return try Data(contentsOf: url)
+    }
+
+    private func decodeLocalAIStatus(named name: String) throws -> LocalAIStatus {
+        try JSONDecoder().decode(LocalAIStatus.self, from: fixtureData(named: name))
+    }
+
+    private func decodeSnapshot(localAIStatusNamed name: String) throws -> ManagementSnapshot {
+        var snapshotObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(fixture.utf8)) as? [String: Any]
+        )
+        snapshotObject["localAI"] = try JSONSerialization.jsonObject(with: fixtureData(named: name))
+        let data = try JSONSerialization.data(withJSONObject: snapshotObject)
+        return try JSONDecoder().decode(ManagementSnapshot.self, from: data)
     }
 
     private let fixture = #"""

@@ -1,0 +1,22 @@
+schema_version: 1
+id: iterm2
+name: iTerm2
+bundle_id: com.googlecode.iterm2
+install:
+  cask: iterm2
+detect:
+  app_path: /Applications/iTerm.app
+sandboxed: false
+requires: []
+config:
+  - kind: file
+    binds: dynamic_profiles
+    path: ~/Library/Application Support/iTerm2/DynamicProfiles/nix-me.json
+    format: json
+    merge: deep_merge
+    mode: "0644"
+    confirm: none
+apply:
+  poke: none
+  unsafe_to_kill: false
+verified: null

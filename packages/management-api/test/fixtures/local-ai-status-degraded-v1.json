@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "health": "degraded",
+  "summary": "Local AI needs attention",
+  "ds4Checkout": {"state": "ready", "path": "/Users/tester/src/ai/ds4"},
+  "piDs4Checkout": {"state": "missing", "path": "/Users/tester/src/ai/pi-ds4"},
+  "extension": {"state": "missing", "path": "/Users/tester/.pi/agent/extensions/pi-ds4"},
+  "runtime": {"state": "notBuilt", "path": "/Users/tester/src/ai/ds4/ds4-server"},
+  "model": {
+    "state": "missing",
+    "name": "DeepSeek V4 Flash Q2",
+    "path": "/Users/tester/src/ai/ds4/ds4flash.gguf"
+  },
+  "server": {"state": "stopped"},
+  "configuration": {"state": "drifted", "driftCount": 2},
+  "remediation": [
+    "Run make sync-projects to restore the pi-ds4 checkout.",
+    "Run local-ai-setup to build the DS4 runtime.",
+    "Run local-ai-setup to relink the pi-ds4 extension and runtime support.",
+    "Run local-ai-model start to install DeepSeek V4 Flash Q2.",
+    "Run make switch to restore the local-AI harness configuration."
+  ]
+}

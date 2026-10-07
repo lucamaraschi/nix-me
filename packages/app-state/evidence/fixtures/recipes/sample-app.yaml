@@ -1,0 +1,9 @@
+schema_version: 1
+id: sample-app
+name: Synthetic T3 Fixture
+bundle_id: com.nix-me.fixture
+config:
+  - kind: manual
+    step: Synthetic fixture only
+    confirm: full_manual
+verified: null

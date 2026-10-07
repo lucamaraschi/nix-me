@@ -1,0 +1,1 @@
+Fixture operator observed the expected synthetic visible behavior.

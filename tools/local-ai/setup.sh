@@ -11,7 +11,7 @@ Usage: local-ai-setup [--download-model] [--force]
 Build DS4 and connect it to the Pi coding agent. Model downloads are opt-in.
 
 Options:
-  --download-model  Download ${model_name} after setup (about ${download_size_gib} GiB)
+  --download-model  Start an explicit ${model_name} download (about ${download_size_gib} GiB)
   --force           Replace an existing Pi DS4 support directory, preserving a backup
   -h, --help        Show this help
 EOF
@@ -43,7 +43,6 @@ done
 
 ds4_dir="${DS4_RUNTIME_DIR:-$HOME/src/ai/ds4}"
 pi_ds4_dir="${PI_DS4_DIR:-$HOME/src/ai/pi-ds4}"
-download_target="${LOCAL_AI_DOWNLOAD_TARGET:-ds4f-q2}"
 pi_model="${LOCAL_AI_PI_MODEL:-ds4/dsv4-flash-q2}"
 
 arm64_supported="$(/usr/sbin/sysctl -n hw.optional.arm64 2>/dev/null || printf '0')"
@@ -86,12 +85,18 @@ fi
 bash "$installer" "${installer_args[@]}"
 
 if [[ "$download_model" == true ]]; then
-  echo "==> Downloading ${model_name} (about ${download_size_gib} GiB)"
-  bash "$ds4_dir/download_model.sh" "$download_target"
+  echo "==> Starting explicit ${model_name} download (about ${download_size_gib} GiB)"
+  if ! command -v local-ai-model >/dev/null 2>&1; then
+    echo "error: local-ai-model is not installed; apply the local-ai profile first" >&2
+    exit 1
+  fi
+  printf '{}\n' | local-ai-model start
+  printf '\nTrack progress with: local-ai-model status\n'
+  printf 'Cancel safely with:  local-ai-model cancel\n'
 else
   printf '\nDS4 and Pi are connected. %s was not downloaded automatically.\n\n' "$model_name"
   printf 'Next steps:\n'
-  printf '  1. Run: local-ai-setup --download-model\n'
+  printf '  1. Run: local-ai-model start\n'
   printf '  2. Start Pi: pi\n'
   printf '  3. Run /model and select %s\n\n' "$pi_model"
   printf 'You can also run /ds4 inside Pi to inspect or manage the runtime.\n'

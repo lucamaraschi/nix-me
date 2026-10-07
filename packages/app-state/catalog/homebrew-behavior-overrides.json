@@ -53,6 +53,18 @@
     "confidence": "high",
     "note": "Configuration is user-owned TOML under XDG config."
   },
+  "iterm2": {
+    "mechanism": "hybrid",
+    "confidence": "high",
+    "local_recipe": "iterm2",
+    "note": "A dedicated JSON dynamic-profile file is safe to own; the global preference domains remain outside the recipe."
+  },
+  "maccy": {
+    "mechanism": "defaults_dominant",
+    "confidence": "high",
+    "local_recipe": "maccy",
+    "note": "A typed allowlist in org.p0deje.Maccy owns UI preferences while clipboard content and privacy lists remain unowned."
+  },
   "vscodium": {
     "mechanism": "hybrid",
     "confidence": "high",
@@ -61,6 +73,7 @@
   "sublime-text": {
     "mechanism": "file_driven",
     "confidence": "high",
+    "local_recipe": "sublime-text",
     "note": "Preferences, keymaps, and packages are files under Application Support/Sublime Text."
   },
   "emacs-app": {

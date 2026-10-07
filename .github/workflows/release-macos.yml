@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing version tag to release, such as v0.2.0
+        description: Existing version tag, such as v0.2.0 or v0.2.0-beta.1
         required: true
         type: string
 
@@ -37,7 +37,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$ ]]
           for variable in \
             CERTIFICATE_P12_BASE64 \
             CERTIFICATE_PASSWORD \
@@ -136,16 +136,25 @@ jobs:
             fi
             gh release upload "$RELEASE_TAG" "${artifacts[@]}" --clobber
           else
-            gh release create "$RELEASE_TAG" "${artifacts[@]}" \
-              --verify-tag \
-              --generate-notes \
-              --draft \
+            release_args=(
+              --verify-tag
+              --generate-notes
+              --draft
               --title "Nix Me $version"
+            )
+            if [[ "$RELEASE_TAG" == *-* ]]; then
+              release_args+=(--prerelease)
+            fi
+            gh release create "$RELEASE_TAG" "${artifacts[@]}" "${release_args[@]}"
           fi
-          gh release edit "$RELEASE_TAG" --draft=false --latest
+          if [[ "$RELEASE_TAG" == *-* ]]; then
+            gh release edit "$RELEASE_TAG" --draft=false --prerelease
+          else
+            gh release edit "$RELEASE_TAG" --draft=false --latest
+          fi
 
       - name: Update Homebrew tap
-        if: ${{ env.TAP_GITHUB_TOKEN != '' }}
+        if: ${{ env.TAP_GITHUB_TOKEN != '' && !contains(env.RELEASE_TAG, '-') }}
         shell: bash
         run: |
           set -euo pipefail

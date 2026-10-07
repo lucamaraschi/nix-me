@@ -9,6 +9,7 @@ CONFIG_DIR="${NIX_ME_CONFIG_DIR:-$REPO_DIR}"
 HOST_NAME="${NIX_ME_HOSTNAME:-$(hostname -s | tr '[:upper:]' '[:lower:]')}"
 APPLIED_MANIFEST="${NIX_ME_APPLIED_MANIFEST:-/etc/nix-me/manifest.json}"
 API_VERSION=1
+REQUESTED_ENDPOINT="${1:-snapshot}"
 
 # GUI apps do not inherit the interactive shell PATH.
 export PATH="/run/current-system/sw/bin:/etc/profiles/per-user/${USER:-$(id -un)}/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/usr/local/bin:${PATH:-/usr/bin:/bin:/usr/sbin:/sbin}"
@@ -31,6 +32,593 @@ add_warning() {
 command_exists() {
   command -v "$1" >/dev/null 2>&1
 }
+
+valid_local_ai_status() {
+  jq -e '
+    type == "object" and
+    .schemaVersion == 1 and
+    (.health | IN("healthy", "degraded", "unavailable")) and
+    (.summary | type == "string" and length > 0) and
+    (.ds4Checkout | type == "object") and
+    (.ds4Checkout.state | IN("ready", "missing", "invalid", "unavailable")) and
+    (.ds4Checkout.path | type == "string" and length > 0) and
+    (.piDs4Checkout | type == "object") and
+    (.piDs4Checkout.state | IN("ready", "missing", "invalid", "unavailable")) and
+    (.piDs4Checkout.path | type == "string" and length > 0) and
+    (.extension | type == "object") and
+    (.extension.state | IN("linked", "missing", "mislinked", "unavailable")) and
+    (.extension.path | type == "string" and length > 0) and
+    (.runtime | type == "object") and
+    (.runtime.state | IN("built", "notBuilt", "unavailable")) and
+    (.runtime.path | type == "string" and length > 0) and
+    (.model | type == "object") and
+    (.model.state | IN("present", "missing", "unavailable")) and
+    (.model.name | type == "string" and length > 0) and
+    (.model.path | type == "string" and length > 0) and
+    (.server | type == "object") and
+    (.server.state | IN("running", "stopped", "unavailable")) and
+    (.configuration | type == "object") and
+    (.configuration.state | IN("current", "drifted", "unavailable")) and
+    (
+      (.configuration.state == "current" and .configuration.driftCount == 0) or
+      (.configuration.state == "drifted" and
+        (.configuration.driftCount | type == "number" and . > 0 and floor == .)) or
+      (.configuration.state == "unavailable" and .configuration.driftCount == null)
+    ) and
+    (.remediation | type == "array") and
+    all(.remediation[]; type == "string" and length > 0) and
+    (if .health == "healthy" then (.remediation | length) == 0 else (.remediation | length) > 0 end) and
+    (
+      if .health == "healthy" then
+        .ds4Checkout.state == "ready" and
+        .piDs4Checkout.state == "ready" and
+        .extension.state == "linked" and
+        .runtime.state == "built" and
+        .model.state == "present" and
+        (.server.state | IN("running", "stopped")) and
+        .configuration.state == "current"
+      elif .health == "unavailable" then
+        any([
+          .ds4Checkout.state,
+          .piDs4Checkout.state,
+          .extension.state,
+          .runtime.state,
+          .model.state,
+          .server.state,
+          .configuration.state
+        ][]; . == "unavailable")
+      else
+        all([
+          .ds4Checkout.state,
+          .piDs4Checkout.state,
+          .extension.state,
+          .runtime.state,
+          .model.state,
+          .server.state,
+          .configuration.state
+        ][]; . != "unavailable")
+      end
+    )
+  ' >/dev/null 2>&1 <<<"$1"
+}
+
+unavailable_local_ai() {
+  local remediation="$1"
+  local ds4_dir pi_ds4_dir pi_agent_dir model_name model_path
+  ds4_dir="${DS4_RUNTIME_DIR:-$HOME/src/ai/ds4}"
+  pi_ds4_dir="${PI_DS4_DIR:-$HOME/src/ai/pi-ds4}"
+  pi_agent_dir="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
+  model_name="${LOCAL_AI_MODEL_NAME:-DeepSeek V4 Flash Q2}"
+  model_path="${LOCAL_AI_MODEL_PATH:-$ds4_dir/ds4flash.gguf}"
+
+  jq -n \
+    --arg remediation "$remediation" \
+    --arg ds4Path "$ds4_dir" \
+    --arg piDs4Path "$pi_ds4_dir" \
+    --arg extensionPath "${LOCAL_AI_EXTENSION_PATH:-$pi_agent_dir/extensions/pi-ds4}" \
+    --arg runtimePath "$ds4_dir/ds4-server" \
+    --arg modelName "$model_name" \
+    --arg modelPath "$model_path" \
+    '{
+      schemaVersion: 1,
+      health: "unavailable",
+      summary: "Local AI status is unavailable",
+      ds4Checkout: {state: "unavailable", path: $ds4Path},
+      piDs4Checkout: {state: "unavailable", path: $piDs4Path},
+      extension: {state: "unavailable", path: $extensionPath},
+      runtime: {state: "unavailable", path: $runtimePath},
+      model: {state: "unavailable", name: $modelName, path: $modelPath},
+      server: {state: "unavailable"},
+      configuration: {state: "unavailable", driftCount: null},
+      remediation: [$remediation]
+    }'
+}
+
+run_bounded_local_ai_status() {
+  local output_file="$1"
+  local error_file="$2"
+  shift 2
+  local timeout_seconds="${NIX_ME_LOCAL_AI_TIMEOUT_SECONDS:-5}"
+  local max_ticks ticks pid status
+
+  if [[ ! "$timeout_seconds" =~ ^[1-9][0-9]*$ ]] || ((timeout_seconds > 30)); then
+    timeout_seconds=5
+  fi
+  max_ticks=$((timeout_seconds * 10))
+  ticks=0
+
+  "$@" >"$output_file" 2>"$error_file" &
+  pid=$!
+  while kill -0 "$pid" >/dev/null 2>&1; do
+    if ((ticks >= max_ticks)); then
+      kill "$pid" >/dev/null 2>&1 || true
+      sleep 0.1
+      kill -9 "$pid" >/dev/null 2>&1 || true
+      wait "$pid" >/dev/null 2>&1 || true
+      return 124
+    fi
+    sleep 0.1
+    ticks=$((ticks + 1))
+  done
+
+  wait "$pid"
+  status=$?
+  return "$status"
+}
+
+if [[ "$REQUESTED_ENDPOINT" != "local-ai" ]]; then
+app_state_warnings='[]'
+
+add_app_state_warning() {
+  local message="$1"
+  app_state_warnings="$(jq -c --arg message "$message" '. + [$message]' <<<"$app_state_warnings")"
+}
+
+valid_app_state_status() {
+  jq -e '
+    type == "object" and
+    has("schemaVersion") and
+    has("engine") and
+    has("configuredRecipeCount") and
+    has("driftCount") and
+    has("manualResidueCount") and
+    has("lastApply") and
+    has("verification") and
+    has("warnings") and
+    .schemaVersion == 1 and
+    (.engine | type == "object" and has("available") and has("version")) and
+    (.engine.available | type == "boolean") and
+    (.engine.version == null or (.engine.version | type == "string" and length > 0)) and
+    (.configuredRecipeCount == null or (.configuredRecipeCount | type == "number" and . >= 0 and floor == .)) and
+    (.driftCount == null or (.driftCount | type == "number" and . >= 0 and floor == .)) and
+    (.manualResidueCount == null or (.manualResidueCount | type == "number" and . >= 0 and floor == .)) and
+    (.lastApply | type == "object" and has("status") and has("time") and has("message")) and
+    (.lastApply.status == null or (.lastApply.status | IN("succeeded", "partial", "declined", "failed"))) and
+    (.lastApply.time == null or (.lastApply.time |
+      type == "string" and
+      test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"))) and
+    (.lastApply.message == null or (.lastApply.message | type == "string")) and
+    (.verification | type == "object" and has("verifiedRecipeCount") and has("unverifiedRecipeCount")) and
+    (.verification.verifiedRecipeCount == null or (.verification.verifiedRecipeCount | type == "number" and . >= 0 and floor == .)) and
+    (.verification.unverifiedRecipeCount == null or (.verification.unverifiedRecipeCount | type == "number" and . >= 0 and floor == .)) and
+    (.warnings | type == "array") and
+    all(.warnings[]; type == "string" and length > 0)
+  ' >/dev/null 2>&1 <<<"$1"
+}
+
+unknown_app_state() {
+  jq -cn \
+    --argjson engineAvailable "$app_state_engine_available" \
+    --argjson engineVersion "$app_state_engine_version" \
+    --argjson warnings "$app_state_warnings" \
+    '{
+      schemaVersion: 1,
+      engine: {available: $engineAvailable, version: $engineVersion},
+      configuredRecipeCount: null,
+      driftCount: null,
+      manualResidueCount: null,
+      lastApply: {status: null, time: null, message: null},
+      verification: {verifiedRecipeCount: null, unverifiedRecipeCount: null},
+      warnings: $warnings
+    }'
+}
+
+app_state_engine=''
+app_state_engine_available=false
+app_state_engine_version='null'
+
+if [[ -n "${NIX_ME_APP_STATE_ENGINE_VERSION:-}" ]]; then
+  app_state_engine_available=true
+  app_state_engine_version="$(jq -cn --arg version "$NIX_ME_APP_STATE_ENGINE_VERSION" '$version')"
+fi
+
+if [[ -n "${NIX_ME_APP_STATE_ENGINE+x}" ]]; then
+  engine_candidate="$NIX_ME_APP_STATE_ENGINE"
+  if [[ "$engine_candidate" == */* ]]; then
+    [[ -x "$engine_candidate" ]] && app_state_engine="$engine_candidate"
+  elif command_exists "$engine_candidate"; then
+    app_state_engine="$(command -v "$engine_candidate")"
+  fi
+elif command_exists nix-me-apps; then
+  app_state_engine="$(command -v nix-me-apps)"
+elif [[ -x "$CONFIG_DIR/packages/app-state/engine/target/debug/nix-me-apps" ]]; then
+  app_state_engine="$CONFIG_DIR/packages/app-state/engine/target/debug/nix-me-apps"
+fi
+
+if [[ -n "$app_state_engine" ]]; then
+  app_state_engine_available=true
+  if [[ "$app_state_engine_version" == "null" ]]; then
+    engine_version_text="$($app_state_engine --version 2>/dev/null | head -1 || true)"
+    engine_version_text="${engine_version_text#nix-me-apps }"
+    if [[ -n "$engine_version_text" ]]; then
+      app_state_engine_version="$(jq -cn --arg version "$engine_version_text" '$version')"
+    else
+      add_app_state_warning "The app-state engine version could not be discovered"
+    fi
+  fi
+elif [[ "$app_state_engine_available" != "true" ]]; then
+  add_app_state_warning "The app-state engine is unavailable"
+fi
+
+recipe_path_list="${NIX_ME_APP_STATE_RECIPES:-$CONFIG_DIR/packages/app-state/recipes}"
+values_path_list="${NIX_ME_APP_STATE_VALUES:-$CONFIG_DIR/packages/app-state/values}"
+IFS=':' read -r -a app_state_recipe_paths <<<"$recipe_path_list"
+IFS=':' read -r -a app_state_values_paths <<<"$values_path_list"
+
+app_state='null'
+app_state_source='legacy'
+legacy_app_state_fixture=false
+for fixture_name in \
+  NIX_ME_APP_STATE_REGISTRY \
+  NIX_ME_APP_STATE_PLAN \
+  NIX_ME_APP_STATE_STATE \
+  NIX_ME_APP_STATE_LAST_APPLY; do
+  if [[ -n "${!fixture_name:-}" ]]; then
+    legacy_app_state_fixture=true
+  fi
+done
+
+if [[ -n "${NIX_ME_APP_STATE_STATUS:-}" ]]; then
+  app_state_source='status'
+  if [[ -r "$NIX_ME_APP_STATE_STATUS" ]] &&
+    app_state="$(jq -c . "$NIX_ME_APP_STATE_STATUS" 2>/dev/null)" &&
+    valid_app_state_status "$app_state"; then
+    :
+  else
+    app_state='null'
+    add_app_state_warning "The app-state status fixture is malformed or unreadable"
+  fi
+elif [[ "$legacy_app_state_fixture" != "true" && -n "$app_state_engine" ]]; then
+  app_state_source='status'
+  status_args=(status --json)
+  for recipe_path in "${app_state_recipe_paths[@]}"; do
+    [[ -n "$recipe_path" ]] && status_args+=(--recipe "$recipe_path")
+  done
+  value_file_count=0
+  for values_path in "${app_state_values_paths[@]}"; do
+    [[ -z "$values_path" ]] && continue
+    if [[ -d "$values_path" ]]; then
+      while IFS= read -r values_file; do
+        status_args+=(--values "$values_file")
+        value_file_count=$((value_file_count + 1))
+      done < <(find "$values_path" -type f \( -name '*.yaml' -o -name '*.yml' \) -print 2>/dev/null | sort)
+    else
+      status_args+=(--values "$values_path")
+      value_file_count=$((value_file_count + 1))
+    fi
+  done
+
+  if ((value_file_count == 0)); then
+    add_app_state_warning "The app-state status is unavailable because no values files are configured"
+  elif "$app_state_engine" "${status_args[@]}" >"$TEMP_DIR/app-state-status.json" 2>"$TEMP_DIR/app-state-status.err"; then
+    app_state="$(jq -c . "$TEMP_DIR/app-state-status.json" 2>/dev/null || printf null)"
+    if valid_app_state_status "$app_state"; then
+      app_state="$(jq -c --argjson extraWarnings "$app_state_warnings" '
+        .warnings = ((.warnings + $extraWarnings) | unique)
+      ' <<<"$app_state")"
+    else
+      app_state='null'
+      add_app_state_warning "The app-state engine status does not match version 1"
+    fi
+  else
+    status_error="$(tail -1 "$TEMP_DIR/app-state-status.err" 2>/dev/null || true)"
+    add_app_state_warning "The app-state status is unavailable${status_error:+: $status_error}"
+  fi
+fi
+
+if [[ "$app_state_source" == "legacy" ]]; then
+
+app_state_registry='null'
+if [[ -n "${NIX_ME_APP_STATE_REGISTRY:-}" ]]; then
+  if [[ -r "$NIX_ME_APP_STATE_REGISTRY" ]] && app_state_registry="$(jq -c . "$NIX_ME_APP_STATE_REGISTRY" 2>/dev/null)"; then
+    :
+  else
+    app_state_registry='null'
+    add_app_state_warning "The app-state registry status is malformed or unreadable"
+  fi
+elif [[ -n "$app_state_engine" ]]; then
+  registry_args=(registry validate --json)
+  for recipe_path in "${app_state_recipe_paths[@]}"; do
+    [[ -n "$recipe_path" ]] && registry_args+=(--recipe "$recipe_path")
+  done
+  if "$app_state_engine" "${registry_args[@]}" >"$TEMP_DIR/app-state-registry.json" 2>"$TEMP_DIR/app-state-registry.err"; then
+    app_state_registry="$(jq -c . "$TEMP_DIR/app-state-registry.json" 2>/dev/null || printf null)"
+  else
+    registry_error="$(tail -1 "$TEMP_DIR/app-state-registry.err" 2>/dev/null || true)"
+    add_app_state_warning "The app-state recipe registry is unavailable${registry_error:+: $registry_error}"
+  fi
+else
+  add_app_state_warning "The app-state recipe registry is unavailable"
+fi
+
+configured_recipe_count='null'
+verified_recipe_count='null'
+unverified_recipe_count='null'
+if [[ "$app_state_registry" != "null" ]]; then
+  if jq -e '
+    type == "object" and
+    .version == 1 and
+    .valid == true and
+    (.recipes | type == "number" and . >= 0 and floor == .) and
+    (.ids | type == "array") and
+    (all(.ids[]; type == "string")) and
+    (.unverified | type == "array") and
+    (all(.unverified[]; type == "string")) and
+    (.recipes as $recipes |
+      (.ids | length) == $recipes and
+      (.unverified | length) <= $recipes)
+  ' >/dev/null 2>&1 <<<"$app_state_registry"; then
+    add_app_state_warning "Configured app-state recipes are unknown without engine status"
+  else
+    add_app_state_warning "The app-state registry status does not match version 1"
+  fi
+fi
+
+app_state_plan='null'
+if [[ -n "${NIX_ME_APP_STATE_PLAN:-}" ]]; then
+  if [[ -r "$NIX_ME_APP_STATE_PLAN" ]] && app_state_plan="$(jq -c . "$NIX_ME_APP_STATE_PLAN" 2>/dev/null)"; then
+    :
+  else
+    app_state_plan='null'
+    add_app_state_warning "The app-state plan status is malformed or unreadable"
+  fi
+elif [[ -n "$app_state_engine" ]]; then
+  plan_args=(diff --json --no-exec --skip-missing)
+  for recipe_path in "${app_state_recipe_paths[@]}"; do
+    [[ -n "$recipe_path" ]] && plan_args+=(--recipe "$recipe_path")
+  done
+  value_file_count=0
+  for values_path in "${app_state_values_paths[@]}"; do
+    [[ -z "$values_path" ]] && continue
+    if [[ -d "$values_path" ]]; then
+      while IFS= read -r values_file; do
+        plan_args+=(--values "$values_file")
+        value_file_count=$((value_file_count + 1))
+      done < <(find "$values_path" -type f \( -name '*.yaml' -o -name '*.yml' \) -print 2>/dev/null | sort)
+    else
+      plan_args+=(--values "$values_path")
+      value_file_count=$((value_file_count + 1))
+    fi
+  done
+
+  if (( value_file_count == 0 )); then
+    add_app_state_warning "The app-state plan is unavailable because no values files are configured"
+  else
+    "$app_state_engine" "${plan_args[@]}" >"$TEMP_DIR/app-state-plan.json" 2>"$TEMP_DIR/app-state-plan.err" || true
+    if app_state_plan="$(jq -c . "$TEMP_DIR/app-state-plan.json" 2>/dev/null)"; then
+      :
+    else
+      app_state_plan='null'
+      plan_error="$(tail -1 "$TEMP_DIR/app-state-plan.err" 2>/dev/null || true)"
+      add_app_state_warning "The app-state plan is unavailable${plan_error:+: $plan_error}"
+    fi
+  fi
+else
+  add_app_state_warning "The app-state plan is unavailable"
+fi
+
+drift_count='null'
+manual_residue_count='null'
+if [[ "$app_state_plan" != "null" ]]; then
+  if jq -e '
+    type == "object" and
+    .version == 1 and
+    (.summary | type == "object") and
+    (.summary.drift | type == "number" and . >= 0 and floor == .) and
+    (.summary.manual | type == "number" and . >= 0 and floor == .)
+  ' >/dev/null 2>&1 <<<"$app_state_plan"; then
+    drift_count="$(jq -c '.summary.drift' <<<"$app_state_plan")"
+    manual_residue_count="$(jq -c '.summary.manual' <<<"$app_state_plan")"
+  else
+    add_app_state_warning "The app-state plan status does not match version 1"
+  fi
+fi
+
+if [[ -n "${NIX_ME_APP_STATE_STATE:-}" ]]; then
+  app_state_file="$NIX_ME_APP_STATE_STATE"
+elif [[ -n "${NIX_ME_STATE_DIR:-}" ]]; then
+  app_state_file="$NIX_ME_STATE_DIR/apps.json"
+elif [[ -n "${XDG_STATE_HOME:-}" ]]; then
+  app_state_file="$XDG_STATE_HOME/nix-me/apps.json"
+else
+  app_state_file="$HOME/.local/state/nix-me/apps.json"
+fi
+
+persisted_app_state='null'
+persisted_state_time='null'
+if [[ -r "$app_state_file" ]]; then
+  if persisted_app_state="$(jq -c . "$app_state_file" 2>/dev/null)" && jq -e '
+    type == "object" and
+    .version == 1 and
+    (.updated_at | type == "string") and
+    (.updated_at == "" or (.updated_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"))) and
+    (.apps | type == "object")
+  ' >/dev/null 2>&1 <<<"$persisted_app_state"; then
+    if [[ -n "$(jq -r '.updated_at' <<<"$persisted_app_state")" ]]; then
+      persisted_state_time="$(jq -c '.updated_at' <<<"$persisted_app_state")"
+    fi
+  else
+    persisted_app_state='null'
+    add_app_state_warning "The persisted app-state status is malformed"
+  fi
+else
+  add_app_state_warning "The persisted app-state status is unavailable"
+fi
+
+last_apply_status='null'
+last_apply_time="$persisted_state_time"
+last_apply_message='null'
+if [[ -n "${NIX_ME_APP_STATE_LAST_APPLY:-}" ]]; then
+  last_apply_file="$NIX_ME_APP_STATE_LAST_APPLY"
+else
+  last_apply_file="$(dirname "$app_state_file")/last-apply.json"
+fi
+
+last_apply='null'
+if [[ -r "$last_apply_file" ]]; then
+  if last_apply="$(jq -c . "$last_apply_file" 2>/dev/null)" && jq -e '
+    type == "object" and
+    (.status | IN("succeeded", "partial", "declined", "failed")) and
+    (.time == null or (.time |
+      type == "string" and
+      test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"))) and
+    (.message == null or (.message | type == "string"))
+  ' >/dev/null 2>&1 <<<"$last_apply"; then
+    last_apply_status="$(jq -c '.status' <<<"$last_apply")"
+    last_apply_time="$(jq -c '.time' <<<"$last_apply")"
+    last_apply_message="$(jq -c '.message' <<<"$last_apply")"
+  else
+    last_apply='null'
+    add_app_state_warning "The last app-state apply status is malformed"
+  fi
+else
+  add_app_state_warning "The last app-state apply status is unavailable"
+fi
+
+app_state="$(jq -n \
+  --argjson engineAvailable "$app_state_engine_available" \
+  --argjson engineVersion "$app_state_engine_version" \
+  --argjson configuredRecipeCount "$configured_recipe_count" \
+  --argjson driftCount "$drift_count" \
+  --argjson manualResidueCount "$manual_residue_count" \
+  --argjson lastApplyStatus "$last_apply_status" \
+  --argjson lastApplyTime "$last_apply_time" \
+  --argjson lastApplyMessage "$last_apply_message" \
+  --argjson verifiedRecipeCount "$verified_recipe_count" \
+  --argjson unverifiedRecipeCount "$unverified_recipe_count" \
+  --argjson warnings "$app_state_warnings" \
+  '{
+    schemaVersion: 1,
+    engine: {available: $engineAvailable, version: $engineVersion},
+    configuredRecipeCount: $configuredRecipeCount,
+    driftCount: $driftCount,
+    manualResidueCount: $manualResidueCount,
+    lastApply: {
+      status: $lastApplyStatus,
+      time: $lastApplyTime,
+      message: $lastApplyMessage
+    },
+    verification: {
+      verifiedRecipeCount: $verifiedRecipeCount,
+      unverifiedRecipeCount: $unverifiedRecipeCount
+    },
+    warnings: $warnings
+  }')"
+else
+  if [[ "$app_state" == "null" ]]; then
+    app_state="$(unknown_app_state)"
+  fi
+fi
+
+if [[ "$REQUESTED_ENDPOINT" == "app-state" ]]; then
+  generated_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+  jq -n \
+    --argjson schemaVersion "$API_VERSION" \
+    --arg generatedAt "$generated_at" \
+    --arg hostname "$HOST_NAME" \
+    --arg username "${USER:-$(id -un)}" \
+    --argjson appState "$app_state" \
+    --argjson warnings "$warnings" \
+    '{
+      schemaVersion: $schemaVersion,
+      generatedAt: $generatedAt,
+      host: {hostname: $hostname, machineName: $hostname, machineType: null, username: $username},
+      appState: $appState,
+      warnings: ($warnings + $appState.warnings)
+    }'
+  exit 0
+fi
+fi
+
+local_ai='null'
+if [[ -n "${NIX_ME_LOCAL_AI_STATUS:-}" ]]; then
+  if [[ -r "$NIX_ME_LOCAL_AI_STATUS" ]] &&
+    local_ai="$(jq -c . "$NIX_ME_LOCAL_AI_STATUS" 2>/dev/null)" &&
+    valid_local_ai_status "$local_ai"; then
+    :
+  else
+    add_warning "The local-AI status fixture is malformed or unreadable"
+    local_ai="$(unavailable_local_ai "Repair the local-AI status source, then refresh.")"
+  fi
+else
+  local_ai_command=()
+  if [[ -n "${NIX_ME_LOCAL_AI_DOCTOR+x}" ]]; then
+    local_ai_candidate="$NIX_ME_LOCAL_AI_DOCTOR"
+    if [[ -n "$local_ai_candidate" && "$local_ai_candidate" == */* && -x "$local_ai_candidate" ]]; then
+      local_ai_command=("$local_ai_candidate")
+    elif [[ -n "$local_ai_candidate" && "$local_ai_candidate" == */* && -r "$local_ai_candidate" ]]; then
+      local_ai_command=(bash "$local_ai_candidate")
+    elif [[ -n "$local_ai_candidate" ]] && command_exists "$local_ai_candidate"; then
+      local_ai_command=("$(command -v "$local_ai_candidate")")
+    fi
+  elif command_exists local-ai-doctor; then
+    local_ai_command=("$(command -v local-ai-doctor)")
+  elif [[ -r "$CONFIG_DIR/tools/local-ai/doctor.sh" ]]; then
+    local_ai_command=(bash "$CONFIG_DIR/tools/local-ai/doctor.sh")
+  fi
+
+  if ((${#local_ai_command[@]} == 0)); then
+    add_warning "The local-AI status tool is unavailable"
+    local_ai="$(unavailable_local_ai "Install or repair local-ai-doctor, then refresh.")"
+  elif run_bounded_local_ai_status \
+    "$TEMP_DIR/local-ai-status.json" \
+    "$TEMP_DIR/local-ai-status.err" \
+    "${local_ai_command[@]}" --json 2>/dev/null; then
+    local_ai="$(jq -c . "$TEMP_DIR/local-ai-status.json" 2>/dev/null || printf null)"
+    if ! valid_local_ai_status "$local_ai"; then
+      add_warning "The local-AI status does not match version 1"
+      local_ai="$(unavailable_local_ai "Repair local-ai-doctor, then refresh.")"
+    fi
+  else
+    local_ai_status_code=$?
+    local_ai_error="$(tail -1 "$TEMP_DIR/local-ai-status.err" 2>/dev/null || true)"
+    if [[ "$local_ai_status_code" == "124" ]]; then
+      add_warning "The local-AI status check timed out"
+    else
+      add_warning "The local-AI status is unavailable${local_ai_error:+: $local_ai_error}"
+    fi
+    local_ai="$(unavailable_local_ai "Run local-ai-doctor --json, resolve the reported error, then refresh.")"
+  fi
+fi
+
+if [[ "$REQUESTED_ENDPOINT" == "local-ai" ]]; then
+  generated_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+  jq -n \
+    --argjson schemaVersion "$API_VERSION" \
+    --arg generatedAt "$generated_at" \
+    --arg hostname "$HOST_NAME" \
+    --arg username "${USER:-$(id -un)}" \
+    --argjson localAI "$local_ai" \
+    --argjson warnings "$warnings" \
+    '{
+      schemaVersion: $schemaVersion,
+      generatedAt: $generatedAt,
+      host: {hostname: $hostname, machineName: $hostname, machineType: null, username: $username},
+      localAI: $localAI,
+      warnings: $warnings
+    }'
+  exit 0
+fi
 
 git_state() {
   local directory="$1"
@@ -317,6 +905,8 @@ snapshot="$(jq -n \
   --argjson masUpdates "$mas_updates" \
   --argjson nixUpdates "$nix_updates" \
   --argjson projects "$projects" \
+  --argjson appState "$app_state" \
+  --argjson localAI "$local_ai" \
   --argjson warnings "$warnings" \
   '{
     schemaVersion: $schemaVersion,
@@ -344,10 +934,12 @@ snapshot="$(jq -n \
     },
     updates: {homebrew: $brewUpdates, macAppStore: $masUpdates, nixFlake: $nixUpdates},
     projects: $projects,
+    appState: $appState,
+    localAI: $localAI,
     warnings: $warnings
   }')"
 
-case "${1:-snapshot}" in
+case "$REQUESTED_ENDPOINT" in
   snapshot)
     jq . <<<"$snapshot"
     ;;
@@ -362,6 +954,12 @@ case "${1:-snapshot}" in
     ;;
   projects)
     jq '{schemaVersion, generatedAt, host, projects, warnings}' <<<"$snapshot"
+    ;;
+  app-state)
+    jq '{schemaVersion, generatedAt, host, appState, warnings: (.warnings + .appState.warnings)}' <<<"$snapshot"
+    ;;
+  local-ai)
+    jq '{schemaVersion, generatedAt, host, localAI, warnings}' <<<"$snapshot"
     ;;
   manifest)
     if [[ "$desired_manifest" == "null" ]]; then

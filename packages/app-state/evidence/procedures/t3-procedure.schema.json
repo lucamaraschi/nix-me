@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/lucamaraschi/nix-me/main/packages/app-state/evidence/procedures/t3-procedure.schema.json",
+  "title": "nix-me interactive T3 procedure",
+  "type": "object",
+  "required": [
+    "$schema",
+    "schema_version",
+    "id",
+    "version",
+    "title",
+    "recipe",
+    "environment",
+    "execution",
+    "operator",
+    "cleanup"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "const": "https://raw.githubusercontent.com/lucamaraschi/nix-me/main/packages/app-state/evidence/procedures/t3-procedure.schema.json"
+    },
+    "schema_version": { "const": 1 },
+    "id": { "$ref": "#/$defs/kebab" },
+    "version": { "type": "integer", "minimum": 1 },
+    "title": { "$ref": "#/$defs/nonempty" },
+    "recipe": {
+      "type": "object",
+      "required": ["id", "path", "values_path", "bundle_id", "app_path"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/kebab" },
+        "path": { "$ref": "#/$defs/repository_path" },
+        "values_path": { "$ref": "#/$defs/repository_path" },
+        "bundle_id": { "type": "string", "pattern": "^[A-Za-z0-9.-]+$" },
+        "app_path": { "type": "string", "pattern": "^/Applications/[A-Za-z0-9 ._-]+[.]app$" }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "required": ["kind"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "const": "disposable_vm" }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "required": ["apply", "idempotence"],
+      "additionalProperties": false,
+      "properties": {
+        "apply": { "$ref": "#/$defs/command_check" },
+        "idempotence": { "$ref": "#/$defs/command_check" }
+      }
+    },
+    "operator": {
+      "type": "object",
+      "required": ["instructions", "acceptance", "artifact"],
+      "additionalProperties": false,
+      "properties": {
+        "instructions": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/nonempty" }
+        },
+        "acceptance": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/nonempty" }
+        },
+        "artifact": {
+          "type": "object",
+          "required": ["required", "allowed_media_types", "description"],
+          "additionalProperties": false,
+          "properties": {
+            "required": { "const": true },
+            "allowed_media_types": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "enum": ["image/png", "image/jpeg", "video/quicktime", "video/mp4"]
+              }
+            },
+            "description": { "$ref": "#/$defs/nonempty" }
+          }
+        }
+      }
+    },
+    "cleanup": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/nonempty" }
+    }
+  },
+  "$defs": {
+    "nonempty": { "type": "string", "minLength": 1 },
+    "kebab": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+    "repository_path": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._/-]+$"
+    },
+    "command_check": {
+      "type": "object",
+      "required": ["mode", "accepted_exit_codes", "required_action_ops"],
+      "additionalProperties": false,
+      "properties": {
+        "mode": { "enum": ["apply", "diff"] },
+        "accepted_exit_codes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "integer", "minimum": 0, "maximum": 255 }
+        },
+        "required_action_ops": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z_]+$" }
+        }
+      }
+    }
+  }
+}

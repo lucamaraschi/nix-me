@@ -5,6 +5,9 @@ on:
     paths:
       - "apps/cli/**"
       - "packages/management-api/**"
+      - "tools/local-ai/**"
+      - "nix/hosts/profiles/local-ai.nix"
+      - "nix/projects/local-ai.nix"
       - "tests/integration/**"
       - "Makefile"
       - ".github/workflows/cli-ci.yml"
@@ -13,6 +16,9 @@ on:
     paths:
       - "apps/cli/**"
       - "packages/management-api/**"
+      - "tools/local-ai/**"
+      - "nix/hosts/profiles/local-ai.nix"
+      - "nix/projects/local-ai.nix"
       - "tests/integration/**"
       - "Makefile"
       - ".github/workflows/cli-ci.yml"

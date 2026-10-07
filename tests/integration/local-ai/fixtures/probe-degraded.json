@@ -1,0 +1,9 @@
+{
+  "ds4Checkout": "ready",
+  "piDs4Checkout": "missing",
+  "extension": "missing",
+  "runtime": "notBuilt",
+  "model": "missing",
+  "server": "stopped",
+  "configuration": {"state": "drifted", "driftCount": 2}
+}

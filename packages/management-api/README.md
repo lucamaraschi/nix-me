@@ -15,6 +15,23 @@ The current snapshot contract is version 1 and is recorded in
 version. Removing fields, changing their meaning, or changing their type
 requires a new schema version and coordinated client fixtures.
 
+`localAI` is an optional additive snapshot member for older-client
+compatibility. New API responses always provide its version 1 read-only status,
+and `nix-me-api local-ai` provides the focused view. Component states distinguish
+known absence (`missing`, `notBuilt`, `stopped`, or `drifted`) from
+`unavailable`; refresh is bounded and never builds DS4, downloads a model,
+starts or stops a server, clones a checkout, applies harness state, or launches
+an app.
+
+Model download, cancellation, checksum, and cleanup are intentionally not part
+of this status contract. The separate `local-ai-model-start`,
+`local-ai-model-status`, and `local-ai-model-cancel` actions expose a private,
+inspectable operation record. Only start launches the downloader. Status never
+writes state or cleans files; it synthesizes a failed view for a dead worker.
+Explicit start or cancel performs stale cleanup. Completed artifacts replace the
+configured model atomically; failures and cancellation preserve the previous
+model.
+
 Run the contract tests from the repository root:
 
 ```sh

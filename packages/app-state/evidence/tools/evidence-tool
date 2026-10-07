@@ -1,0 +1,663 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+EVIDENCE_DIR="$REPO_ROOT/packages/app-state/evidence"
+VALIDATOR="$SCRIPT_DIR/validate-manifest.jq"
+SIGNATURE_NAMESPACE="nix-me-t3-evidence-v1"
+PRODUCTION_ALLOWED_SIGNERS="$EVIDENCE_DIR/trust/allowed_signers"
+FIXTURE_ROOT="$EVIDENCE_DIR/fixtures"
+FIXTURE_ALLOWED_SIGNERS="$FIXTURE_ROOT/trust/allowed_signers"
+
+die() {
+  printf 'evidence-tool: %s\n' "$*" >&2
+  exit 1
+}
+
+usage() {
+  cat >&2 <<'EOF'
+Usage:
+  evidence-tool validate-manifest MANIFEST
+  evidence-tool generate-stamp MANIFEST RECIPE
+  evidence-tool stamp-recipe MANIFEST RECIPE
+  evidence-tool verify-stamp MANIFEST RECIPE
+  evidence-tool verify-repository
+EOF
+  exit 2
+}
+
+require_file() {
+  [ -f "$1" ] || die "file not found: $1"
+}
+
+require_command() {
+  command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"
+}
+
+canonical_file() {
+  local file="$1"
+  local directory basename
+
+  require_file "$file"
+  directory="$(cd "$(dirname "$file")" && pwd -P)"
+  basename="$(basename "$file")"
+  printf '%s/%s\n' "$directory" "$basename"
+}
+
+sha256_file() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  else
+    shasum -a 256 "$1" | awk '{print $1}'
+  fi
+}
+
+sha256_stdin() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum | awk '{print $1}'
+  else
+    shasum -a 256 | awk '{print $1}'
+  fi
+}
+
+file_bytes() {
+  wc -c < "$1" | tr -d '[:space:]'
+}
+
+normalized_recipe() {
+  awk '
+    BEGIN { found = 0; in_verified = 0 }
+    /^verified:[[:space:]]*/ {
+      if (found) exit 3
+      print "verified: null"
+      found = 1
+      in_verified = 1
+      next
+    }
+    in_verified && /^[^[:space:]]/ { in_verified = 0 }
+    in_verified { next }
+    { print }
+    END { if (!found) exit 4 }
+  ' "$1"
+}
+
+recipe_sha256() {
+  normalized_recipe "$1" | sha256_stdin
+}
+
+recipe_id() {
+  awk '
+    /^id:[[:space:]]*[a-z0-9][a-z0-9-]*[[:space:]]*$/ {
+      value = $0
+      sub(/^id:[[:space:]]*/, "", value)
+      sub(/[[:space:]]*$/, "", value)
+      print value
+      found++
+    }
+    END { if (found != 1) exit 1 }
+  ' "$1" || die "cannot read one canonical top-level id from $1"
+}
+
+validate_manifest_shape() {
+  local manifest="$1"
+  local errors
+
+  require_file "$manifest"
+  jq empty "$manifest" 2>/dev/null || die "$manifest is not valid JSON"
+  errors="$(jq -r -f "$VALIDATOR" "$manifest")" || die "validator failed for $manifest"
+  if [ "$errors" != "[]" ]; then
+    printf 'evidence-tool: manifest validation failed: %s\n' "$manifest" >&2
+    jq -r -f "$VALIDATOR" "$manifest" | jq -r '.[] | "  - " + .' >&2
+    return 1
+  fi
+}
+
+validate_manifest_links() {
+  local manifest="$1"
+  local artifact_ids referenced_ids artifact_id artifact_path expected_sha actual_sha expected_bytes actual_bytes captured_at
+
+  artifact_ids="$(jq -r '.artifacts[].id' "$manifest" | LC_ALL=C sort)"
+  referenced_ids="$(
+    jq -r '.result.checks | [.apply, .visible_behavior, .idempotence] | .[].artifact_ids[]' "$manifest" \
+      | LC_ALL=C sort -u
+  )"
+
+  while IFS= read -r artifact_id; do
+    [ -n "$artifact_id" ] || continue
+    printf '%s\n' "$artifact_ids" | grep -Fxq "$artifact_id" \
+      || die "$manifest: check references unknown artifact id '$artifact_id'"
+  done <<EOF
+$referenced_ids
+EOF
+
+  while IFS=$'\t' read -r artifact_id artifact_path expected_sha expected_bytes captured_at; do
+    [ -n "$artifact_id" ] || continue
+    case "$artifact_path" in
+      packages/app-state/evidence/*) ;;
+      *) die "$manifest: artifact '$artifact_id' must be retained under packages/app-state/evidence" ;;
+    esac
+    case "/$artifact_path/" in
+      */../*) die "$manifest: artifact '$artifact_id' path contains '..'" ;;
+    esac
+    require_file "$REPO_ROOT/$artifact_path"
+    actual_sha="$(sha256_file "$REPO_ROOT/$artifact_path")"
+    [ "$actual_sha" = "$expected_sha" ] \
+      || die "$manifest: artifact '$artifact_id' SHA-256 mismatch (expected $expected_sha, got $actual_sha)"
+    actual_bytes="$(file_bytes "$REPO_ROOT/$artifact_path")"
+    [ "$actual_bytes" = "$expected_bytes" ] \
+      || die "$manifest: artifact '$artifact_id' byte count mismatch (expected $expected_bytes, got $actual_bytes)"
+    jq -e --arg captured_at "$captured_at" \
+      '.run.started_at <= $captured_at and $captured_at <= .run.finished_at' \
+      "$manifest" >/dev/null \
+      || die "$manifest: artifact '$artifact_id' captured_at is outside the run interval"
+  done < <(jq -r '.artifacts[] | [.id, .path, .sha256, (.bytes | tostring), .captured_at] | @tsv' "$manifest")
+}
+
+validate_manifest() {
+  validate_manifest_shape "$1"
+  validate_manifest_links "$1"
+}
+
+assert_passing() {
+  local manifest="$1"
+  local failures
+
+  [ "$(jq -r '.lifecycle' "$manifest")" = "final" ] \
+    || die "$manifest: lifecycle must be final before a stamp can be generated"
+  [ "$(jq -r '.result.status' "$manifest")" = "passed" ] \
+    || die "$manifest: result.status must be passed before a stamp can be generated"
+  failures="$(
+    jq -r '
+      .result.checks
+      | to_entries[]
+      | select(.value.status != "passed")
+      | .key
+    ' "$manifest"
+  )"
+  [ -z "$failures" ] \
+    || die "$manifest: required checks must pass before stamping: $(printf '%s' "$failures" | paste -sd, -)"
+}
+
+assert_recipe_binding() {
+  local manifest="$1"
+  local recipe="$2"
+  local manifest_id actual_id expected_sha actual_sha manifest_path actual_path
+
+  require_file "$recipe"
+  manifest_id="$(jq -r '.recipe.id' "$manifest")"
+  actual_id="$(recipe_id "$recipe")"
+  [ "$actual_id" = "$manifest_id" ] \
+    || die "$manifest: recipe id '$manifest_id' does not match '$actual_id' in $recipe"
+
+  expected_sha="$(jq -r '.recipe.sha256' "$manifest")"
+  actual_sha="$(recipe_sha256 "$recipe")" \
+    || die "cannot normalize top-level verified field in $recipe"
+  [ "$actual_sha" = "$expected_sha" ] \
+    || die "$manifest: recipe evidence is stale (expected normalized SHA-256 $expected_sha, got $actual_sha for $recipe)"
+
+  manifest_path="$(jq -r '.recipe.path' "$manifest")"
+  actual_path="${recipe#"$REPO_ROOT/"}"
+  if [ "$recipe" = "$actual_path" ]; then
+    actual_path="$recipe"
+  fi
+  [ "$actual_path" = "$manifest_path" ] \
+    || die "$manifest: recipe.path '$manifest_path' does not match $actual_path"
+}
+
+trust_profile() {
+  local manifest="$1"
+  local recipe="$2"
+  local manifest_path recipe_path id expected_manifest expected_recipe
+
+  manifest_path="$(canonical_file "$manifest")"
+  recipe_path="$(canonical_file "$recipe")"
+  case "$manifest_path:$recipe_path" in
+    "$FIXTURE_ROOT"/*:"$FIXTURE_ROOT"/*)
+      printf 'fixture\n'
+      return
+      ;;
+    "$FIXTURE_ROOT"/*:*|*:"$FIXTURE_ROOT"/*)
+      die "fixture evidence and signers cannot authorize production manifests or recipes"
+      ;;
+  esac
+
+  id="$(jq -r '.recipe.id' "$manifest")"
+  expected_manifest="$EVIDENCE_DIR/manifests/$id.json"
+  expected_recipe="$REPO_ROOT/packages/app-state/recipes/$id.yaml"
+  [ "$manifest_path" = "$expected_manifest" ] \
+    || die "$manifest: production final manifest must be $expected_manifest"
+  [ "$recipe_path" = "$expected_recipe" ] \
+    || die "$recipe: production recipe must be $expected_recipe"
+  [ "$(jq -r '.recipe.path' "$manifest")" = "packages/app-state/recipes/$id.yaml" ] \
+    || die "$manifest: production recipe.path must be packages/app-state/recipes/$id.yaml"
+  printf 'production\n'
+}
+
+verify_detached_signature() {
+  local profile="$1"
+  local manifest="$2"
+  local signature allowed_signers principals principal fixture_principals verified=false
+
+  require_command ssh-keygen
+  signature="$manifest.sig"
+  require_file "$signature"
+  case "$profile" in
+    fixture) allowed_signers="$FIXTURE_ALLOWED_SIGNERS" ;;
+    production) allowed_signers="$PRODUCTION_ALLOWED_SIGNERS" ;;
+    *) die "internal error: unknown trust profile '$profile'" ;;
+  esac
+  require_file "$allowed_signers"
+
+  if [ "$profile" = "production" ]; then
+    fixture_principals="$(
+      ssh-keygen -Y find-principals \
+        -f "$FIXTURE_ALLOWED_SIGNERS" -s "$signature" 2>/dev/null || true
+    )"
+    [ -z "$fixture_principals" ] \
+      || die "$manifest: fixture signers cannot authorize production evidence"
+  fi
+
+  principals="$(
+    ssh-keygen -Y find-principals \
+      -f "$allowed_signers" -s "$signature" 2>/dev/null || true
+  )"
+  [ -n "$principals" ] \
+    || die "$manifest: detached signature signer is not explicitly allowed for $profile evidence"
+
+  while IFS= read -r principal; do
+    [ -n "$principal" ] || continue
+    if ssh-keygen -Y verify \
+      -f "$allowed_signers" \
+      -I "$principal" \
+      -n "$SIGNATURE_NAMESPACE" \
+      -s "$signature" < "$manifest" >/dev/null 2>&1; then
+      verified=true
+      break
+    fi
+  done <<EOF
+$principals
+EOF
+  [ "$verified" = true ] \
+    || die "$manifest: invalid detached SSH signature for namespace $SIGNATURE_NAMESPACE"
+}
+
+artifact_json() {
+  local manifest="$1"
+  local id="$2"
+  local artifact
+
+  artifact="$(
+    jq -c --arg id "$id" \
+      '[.artifacts[] | select(.id == $id)] | if length == 1 then .[0] else empty end' \
+      "$manifest"
+  )"
+  [ -n "$artifact" ] || die "$manifest: expected exactly one '$id' artifact"
+  printf '%s\n' "$artifact"
+}
+
+assert_artifact_binding() {
+  local manifest="$1"
+  local id="$2"
+  local expected_path="$3"
+  local expected_kind="$4"
+  local expected_media_type="$5"
+  local expected_sha="$6"
+  local expected_bytes="$7"
+  local expected_captured_at="$8"
+  local artifact
+
+  artifact="$(artifact_json "$manifest" "$id")"
+  jq -e \
+    --arg path "$expected_path" \
+    --arg kind "$expected_kind" \
+    --arg media_type "$expected_media_type" \
+    --arg sha256 "$expected_sha" \
+    --argjson bytes "$expected_bytes" \
+    --arg captured_at "$expected_captured_at" \
+    '.path == $path
+      and .kind == $kind
+      and .media_type == $media_type
+      and .sha256 == $sha256
+      and .bytes == $bytes
+      and .captured_at == $captured_at' \
+    <<<"$artifact" >/dev/null \
+    || die "$manifest: artifact '$id' does not match the retained run record"
+}
+
+assert_check_artifacts() {
+  local manifest="$1"
+  local check="$2"
+  shift 2
+  local actual expected
+
+  actual="$(jq -r --arg check "$check" '.result.checks[$check].artifact_ids[]' "$manifest" | LC_ALL=C sort)"
+  expected="$(printf '%s\n' "$@" | LC_ALL=C sort)"
+  [ "$actual" = "$expected" ] \
+    || die "$manifest: $check check does not reference the finalized run artifacts"
+}
+
+assert_run_record_linkage() {
+  local profile="$1"
+  local manifest="$2"
+  local revision resolved run_id run_dir record_artifact record_path record
+  local procedure_path procedure_digest runner_digest expected_ids actual_ids
+  local apply_stderr_bytes idempotence_stderr_bytes visible_kind
+
+  revision="$(jq -r '.procedure.harness_revision' "$manifest")"
+  resolved="$(git -C "$REPO_ROOT" rev-parse --verify "$revision^{commit}" 2>/dev/null || true)"
+  [ "$resolved" = "$revision" ] \
+    || die "$manifest: harness_revision does not resolve to the recorded Git commit: $revision"
+
+  run_id="$(jq -r '.run.id' "$manifest")"
+  case "$profile" in
+    production) run_dir="packages/app-state/evidence/runs/$run_id" ;;
+    fixture) run_dir="packages/app-state/evidence/fixtures/runs/$run_id" ;;
+  esac
+  record_artifact="$(artifact_json "$manifest" run-record)"
+  record_path="$(jq -r '.path' <<<"$record_artifact")"
+  [ "$record_path" = "$run_dir/run-record.json" ] \
+    || die "$manifest: run-record artifact must be retained at $run_dir/run-record.json"
+  record="$REPO_ROOT/$record_path"
+  require_file "$record"
+
+  jq -e --slurpfile manifest "$manifest" '
+    ($manifest[0]) as $m
+    | .["$schema"] == "https://raw.githubusercontent.com/lucamaraschi/nix-me/main/packages/app-state/evidence/t3-run-record.schema.json"
+      and .record_version == 1
+      and .origin == "interactive-t3-runner"
+      and .recipe == $m.recipe
+      and .environment == $m.environment
+      and .application == $m.application
+      and .run == $m.run
+      and .procedure.id == $m.procedure.id
+      and .procedure.version == $m.procedure.version
+      and .procedure.harness_revision == $m.procedure.harness_revision
+      and (.procedure.path | type == "string" and length > 0)
+      and (.procedure.sha256 | test("^[0-9a-f]{64}$"))
+      and (.procedure.runner_sha256 | test("^[0-9a-f]{64}$"))
+      and .commands.apply.output == "apply.log"
+      and .commands.apply.stderr == "apply.stderr.log"
+      and .commands.idempotence.output == "idempotence.log"
+      and .commands.idempotence.stderr == "idempotence.stderr.log"
+      and .operator.attested == true
+      and (.operator.identity | type == "string" and length > 0)
+      and (.operator.challenge | type == "string" and length > 0)
+      and .operator.confirmation == ("PASS " + .operator.challenge)
+      and (.operator.observation | type == "string" and length > 0)
+      and .operator.report == "operator-observation.txt"
+      and (.operator.artifact | type == "object")
+  ' "$record" >/dev/null \
+    || die "$manifest: retained run record does not match the finalized manifest"
+
+  procedure_path="$(jq -r '.procedure.path' "$record")"
+  case "$profile:$procedure_path" in
+    production:packages/app-state/evidence/procedures/*.v*.json) ;;
+    fixture:packages/app-state/evidence/fixtures/procedures/*.v*.json) ;;
+    *) die "$manifest: recorded procedure path is not valid for $profile evidence: $procedure_path" ;;
+  esac
+  case "/$procedure_path/" in
+    */../*) die "$manifest: recorded procedure path contains '..'" ;;
+  esac
+  git -C "$REPO_ROOT" cat-file -e "$revision:$procedure_path" 2>/dev/null \
+    || die "$manifest: harness revision does not contain $procedure_path: $revision"
+  procedure_digest="$(git -C "$REPO_ROOT" show "$revision:$procedure_path" | sha256_stdin)"
+  [ "$procedure_digest" = "$(jq -r '.procedure.sha256' "$record")" ] \
+    || die "$manifest: retained run record procedure digest does not match $revision:$procedure_path"
+  git -C "$REPO_ROOT" show "$revision:$procedure_path" \
+    | jq -e \
+      --arg id "$(jq -r '.procedure.id' "$manifest")" \
+      --argjson version "$(jq -r '.procedure.version' "$manifest")" \
+      --arg recipe_id "$(jq -r '.recipe.id' "$manifest")" \
+      --arg recipe_path "$(jq -r '.recipe.path' "$manifest")" \
+      --arg bundle_id "$(jq -r '.application.bundle_id' "$manifest")" \
+      '.id == $id
+        and .version == $version
+        and .recipe.id == $recipe_id
+        and .recipe.path == $recipe_path
+        and .recipe.bundle_id == $bundle_id
+        and .operator.artifact.required == true' >/dev/null \
+    || die "$manifest: procedure id/version or recipe binding does not match $revision:$procedure_path"
+
+  git -C "$REPO_ROOT" cat-file -e \
+    "$revision:packages/app-state/evidence/tools/t3-procedure" 2>/dev/null \
+    || die "$manifest: harness revision does not contain the T3 runner: $revision"
+  runner_digest="$(
+    git -C "$REPO_ROOT" show "$revision:packages/app-state/evidence/tools/t3-procedure" \
+      | sha256_stdin
+  )"
+  [ "$runner_digest" = "$(jq -r '.procedure.runner_sha256' "$record")" ] \
+    || die "$manifest: retained run record runner digest does not match harness revision $revision"
+
+  assert_artifact_binding "$manifest" run-record "$record_path" report application/json \
+    "$(sha256_file "$record")" "$(file_bytes "$record")" "$(jq -r '.run.finished_at' "$record")"
+  assert_artifact_binding "$manifest" apply-log "$run_dir/apply.log" log application/json \
+    "$(jq -r '.commands.apply.output_sha256' "$record")" \
+    "$(jq -r '.commands.apply.output_bytes' "$record")" \
+    "$(jq -r '.commands.apply.finished_at' "$record")"
+  assert_artifact_binding "$manifest" idempotence-log "$run_dir/idempotence.log" log application/json \
+    "$(jq -r '.commands.idempotence.output_sha256' "$record")" \
+    "$(jq -r '.commands.idempotence.output_bytes' "$record")" \
+    "$(jq -r '.commands.idempotence.finished_at' "$record")"
+  assert_artifact_binding "$manifest" operator-observation "$run_dir/operator-observation.txt" report text/plain \
+    "$(jq -r '.operator.report_sha256' "$record")" \
+    "$(jq -r '.operator.report_bytes' "$record")" \
+    "$(jq -r '.operator.observed_at' "$record")"
+  case "$(jq -r '.operator.artifact.media_type' "$record")" in
+    image/*) visible_kind=screenshot ;;
+    video/*) visible_kind=video ;;
+    *) die "$manifest: retained visible artifact has an unsupported media type" ;;
+  esac
+  git -C "$REPO_ROOT" show "$revision:$procedure_path" \
+    | jq -e --arg media "$(jq -r '.operator.artifact.media_type' "$record")" \
+      '.operator.artifact.allowed_media_types | index($media) != null' >/dev/null \
+    || die "$manifest: retained visible artifact is not allowed by the recorded procedure"
+  assert_artifact_binding "$manifest" visible-artifact \
+    "$run_dir/$(jq -r '.operator.artifact.path' "$record")" "$visible_kind" \
+    "$(jq -r '.operator.artifact.media_type' "$record")" \
+    "$(jq -r '.operator.artifact.sha256' "$record")" \
+    "$(jq -r '.operator.artifact.bytes' "$record")" \
+    "$(jq -r '.operator.observed_at' "$record")"
+
+  expected_ids="$(printf '%s\n' run-record apply-log idempotence-log operator-observation visible-artifact | LC_ALL=C sort)"
+  apply_stderr_bytes="$(jq -r '.commands.apply.stderr_bytes' "$record")"
+  idempotence_stderr_bytes="$(jq -r '.commands.idempotence.stderr_bytes' "$record")"
+  if [ "$apply_stderr_bytes" -gt 0 ]; then
+    assert_artifact_binding "$manifest" apply-stderr "$run_dir/apply.stderr.log" log text/plain \
+      "$(jq -r '.commands.apply.stderr_sha256' "$record")" "$apply_stderr_bytes" \
+      "$(jq -r '.commands.apply.finished_at' "$record")"
+    expected_ids="$(printf '%s\n%s\n' "$expected_ids" apply-stderr | LC_ALL=C sort)"
+  fi
+  if [ "$idempotence_stderr_bytes" -gt 0 ]; then
+    assert_artifact_binding "$manifest" idempotence-stderr "$run_dir/idempotence.stderr.log" log text/plain \
+      "$(jq -r '.commands.idempotence.stderr_sha256' "$record")" "$idempotence_stderr_bytes" \
+      "$(jq -r '.commands.idempotence.finished_at' "$record")"
+    expected_ids="$(printf '%s\n%s\n' "$expected_ids" idempotence-stderr | LC_ALL=C sort)"
+  fi
+  actual_ids="$(jq -r '.artifacts[].id' "$manifest" | LC_ALL=C sort)"
+  [ "$actual_ids" = "$expected_ids" ] \
+    || die "$manifest: artifact set does not match the finalized T3 procedure flow"
+
+  if [ "$apply_stderr_bytes" -gt 0 ]; then
+    assert_check_artifacts "$manifest" apply apply-log apply-stderr
+  else
+    assert_check_artifacts "$manifest" apply apply-log
+  fi
+  if [ "$idempotence_stderr_bytes" -gt 0 ]; then
+    assert_check_artifacts "$manifest" idempotence idempotence-log idempotence-stderr
+  else
+    assert_check_artifacts "$manifest" idempotence idempotence-log
+  fi
+  assert_check_artifacts "$manifest" visible_behavior operator-observation visible-artifact
+}
+
+assert_authenticated_provenance() {
+  local manifest="$1"
+  local recipe="$2"
+  local profile
+
+  profile="$(trust_profile "$manifest" "$recipe")"
+  verify_detached_signature "$profile" "$manifest"
+  assert_run_record_linkage "$profile" "$manifest"
+}
+
+manifest_sha256() {
+  jq -cS . "$1" | sha256_stdin
+}
+
+stamp_json() {
+  local manifest="$1"
+  local digest
+  digest="$(manifest_sha256 "$manifest")"
+  jq -S \
+    --arg digest "$digest" \
+    '{
+      macos: (.environment.macos.version + " (" + .environment.macos.build + ")"),
+      app: (.application.version + " (" + .application.build + ")"),
+      date: (.run.finished_at[0:10]),
+      harness: ("t3-evidence/v1@" + .procedure.harness_revision + "#sha256:" + $digest)
+    }' "$manifest"
+}
+
+stamp_yaml() {
+  stamp_json "$1" | jq -r '
+    "verified:\n"
+    + "  macos: " + (.macos | tojson) + "\n"
+    + "  app: " + (.app | tojson) + "\n"
+    + "  date: " + (.date | tojson) + "\n"
+    + "  harness: " + (.harness | tojson)
+  '
+}
+
+prepare_stamp() {
+  local manifest="$1"
+  local recipe="$2"
+  validate_manifest "$manifest"
+  assert_passing "$manifest"
+  assert_recipe_binding "$manifest" "$recipe"
+  assert_authenticated_provenance "$manifest" "$recipe"
+}
+
+verified_block() {
+  awk '
+    /^verified:[[:space:]]*/ { found = 1; in_verified = 1; print; next }
+    in_verified && /^[^[:space:]]/ { exit }
+    in_verified { print }
+    END { if (!found) exit 1 }
+  ' "$1"
+}
+
+verify_stamp() {
+  local manifest="$1"
+  local recipe="$2"
+  local expected actual
+  prepare_stamp "$manifest" "$recipe"
+  expected="$(stamp_yaml "$manifest")"
+  actual="$(verified_block "$recipe")" \
+    || die "$recipe has no top-level verified field; run stamp-recipe"
+  [ "$actual" = "$expected" ] \
+    || die "$recipe verification stamp is not the canonical stamp derived from $manifest; run stamp-recipe"
+}
+
+stamp_recipe() {
+  local manifest="$1"
+  local recipe="$2"
+  local stamp_file output_file
+  prepare_stamp "$manifest" "$recipe"
+
+  stamp_file="$(mktemp "${TMPDIR:-/tmp}/nix-me-stamp.XXXXXX")"
+  output_file="$(mktemp "${recipe}.XXXXXX")"
+  trap 'rm -f "$stamp_file" "$output_file"' EXIT
+  stamp_yaml "$manifest" > "$stamp_file"
+
+  awk -v stamp_file="$stamp_file" '
+    function print_stamp( line) {
+      while ((getline line < stamp_file) > 0) print line
+      close(stamp_file)
+    }
+    /^verified:[[:space:]]*/ {
+      if (found) exit 3
+      print_stamp()
+      found = 1
+      in_verified = 1
+      next
+    }
+    in_verified && /^[^[:space:]]/ { in_verified = 0 }
+    in_verified { next }
+    { print }
+    END { if (!found) exit 4 }
+  ' "$recipe" > "$output_file" \
+    || die "could not replace the single top-level verified field in $recipe"
+  chmod --reference="$recipe" "$output_file" 2>/dev/null || chmod "$(stat -f '%Lp' "$recipe")" "$output_file"
+  mv "$output_file" "$recipe"
+  trap - EXIT
+  rm -f "$stamp_file"
+}
+
+verify_repository() {
+  local manifest recipe manifest_count=0 stamp_count=0 id state expected_manifest
+
+  if [ -d "$EVIDENCE_DIR/manifests" ]; then
+    while IFS= read -r manifest; do
+      [ -n "$manifest" ] || continue
+      manifest_count=$((manifest_count + 1))
+      id="$(jq -r '.recipe.id' "$manifest" 2>/dev/null)" \
+        || die "$manifest is not valid JSON"
+      recipe="$REPO_ROOT/packages/app-state/recipes/$id.yaml"
+      [ "$(jq -r '.recipe.path' "$manifest")" = "packages/app-state/recipes/$id.yaml" ] \
+        || die "$manifest: committed manifests must target packages/app-state/recipes/$id.yaml"
+      verify_stamp "$manifest" "$recipe"
+    done < <(find "$EVIDENCE_DIR/manifests" -type f -name '*.json' -print | LC_ALL=C sort)
+  fi
+
+  while IFS= read -r recipe; do
+    state="$(verified_block "$recipe" 2>/dev/null || true)"
+    case "$state" in
+      ""|"verified: null") continue ;;
+      verified:*) ;;
+      *) die "$recipe has a malformed top-level verified value" ;;
+    esac
+    stamp_count=$((stamp_count + 1))
+    id="$(recipe_id "$recipe")"
+    expected_manifest="$EVIDENCE_DIR/manifests/$id.json"
+    [ -f "$expected_manifest" ] \
+      || die "$recipe is stamped but $expected_manifest is missing"
+    verify_stamp "$expected_manifest" "$recipe"
+  done < <(find "$REPO_ROOT/packages/app-state/recipes" -type f -name '*.yaml' -print | LC_ALL=C sort)
+
+  [ "$manifest_count" -eq "$stamp_count" ] \
+    || die "found $manifest_count committed evidence manifests but $stamp_count stamped recipes"
+  printf 'Evidence verification passed: %d manifest(s), %d recipe stamp(s).\n' "$manifest_count" "$stamp_count"
+}
+
+[ "$#" -ge 1 ] || usage
+command="$1"
+shift
+
+case "$command" in
+  validate-manifest)
+    [ "$#" -eq 1 ] || usage
+    validate_manifest "$1"
+    printf 'Evidence manifest is valid: %s\n' "$1"
+    ;;
+  generate-stamp)
+    [ "$#" -eq 2 ] || usage
+    prepare_stamp "$1" "$2"
+    stamp_json "$1"
+    ;;
+  stamp-recipe)
+    [ "$#" -eq 2 ] || usage
+    stamp_recipe "$1" "$2"
+    printf 'Stamped recipe from passing evidence: %s\n' "$2"
+    ;;
+  verify-stamp)
+    [ "$#" -eq 2 ] || usage
+    verify_stamp "$1" "$2"
+    printf 'Recipe stamp is valid: %s\n' "$2"
+    ;;
+  verify-repository)
+    [ "$#" -eq 0 ] || usage
+    verify_repository
+    ;;
+  *) usage ;;
+esac

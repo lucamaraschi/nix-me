@@ -133,6 +133,10 @@
               cargoLock.lockFile = ./packages/app-state/engine/Cargo.lock;
               cargoBuildFlags = [ "-p" "nix-me-apps" ];
               cargoTestFlags = [ "-p" "nix-me-apps" ];
+              preCheck = ''
+                mkdir -p ../migrations
+                cp -R ${./packages/app-state/migrations}/. ../migrations/
+              '';
               meta.mainProgram = "nix-me-apps";
             };
             default = self.packages.${system}.nix-me-apps;

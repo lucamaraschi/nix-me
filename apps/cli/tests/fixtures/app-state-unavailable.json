@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-05T17:57:00Z",
+  "host": {
+    "hostname": "contract-test",
+    "machineName": "Contract Test",
+    "machineType": "test",
+    "username": "tester"
+  },
+  "appState": {
+    "schemaVersion": 1,
+    "engine": {"available": false, "version": null},
+    "configuredRecipeCount": null,
+    "driftCount": null,
+    "manualResidueCount": null,
+    "lastApply": {"status": null, "time": null, "message": null},
+    "verification": {"verifiedRecipeCount": null, "unverifiedRecipeCount": null},
+    "warnings": ["The app-state engine is unavailable"]
+  },
+  "warnings": ["The app-state engine is unavailable"]
+}

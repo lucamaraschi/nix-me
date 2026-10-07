@@ -283,6 +283,10 @@ pub fn load_recipe(path: &Path) -> Result<Recipe> {
     let yaml_value: serde_yaml::Value = serde_yaml::from_str(&text)
         .with_context(|| format!("parse YAML recipe {}", path.display()))?;
     let json_value = serde_json::to_value(yaml_value)?;
+    decode_recipe_value(json_value, path)
+}
+
+pub(crate) fn decode_recipe_value(json_value: Value, path: &Path) -> Result<Recipe> {
     let schema: Value = serde_json::from_str(include_str!("../../recipe.schema.json"))?;
     let compiled = JSONSchema::options()
         .with_draft(Draft::Draft7)
