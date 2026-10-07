@@ -95,8 +95,16 @@ jq -e '
 assert_no_partial_data
 
 # State and log files are private.
-state_mode="$(stat -f '%Lp' "$case_state/state.json" 2>/dev/null || stat -c '%a' "$case_state/state.json")"
-root_mode="$(stat -f '%Lp' "$case_state" 2>/dev/null || stat -c '%a' "$case_state")"
+file_mode() {
+  if stat -f '%Lp' "$1" >/dev/null 2>&1; then
+    stat -f '%Lp' "$1"
+  else
+    stat -c '%a' "$1"
+  fi
+}
+
+state_mode="$(file_mode "$case_state/state.json")"
+root_mode="$(file_mode "$case_state")"
 [[ "$state_mode" == "600" && "$root_mode" == "700" ]] || fail "operation files are not private"
 
 # Missing checksum is reported honestly rather than treated as verified.

@@ -899,6 +899,7 @@ mod tests {
 
         let state = dir.path().join("apps.json");
         fs::copy(fixtures().join("state/v2.synthetic.json"), &state).unwrap();
+        fs::set_permissions(&state, fs::Permissions::from_mode(0o600)).unwrap();
         let before = fs::read(&state).unwrap();
         let error = crate::state::StateGuard::acquire(&state, false, "2026-10-05T00:00:00Z")
             .err()

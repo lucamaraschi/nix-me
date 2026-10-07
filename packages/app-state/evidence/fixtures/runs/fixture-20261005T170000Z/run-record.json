@@ -7,7 +7,7 @@
     "version": 1,
     "path": "packages/app-state/evidence/fixtures/procedures/sample-visible-behavior.v1.json",
     "sha256": "84e30a6291c767f78cede177037cc9cad2b6c62c064c8808209be9857b8aef0d",
-    "harness_revision": "c7a3322ae5f7b4be65b55f1a24cdcfe6a41b0051",
+    "harness_revision": "599bf2ac65c041d2088f0b0c048810f34f6459a2",
     "runner_sha256": "8c2aeebe0e147bffaa1a8290a5dfdf8d23286a7f57503d5814887d35f95d0c0d"
   },
   "recipe": {
