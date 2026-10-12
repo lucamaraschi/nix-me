@@ -229,7 +229,7 @@
           machineName = "VM";
           username = username; # Use USERNAME env var or default
           # Exercise the opt-in activation path in the disposable macOS VM.
-          extraModules = [{ apps.state.enable = true; }];
+          extraModules = [ ./nix/hosts/profiles/beta.nix ];
         };
 
         # Add a generic VM configuration for testing

@@ -32,5 +32,9 @@ jobs:
       - uses: cachix/install-nix-action@v31
       - name: Check flake outputs
         run: nix flake check --no-build
+      - name: Check beta profile boundary
+        run: |
+          test "$(nix eval .#darwinConfigurations.vm-test.config.apps.state.enable)" = "true"
+          test "$(nix eval .#darwinConfigurations.minimal-mac.config.apps.state.enable)" = "false"
       - name: Build managed packages
         run: nix build .#nix-me-apps .#nix-me-tui --no-link
