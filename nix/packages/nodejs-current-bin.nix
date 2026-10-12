@@ -51,10 +51,14 @@ stdenvNoCC.mkDerivation {
     runHook postInstall
   '';
 
+  postFixup = ''
+    PATH="$out/bin:$PATH" patchShebangs "$out/bin" "$out/lib"
+  '';
+
   doInstallCheck = true;
   installCheckPhase = ''
     test "$($out/bin/node --version)" = "v${version}"
-    $out/bin/node $out/lib/node_modules/npm/bin/npm-cli.js --version >/dev/null
+    $out/bin/npm --version >/dev/null
   '';
 
   passthru.python = python3;
