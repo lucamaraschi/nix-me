@@ -35,14 +35,16 @@ npm run watch
 
 ## Usage
 
-After building:
+`make switch` installs the reproducible `nix-me-tui` Nix package and its pinned
+Node 26 runtime. Launch it directly or through the main CLI:
+
+```bash
+nix-me-tui
+nix-me
+```
+
+For a repository-local development build:
 
 ```bash
 ./dist/index.js
-```
-
-Or from nix-me:
-
-```bash
-nix-me  # Uses TUI if available
 ```

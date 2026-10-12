@@ -4,11 +4,19 @@ on:
   pull_request:
     paths:
       - "apps/post-install-tui/**"
+      - "nix/packages/nodejs-current-bin.nix"
+      - "nix/packages/post-install-tui.nix"
+      - "flake.nix"
+      - "flake.lock"
       - ".github/workflows/tui-ci.yml"
   push:
     branches: [main]
     paths:
       - "apps/post-install-tui/**"
+      - "nix/packages/nodejs-current-bin.nix"
+      - "nix/packages/post-install-tui.nix"
+      - "flake.nix"
+      - "flake.lock"
       - ".github/workflows/tui-ci.yml"
 
 permissions:
@@ -29,4 +37,9 @@ jobs:
       - working-directory: apps/post-install-tui
         run: npm run build
       - working-directory: apps/post-install-tui
+        run: node dist/index.js --version
+      - working-directory: apps/post-install-tui
         run: npm audit --omit=dev
+      - uses: cachix/install-nix-action@v31
+      - name: Build Nix package
+        run: nix build .#nix-me-tui --no-link

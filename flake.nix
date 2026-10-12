@@ -98,7 +98,9 @@
             {
               nixpkgs.overlays = [
                 (import ./nix/overlays/airjack.nix)
-                # Add other overlays here
+                (_final: _prev: {
+                  nodejs_latest = self.packages.${system}.nodejs-current;
+                })
               ];
             }
 
@@ -119,8 +121,15 @@
         "x86_64-linux"
       ]
         (system:
-          let pkgs = import nixpkgs { inherit system; };
-          in {
+          let
+            pkgs = import nixpkgs { inherit system; };
+            nodejsCurrent = pkgs.callPackage ./nix/packages/nodejs-current-bin.nix { };
+          in
+          {
+            nodejs-current = nodejsCurrent;
+            nix-me-tui = pkgs.callPackage ./nix/packages/post-install-tui.nix {
+              inherit nodejsCurrent;
+            };
             nix-me-apps = pkgs.rustPlatform.buildRustPackage {
               pname = "nix-me-apps";
               version = "0.1.0";

@@ -13,7 +13,7 @@
   "scripts": {
     "dev": "tsx src/index.tsx",
     "build": "tsx build.ts",
-    "bundle": "esbuild src/index.tsx --bundle --platform=node --target=node26 --format=esm --outfile=dist/index.js --external:fsevents && chmod +x dist/index.js",
+    "bundle": "npm run build",
     "watch": "tsx watch src/index.tsx"
   },
   "dependencies": {

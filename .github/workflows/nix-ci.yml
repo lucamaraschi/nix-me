@@ -32,5 +32,5 @@ jobs:
       - uses: cachix/install-nix-action@v31
       - name: Check flake outputs
         run: nix flake check --no-build
-      - name: Build app-state package
-        run: nix build .#nix-me-apps --no-link
+      - name: Build managed packages
+        run: nix build .#nix-me-apps .#nix-me-tui --no-link

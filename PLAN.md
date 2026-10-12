@@ -4,7 +4,7 @@ This document is the source of truth for repository-wide work that spans more
 than one application or package. Update the status and decision notes in the
 same pull request as the related change.
 
-Last updated: 2026-10-06
+Last updated: 2026-10-11
 
 ## Current status
 
@@ -154,6 +154,19 @@ The existing weekly application-state job remains responsible for catalog
 freshness and T0-T2 regression checks. Automatic Nix lock-file updates and T3
 signing are intentionally deferred because they can change an entire host or
 assert visible behavior without sufficient review.
+
+### 6. External beta readiness
+
+Status: in progress
+
+| ID | Status | Deliverable |
+|---|---|---|
+| BETA-001 | Done | Package and install the post-install TUI through Nix with a pinned Node 26 runtime and Darwin/Linux package builds in CI. |
+| BETA-002 | Planned | Add an opt-in beta profile that enables the application-state harness without changing existing hosts by default. |
+| BETA-003 | Planned | Publish a beta testing guide covering installation, rollback, diagnostics, and issue reports. |
+| BETA-004 | Planned | Make the native app detect and guide setup of its configuration checkout and command dependencies. |
+| BETA-005 | Planned | Run the install and first-launch path on a disposable macOS host and record the result. |
+| BETA-006 | Planned | Configure protected signing and notarization secrets for distributable macOS beta artifacts. |
 
 ## Decision log
 

@@ -681,11 +681,13 @@ cmd_diff() {
 case "${1:-menu}" in
     # Main interactive menu (default)
     menu|"")
-        # Try Node TUI first (using npx tsx for development), fallback to bash TUI
-        if [[ -f "$REPO_DIR/apps/post-install-tui/src/index.tsx" ]] && command -v npx &>/dev/null; then
-            cd "$REPO_DIR/apps/post-install-tui" && exec npx tsx src/index.tsx
+        # Prefer the reproducible Nix package, retaining source fallbacks for development.
+        if command -v nix-me-tui &>/dev/null; then
+            exec nix-me-tui
         elif [[ -x "$REPO_DIR/apps/post-install-tui/dist/index.js" ]] && command -v node &>/dev/null; then
             exec node "$REPO_DIR/apps/post-install-tui/dist/index.js"
+        elif [[ -f "$REPO_DIR/apps/post-install-tui/src/index.tsx" ]] && command -v npx &>/dev/null; then
+            cd "$REPO_DIR/apps/post-install-tui" && exec npx tsx src/index.tsx
         elif type main_menu &>/dev/null; then
             main_menu
         else
