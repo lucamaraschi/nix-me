@@ -50,6 +50,11 @@ ask_yes_no() {
     local question="$1"
     local default="${2:-y}"
 
+    if [[ ${NON_INTERACTIVE:-0} == "1" ]]; then
+        [[ $default == "y" ]]
+        return
+    fi
+
     if [[ $default == "y" ]]; then
         read -p "  $question (Y/n): " answer
         [[ -z $answer || $answer =~ ^[Yy] ]]

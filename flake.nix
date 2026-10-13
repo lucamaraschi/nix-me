@@ -29,6 +29,7 @@
 
       # Check if we're running in VM mode (skip Mac App Store apps)
       skipMasApps = builtins.getEnv "SKIP_MAS_APPS" == "1";
+      skipHomebrew = builtins.getEnv "SKIP_BREW_ON_VM" == "1";
 
       mkUnstablePkgs =
         system:
@@ -106,6 +107,11 @@
 
             # VM mode - skip Mac App Store apps (iCloud doesn't work in VMs)
             (if skipMasApps then ./nix/modules/darwin/vm-mode.nix else { })
+
+            # Minimal disposable VMs can validate Nix without bootstrapping Homebrew.
+            (if skipHomebrew then { lib, ... }: {
+              homebrew.enable = lib.mkForce false;
+            } else { })
           ] ++ extraModules;
           specialArgs = {
             inherit inputs hostname machineType machineName username;

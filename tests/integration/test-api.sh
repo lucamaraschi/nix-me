@@ -15,6 +15,9 @@ export NIX_ME_APP_STATE_ENGINE_VERSION="0.1.0"
 export NIX_ME_APP_STATE_STATUS="$FIXTURES_DIR/app-state-status-v1.json"
 export NIX_ME_LOCAL_AI_STATUS="$FIXTURES_DIR/local-ai-status-healthy-v1.json"
 
+grep -Fq 'nix eval --impure --json' \
+  "$REPO_DIR/packages/management-api/bin/nix-me-api"
+
 cat >"$NIX_ME_DESIRED_MANIFEST" <<'JSON'
 {
   "schemaVersion": 1,

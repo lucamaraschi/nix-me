@@ -13,6 +13,7 @@ REQUESTED_ENDPOINT="${1:-snapshot}"
 
 # GUI apps do not inherit the interactive shell PATH.
 export PATH="/run/current-system/sw/bin:/etc/profiles/per-user/${USER:-$(id -un)}/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/usr/local/bin:${PATH:-/usr/bin:/bin:/usr/sbin:/sbin}"
+export USERNAME="${USERNAME:-${USER:-$(id -un)}}"
 
 if ! command -v jq >/dev/null 2>&1; then
   printf '{"schemaVersion":1,"error":{"code":"missing_dependency","message":"jq is required by the nix-me API"}}\n'
@@ -689,7 +690,8 @@ if [[ -n "${NIX_ME_DESIRED_MANIFEST:-}" ]]; then
     add_warning "The desired manifest fixture is not valid JSON"
   fi
 elif [[ -f "$CONFIG_DIR/flake.nix" ]] && command_exists nix; then
-  if ! desired_manifest="$(nix eval --json "$CONFIG_DIR#darwinConfigurations.$HOST_NAME.config.nixMe.manifest" 2>"$TEMP_DIR/nix-eval.err")"; then
+  # Host selection and disposable-VM overrides are intentionally environment-driven.
+  if ! desired_manifest="$(nix eval --impure --json "$CONFIG_DIR#darwinConfigurations.$HOST_NAME.config.nixMe.manifest" 2>"$TEMP_DIR/nix-eval.err")"; then
     desired_manifest='null'
     nix_error="$(tail -1 "$TEMP_DIR/nix-eval.err" 2>/dev/null || true)"
     add_warning "Could not evaluate the desired configuration${nix_error:+: $nix_error}"
