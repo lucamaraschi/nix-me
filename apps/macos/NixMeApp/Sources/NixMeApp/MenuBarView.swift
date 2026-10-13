@@ -44,6 +44,13 @@ struct MenuBarView: View {
                 Text("Checked \(relativeDate(snapshot.generatedAt))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            } else if let setupStatus = store.setupStatus, !setupStatus.isReady {
+                Label(
+                    "Setup required: \(setupStatus.requiredIssueCount) item\(setupStatus.requiredIssueCount == 1 ? "" : "s") need attention",
+                    systemImage: "wrench.and.screwdriver"
+                )
+                .font(.caption)
+                .foregroundStyle(.orange)
             } else if let errorMessage = store.errorMessage {
                 Label(errorMessage, systemImage: "exclamationmark.triangle")
                     .font(.caption)
@@ -165,7 +172,9 @@ struct MenuBarView: View {
     }
 
     private func openDashboard(section: DashboardSection? = nil) {
-        if let section {
+        if store.setupStatus?.isReady == false {
+            store.selectedSection = .setup
+        } else if let section {
             store.selectedSection = section
         }
         openWindow(id: "dashboard")

@@ -2,6 +2,7 @@ import SwiftUI
 
 enum DashboardSection: String, Identifiable {
     case overview = "Overview"
+    case setup = "Setup"
     case configuration = "Configuration"
     case harness = "Harness"
     case localAI = "Local AI"
@@ -16,6 +17,7 @@ enum DashboardSection: String, Identifiable {
     var symbol: String {
         switch self {
         case .overview: "square.grid.2x2"
+        case .setup: "wrench.and.screwdriver"
         case .configuration: "point.3.connected.trianglepath.dotted"
         case .harness: "checklist.checked"
         case .localAI: "cpu"
@@ -38,6 +40,11 @@ struct DashboardView: View {
         NavigationSplitView {
             List(selection: $store.selectedSection) {
                 SidebarRow(section: .overview)
+                SidebarRow(
+                    section: .setup,
+                    count: store.setupStatus?.requiredIssueCount,
+                    needsAttention: store.setupStatus.map { !$0.isReady } ?? false
+                )
                 SidebarRow(section: .configuration, count: store.configurationGraph?.activeNodes.count)
 
                 Section("Software") {
@@ -69,17 +76,24 @@ struct DashboardView: View {
             .navigationSplitViewColumnWidth(min: 180, ideal: 210)
         } detail: {
             Group {
-                if let snapshot = store.snapshot {
-                    content(for: store.selectedSection, snapshot: snapshot)
-                } else if let errorMessage = store.errorMessage {
+                if let setupStatus = store.setupStatus,
+                   store.snapshot == nil || store.selectedSection == .setup {
                     ConfigurationSetupView(
-                        errorMessage: errorMessage,
+                        status: setupStatus,
+                        errorMessage: store.errorMessage,
                         isConfiguring: store.isConfiguring,
                         chooseConfiguration: store.chooseConfigurationDirectory,
                         cloneConfiguration: {
                             Task { await store.cloneDefaultConfiguration() }
+                        },
+                        openConfiguration: store.openConfiguration,
+                        openInstallationGuide: store.openInstallationGuide,
+                        recheck: {
+                            Task { await store.refresh() }
                         }
                     )
+                } else if let snapshot = store.snapshot {
+                    content(for: store.selectedSection, snapshot: snapshot)
                 } else {
                     ProgressView("Reading this Mac…")
                         .controlSize(.large)
@@ -94,10 +108,11 @@ struct DashboardView: View {
                     Button("Open Configuration", systemImage: "folder") {
                         store.openConfiguration()
                     }
-                    .disabled(store.snapshot == nil)
+                    .disabled(store.setupStatus?.configurationDirectory == nil)
 
                     if store.snapshot?.configuration.applyState != "current",
                        store.selectedSection != .overview,
+                       store.selectedSection != .setup,
                        store.selectedSection != .configurationChanges,
                        store.selectedSection != .harness,
                        store.selectedSection != .localAI {
@@ -143,7 +158,7 @@ struct DashboardView: View {
     }
 
     private var actionInProgress: Bool {
-        store.isLoading || store.isUpdating || store.isApplying || store.isSyncingProjects
+        store.isLoading || store.isUpdating || store.isApplying || store.isSyncingProjects || store.isConfiguring
     }
 
     @ViewBuilder
@@ -171,6 +186,8 @@ struct DashboardView: View {
                 applyConfiguration: { showingApplyConfirmation = true },
                 isApplying: store.isApplying
             )
+        case .setup:
+            EmptyView()
         case .configuration:
             ConfigurationView(
                 graph: store.configurationGraph,
@@ -227,56 +244,193 @@ struct DashboardView: View {
 }
 
 private struct ConfigurationSetupView: View {
-    let errorMessage: String
+    let status: ConfigurationSetupStatus
+    let errorMessage: String?
     let isConfiguring: Bool
     let chooseConfiguration: () -> Void
     let cloneConfiguration: () -> Void
+    let openConfiguration: () -> Void
+    let openInstallationGuide: () -> Void
+    let recheck: () -> Void
 
     var body: some View {
-        VStack(spacing: 22) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(.blue.opacity(0.13))
-                Image(systemName: "snowflake")
-                    .font(.system(size: 38, weight: .medium))
-                    .foregroundStyle(.blue)
-            }
-            .frame(width: 78, height: 78)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                HStack(alignment: .top, spacing: 16) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(status.isReady ? .green.opacity(0.12) : .orange.opacity(0.12))
+                        Image(systemName: status.isReady ? "checkmark.seal.fill" : "wrench.and.screwdriver.fill")
+                            .font(.system(size: 30, weight: .medium))
+                            .foregroundStyle(status.isReady ? .green : .orange)
+                    }
+                    .frame(width: 64, height: 64)
 
-            VStack(spacing: 8) {
-                Text("Connect your configuration")
-                    .font(.title2.weight(.semibold))
-                Text("Nix Me needs its configuration repository to inspect and manage this Mac.")
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 460)
-            }
-
-            HStack(spacing: 10) {
-                Button("Choose Existing Folder", systemImage: "folder", action: chooseConfiguration)
-                    .buttonStyle(.bordered)
-                    .disabled(isConfiguring)
-                Button("Clone from GitHub", systemImage: "arrow.down.circle", action: cloneConfiguration)
-                    .buttonStyle(.borderedProminent)
-                    .disabled(isConfiguring)
-            }
-
-            if isConfiguring {
-                HStack(spacing: 8) {
-                    ProgressView().controlSize(.small)
-                    Text("Cloning configuration…")
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(status.isReady ? "Setup complete" : "Finish setting up Nix Me")
+                            .font(.title2.weight(.semibold))
+                        Text(setupSummary)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("Recheck", systemImage: "arrow.clockwise", action: recheck)
+                        .disabled(isConfiguring)
                 }
-                .foregroundStyle(.secondary)
-            } else {
-                Label(errorMessage, systemImage: "exclamationmark.triangle")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 520)
+
+                GroupBox("Configuration checkout") {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack(alignment: .top, spacing: 12) {
+                            Image(systemName: checkoutSymbol)
+                                .font(.title3)
+                                .foregroundStyle(checkoutColor)
+                                .frame(width: 24)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(checkoutTitle)
+                                    .font(.headline)
+                                Text(status.checkoutMessage)
+                                    .foregroundStyle(.secondary)
+                                if let directory = status.configurationDirectory {
+                                    Text(directory.path)
+                                        .font(.caption.monospaced())
+                                        .foregroundStyle(.tertiary)
+                                        .textSelection(.enabled)
+                                }
+                            }
+                        }
+
+                        HStack(spacing: 10) {
+                            Button("Choose Existing Folder", systemImage: "folder", action: chooseConfiguration)
+                                .buttonStyle(.bordered)
+                            if status.checkoutState != .ready, status.canCloneToDefaultDestination {
+                                Button("Clone from GitHub", systemImage: "arrow.down.circle", action: cloneConfiguration)
+                                    .buttonStyle(.borderedProminent)
+                            }
+                            if status.configurationDirectory != nil {
+                                Button("Open Folder", systemImage: "arrow.up.forward.app", action: openConfiguration)
+                                    .buttonStyle(.bordered)
+                            }
+                        }
+                        .disabled(isConfiguring)
+
+                        if isConfiguring {
+                            HStack(spacing: 8) {
+                                ProgressView().controlSize(.small)
+                                Text("Cloning configuration…")
+                            }
+                            .foregroundStyle(.secondary)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 4)
+                }
+
+                GroupBox("Command dependencies") {
+                    VStack(spacing: 0) {
+                        ForEach(Array(status.dependencies.enumerated()), id: \.element.id) { index, dependency in
+                            DependencyStatusRow(dependency: dependency)
+                            if index < status.dependencies.count - 1 {
+                                Divider().padding(.leading, 36)
+                            }
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+
+                if let errorMessage {
+                    Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                        .font(.callout)
+                        .foregroundStyle(.orange)
+                        .padding(14)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+                }
+
+                HStack {
+                    Text("Nix Me never installs system dependencies without your confirmation.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Open Installation Guide", systemImage: "book", action: openInstallationGuide)
+                }
             }
+            .frame(maxWidth: 760)
+            .padding(36)
+            .frame(maxWidth: .infinity, alignment: .top)
         }
-        .padding(40)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var setupSummary: String {
+        if status.isReady {
+            return status.missingOptionalDependencies.isEmpty
+                ? "The configuration and all supported command integrations are available."
+                : "Core management is ready. Optional integrations can be enabled below."
+        }
+        return "Connect a configuration checkout and resolve the required commands before loading the dashboard."
+    }
+
+    private var checkoutTitle: String {
+        switch status.checkoutState {
+        case .ready: "Configuration found"
+        case .missing: "Configuration not found"
+        case .invalid: "Configuration needs attention"
+        }
+    }
+
+    private var checkoutSymbol: String {
+        switch status.checkoutState {
+        case .ready: "checkmark.circle.fill"
+        case .missing: "folder.badge.questionmark"
+        case .invalid: "exclamationmark.triangle.fill"
+        }
+    }
+
+    private var checkoutColor: Color {
+        status.checkoutState == .ready ? .green : .orange
+    }
+}
+
+private struct DependencyStatusRow: View {
+    let dependency: CommandDependency
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: dependency.isAvailable ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                .foregroundStyle(dependency.isAvailable ? .green : dependency.isRequired ? .orange : .secondary)
+                .frame(width: 24)
+                .padding(.top, 2)
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack {
+                    Text(dependency.displayName)
+                        .font(.headline)
+                    Text(dependency.isRequired ? "Required" : "Optional")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(dependency.isRequired ? .primary : .secondary)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2)
+                        .background(.quaternary, in: Capsule())
+                }
+                Text(dependency.purpose)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                if let executableURL = dependency.executableURL {
+                    Text(executableURL.path)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.tertiary)
+                        .textSelection(.enabled)
+                } else {
+                    Text(dependency.remediation)
+                        .font(.caption)
+                        .foregroundStyle(dependency.isRequired ? .orange : .secondary)
+                }
+            }
+            Spacer()
+            Text(dependency.isAvailable ? "Available" : "Missing")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(dependency.isAvailable ? .green : dependency.isRequired ? .orange : .secondary)
+        }
+        .padding(.vertical, 10)
     }
 }
 

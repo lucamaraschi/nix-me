@@ -144,7 +144,10 @@ make app-run
 
 Verify that refresh completes, overview tiles navigate, package details open,
 updates can be selected, and Apply Configuration requests administrator
-approval. Do not apply package updates you are unwilling to keep.
+approval. Open Setup and confirm that the selected checkout and command paths
+match the machine. Optional missing integrations must not block the dashboard;
+required missing commands must show a concrete remediation. Do not apply
+package updates you are unwilling to keep.
 
 Pull-request DMGs are Apple Silicon, ad-hoc signed, and retained for 14 days.
 Until a signed and notarized prerelease is published, prefer `make app-run` and

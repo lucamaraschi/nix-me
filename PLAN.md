@@ -164,7 +164,7 @@ Status: in progress
 | BETA-001 | Done | Package and install the post-install TUI through Nix with a pinned Node 26 runtime and Darwin/Linux package builds in CI. |
 | BETA-002 | Done | Add an opt-in beta profile that enables the application-state harness without changing existing hosts by default. |
 | BETA-003 | Done | Publish a beta testing guide covering installation, rollback, diagnostics, and issue reports. |
-| BETA-004 | Planned | Make the native app detect and guide setup of its configuration checkout and command dependencies. |
+| BETA-004 | Done | Make the native app detect and guide setup of its configuration checkout and command dependencies. |
 | BETA-005 | Planned | Run the install and first-launch path on a disposable macOS host and record the result. |
 | BETA-006 | Planned | Configure protected signing and notarization secrets for distributable macOS beta artifacts. |
 

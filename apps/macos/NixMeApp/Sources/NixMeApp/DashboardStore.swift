@@ -5,6 +5,7 @@ import Foundation
 final class DashboardStore: ObservableObject {
     @Published var selectedSection: DashboardSection = .overview
     @Published private(set) var snapshot: ManagementSnapshot?
+    @Published private(set) var setupStatus: ConfigurationSetupStatus?
     @Published private(set) var configurationGraph: ConfigurationGraph?
     @Published private(set) var configurationGraphError: String?
     @Published private(set) var isLoading = false
@@ -40,8 +41,26 @@ final class DashboardStore: ObservableObject {
         isLoading = true
         errorMessage = nil
 
+        let setupStatus = ConfigurationBootstrap.inspect()
+        self.setupStatus = setupStatus
+
+        guard setupStatus.isReady, let configurationDirectory = setupStatus.configurationDirectory else {
+            client = nil
+            snapshot = nil
+            configurationGraph = nil
+            configurationGraphError = nil
+            isLoading = false
+            return
+        }
+
         do {
-            let client = try client ?? ManagementAPIClient()
+            let client: ManagementAPIClient
+            if let existingClient = self.client,
+               existingClient.configurationDirectory == configurationDirectory {
+                client = existingClient
+            } else {
+                client = try ManagementAPIClient(configurationDirectory: configurationDirectory)
+            }
             self.client = client
             let snapshot = try await client.snapshot()
             self.snapshot = snapshot
@@ -63,8 +82,12 @@ final class DashboardStore: ObservableObject {
     }
 
     func openConfiguration() {
-        guard let snapshot else { return }
-        NSWorkspace.shared.open(URL(fileURLWithPath: snapshot.configuration.path))
+        guard let directory = setupStatus?.configurationDirectory else { return }
+        NSWorkspace.shared.open(directory)
+    }
+
+    func openInstallationGuide() {
+        NSWorkspace.shared.open(ConfigurationBootstrap.installationGuideURL)
     }
 
     func chooseConfigurationDirectory() {

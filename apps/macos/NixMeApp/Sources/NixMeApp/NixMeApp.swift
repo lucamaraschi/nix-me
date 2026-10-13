@@ -21,7 +21,7 @@ struct NixMeApp: App {
                     Image(systemName: "arrow.down.circle.fill")
                     Text("\(snapshot.softwareUpdateCount)")
                 }
-            } else if store.errorMessage != nil {
+            } else if store.setupStatus?.isReady == false || store.errorMessage != nil {
                 Label("Nix Me", systemImage: "exclamationmark.triangle.fill")
             } else if let snapshot = store.snapshot,
                       snapshot.configuration.applyState != "current"
