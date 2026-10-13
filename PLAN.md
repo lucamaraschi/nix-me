@@ -4,7 +4,7 @@ This document is the source of truth for repository-wide work that spans more
 than one application or package. Update the status and decision notes in the
 same pull request as the related change.
 
-Last updated: 2026-10-12
+Last updated: 2026-10-13
 
 ## Current status
 
@@ -166,7 +166,7 @@ Status: in progress
 | BETA-003 | Done | Publish a beta testing guide covering installation, rollback, diagnostics, and issue reports. |
 | BETA-004 | Done | Make the native app detect and guide setup of its configuration checkout and command dependencies. |
 | BETA-005 | Partial | Run the install and first-launch path on a disposable macOS host and record the result. Installation, activation, repeat apply, API refresh, app signing, and process launch passed; visual first-launch validation remains blocked by unavailable clone login credentials. See `docs/beta/BETA-005-2026-10-12.md`. |
-| BETA-006 | Planned | Configure protected signing and notarization secrets for distributable macOS beta artifacts. |
+| BETA-006 | Partial | Configure protected signing and notarization secrets for distributable macOS beta artifacts. The tag-restricted environment and Sparkle secret are configured; Developer ID and App Store Connect credentials are not available on this Mac and remain required. See `docs/beta/BETA-006-2026-10-13.md`. |
 
 ## Decision log
 
