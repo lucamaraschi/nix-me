@@ -535,16 +535,16 @@ fn local_top_200_catalog_is_complete_and_links_seed_recipes() {
     let validation = nix_me_apps::catalog::validate(&catalog, &recipe_inputs).unwrap();
     assert!(validation.valid);
     assert_eq!(validation.applications, 200);
-    assert_eq!(validation.local_recipes, 4);
+    assert_eq!(validation.local_recipes, 7);
     assert_eq!(validation.confidence.values().sum::<usize>(), 200);
     assert_eq!(validation.mechanisms.values().sum::<usize>(), 200);
 
     let metric = nix_me_apps::catalog::metric(&catalog, &recipe_inputs).unwrap();
     assert_eq!(metric.denominator, 200);
     assert_eq!(metric.behavior_mapped_apps, 200);
-    assert_eq!(metric.zero_click_apps, 3);
+    assert_eq!(metric.zero_click_apps, 6);
     assert_eq!(metric.one_click_apps, 1);
-    assert_eq!(metric.uncovered_apps, 196);
+    assert_eq!(metric.uncovered_apps, 193);
 }
 
 #[test]

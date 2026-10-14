@@ -1,0 +1,44 @@
+{
+  "apps": [
+    {
+      "entries": [
+        {
+          "actions": [],
+          "bind": "manual-0",
+          "confirm": "full_manual",
+          "drift": [],
+          "kind": "manual"
+        }
+      ],
+      "id": "migration-fixture",
+      "pokes": [],
+      "verified": null
+    }
+  ],
+  "checklist": [
+    {
+      "app": "migration-fixture",
+      "confirm": "full_manual",
+      "satisfied": false,
+      "step": "Complete fixture setup"
+    }
+  ],
+  "exit_code": 3,
+  "extension_data": {
+    "nested": {
+      "keep": true
+    }
+  },
+  "generated_at": "2026-10-05T00:00:00Z",
+  "mode": "diff",
+  "summary": {
+    "adds": 0,
+    "dels": 0,
+    "drift": 0,
+    "files": 0,
+    "manual": 1,
+    "materialize": 0,
+    "writes": 0
+  },
+  "version": 1
+}

@@ -31,8 +31,12 @@ in
   };
 
   config = {
-    # Add nix-me and its app-state engine to system packages.
-    environment.systemPackages = [ nix-me-cli inputs.self.packages.${pkgs.system}.nix-me-apps ];
+    # Add nix-me, the packaged TUI, and the app-state engine to system packages.
+    environment.systemPackages = [
+      nix-me-cli
+      inputs.self.packages.${pkgs.system}.nix-me-tui
+      inputs.self.packages.${pkgs.system}.nix-me-apps
+    ];
 
     system.activationScripts.postActivation.text = lib.mkIf config.apps.state.enable (lib.mkAfter ''
       echo "Converging declarative application state..." >&2

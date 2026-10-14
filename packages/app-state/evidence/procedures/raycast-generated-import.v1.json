@@ -1,0 +1,52 @@
+{
+  "$schema": "https://raw.githubusercontent.com/lucamaraschi/nix-me/main/packages/app-state/evidence/procedures/t3-procedure.schema.json",
+  "schema_version": 1,
+  "id": "raycast-generated-import",
+  "version": 1,
+  "title": "Raycast generated-import acceptance",
+  "recipe": {
+    "id": "raycast",
+    "path": "packages/app-state/recipes/raycast.yaml",
+    "values_path": "packages/app-state/values/raycast.yaml",
+    "bundle_id": "com.raycast.macos",
+    "app_path": "/Applications/Raycast.app"
+  },
+  "environment": {
+    "kind": "disposable_vm"
+  },
+  "execution": {
+    "apply": {
+      "mode": "apply",
+      "accepted_exit_codes": [3],
+      "required_action_ops": ["materialize", "deliver"]
+    },
+    "idempotence": {
+      "mode": "diff",
+      "accepted_exit_codes": [3],
+      "required_action_ops": []
+    }
+  },
+  "operator": {
+    "instructions": [
+      "In the visible disposable VM, finish Raycast onboarding if it appears, then return to the generated import prompt opened by the apply.",
+      "Start a screen recording before accepting the generated import and keep the Raycast import UI visible.",
+      "Accept the import in Raycast, enter the recipe's default import password 12345678 if prompted, and verify that it completes without an error or unsupported-file message.",
+      "Open Raycast Settings > General and visibly show Launch Raycast at login enabled and the configured Command-Space Raycast hotkey before ending the recording."
+    ],
+    "acceptance": [
+      "Raycast accepts the generated import artifact without an error.",
+      "The same recording shows Raycast Settings > General with Launch Raycast at login enabled and the Command-Space hotkey configured.",
+      "The retained video contains the import acceptance and the corresponding visible setting state as one continuous operator-observed sequence."
+    ],
+    "artifact": {
+      "required": true,
+      "allowed_media_types": ["video/quicktime", "video/mp4"],
+      "description": "Operator-captured Raycast import acceptance followed by the visible General settings state."
+    }
+  },
+  "cleanup": [
+    "Quit Raycast after the recording is complete.",
+    "After copying the run directory to the host, stop and delete the disposable UTM clone.",
+    "Delete failed run directories; retain a successful run directory only when its finalized manifest will retain those artifacts."
+  ]
+}

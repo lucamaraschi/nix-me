@@ -1,0 +1,396 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+EVIDENCE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_ROOT="$(cd "$EVIDENCE_DIR/../../.." && pwd)"
+PROCEDURE_TOOL="$SCRIPT_DIR/t3-procedure"
+EVIDENCE_TOOL="$SCRIPT_DIR/evidence-tool"
+VM_RUNNER="$REPO_ROOT/tests/vm/vm-test.sh"
+
+die() {
+  printf 't3-session: %s\n' "$*" >&2
+  exit 1
+}
+
+usage() {
+  cat >&2 <<'EOF'
+Usage:
+  t3-session stage --procedure=ID --base-vm=NAME --vm-user=USER --session-dir=DIR
+  t3-session run REQUEST_JSON
+  t3-session wait REQUEST_JSON [TIMEOUT_SECONDS]
+  t3-session candidate MANIFEST RECIPE [OUTPUT]
+
+stage creates a revision-bound launcher for a GitHub Actions operator handoff.
+run must be invoked by a human in an interactive terminal on the UTM runner.
+wait retains a passing draft and creates an unsigned stamp preview. candidate
+never signs evidence or changes a recipe.
+EOF
+  exit 2
+}
+
+require_command() {
+  command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"
+}
+
+require_file() {
+  [ -f "$1" ] || die "file not found: $1"
+}
+
+utc_now() {
+  date -u '+%Y-%m-%dT%H:%M:%SZ'
+}
+
+sha256_file() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  else
+    shasum -a 256 "$1" | awk '{print $1}'
+  fi
+}
+
+sha256_stdin() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum | awk '{print $1}'
+  else
+    shasum -a 256 | awk '{print $1}'
+  fi
+}
+
+file_bytes() {
+  wc -c < "$1" | tr -d '[:space:]'
+}
+
+canonical_file() {
+  local file="$1"
+  local directory base
+
+  require_file "$file"
+  directory="$(cd "$(dirname "$file")" && pwd -P)"
+  base="$(basename "$file")"
+  printf '%s/%s\n' "$directory" "$base"
+}
+
+repository_relative() {
+  case "$1" in
+    "$REPO_ROOT"/*) printf '%s\n' "${1#"$REPO_ROOT/"}" ;;
+    *) die "path is outside the repository: $1" ;;
+  esac
+}
+
+normalized_recipe() {
+  awk '
+    BEGIN { found = 0; in_verified = 0 }
+    /^verified:[[:space:]]*/ {
+      if (found) exit 3
+      print "verified: null"
+      found = 1
+      in_verified = 1
+      next
+    }
+    in_verified && /^[^[:space:]]/ { in_verified = 0 }
+    in_verified { next }
+    { print }
+    END { if (!found) exit 4 }
+  ' "$1"
+}
+
+recipe_id() {
+  awk '
+    /^id:[[:space:]]*[a-z0-9][a-z0-9-]*[[:space:]]*$/ {
+      value = $0
+      sub(/^id:[[:space:]]*/, "", value)
+      sub(/[[:space:]]*$/, "", value)
+      print value
+      found++
+    }
+    END { if (found != 1) exit 1 }
+  ' "$1" || die "cannot read one canonical top-level id from $1"
+}
+
+procedure_path() {
+  local requested="$1"
+  local candidate id match=""
+
+  case "$requested" in
+    *[!a-z0-9-]*|'') die "procedure id must be kebab-case: $requested" ;;
+  esac
+  while IFS= read -r candidate; do
+    id="$(jq -r '.id // empty' "$candidate" 2>/dev/null || true)"
+    if [ "$id" = "$requested" ]; then
+      [ -z "$match" ] || die "duplicate procedure id: $requested"
+      match="$candidate"
+    fi
+  done < <(find "$EVIDENCE_DIR/procedures" -type f -name '*.v*.json' -print | LC_ALL=C sort)
+  [ -n "$match" ] || die "unknown procedure id: $requested"
+  printf '%s\n' "$match"
+}
+
+validate_request() {
+  local request="$1"
+  local request_dir workspace session revision procedure
+
+  request="$(canonical_file "$request")"
+  jq -e '
+    (keys | sort) == [
+      "base_vm", "created_at", "procedure", "repository", "request_version",
+      "revision", "session_dir", "vm_user", "workspace"
+    ]
+    and .request_version == 1
+    and (.repository | type == "string" and length > 0)
+    and (.revision | test("^[0-9a-f]{40}$"))
+    and (.procedure | test("^[a-z0-9][a-z0-9-]*$"))
+    and (.base_vm | type == "string" and length > 0)
+    and (.vm_user | test("^[A-Za-z0-9._-]+$"))
+    and (.workspace | startswith("/"))
+    and (.session_dir | startswith("/"))
+    and (.created_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"))
+  ' "$request" >/dev/null || die "invalid T3 request: $request"
+
+  request_dir="$(cd "$(dirname "$request")" && pwd -P)"
+  workspace="$(jq -r '.workspace' "$request")"
+  session="$(jq -r '.session_dir' "$request")"
+  revision="$(jq -r '.revision' "$request")"
+  procedure="$(procedure_path "$(jq -r '.procedure' "$request")")"
+  [ "$workspace" = "$REPO_ROOT" ] || die "request workspace does not match this checkout"
+  [ "$session" = "$request_dir" ] || die "request session_dir does not contain the request"
+  [ "$(git -C "$REPO_ROOT" rev-parse HEAD)" = "$revision" ] \
+    || die "request revision does not match the checked-out HEAD"
+  "$PROCEDURE_TOOL" validate "$procedure" >/dev/null
+}
+
+stage_request() {
+  local procedure_id="" base_vm="" vm_user="" session_dir=""
+  local revision request launcher procedure
+
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --procedure=*) procedure_id="${1#*=}" ;;
+      --base-vm=*) base_vm="${1#*=}" ;;
+      --vm-user=*) vm_user="${1#*=}" ;;
+      --session-dir=*) session_dir="${1#*=}" ;;
+      *) usage ;;
+    esac
+    shift
+  done
+  [ -n "$procedure_id" ] && [ -n "$base_vm" ] && [ -n "$vm_user" ] && [ -n "$session_dir" ] \
+    || usage
+  case "$base_vm" in *$'\n'*) die "base VM name must be one line" ;; esac
+  case "$vm_user" in *[!A-Za-z0-9._-]*|'') die "VM user contains unsupported characters" ;; esac
+  procedure="$(procedure_path "$procedure_id")"
+  "$PROCEDURE_TOOL" validate "$procedure" >/dev/null
+
+  mkdir -p "$session_dir"
+  session_dir="$(cd "$session_dir" && pwd -P)"
+  request="$session_dir/request.json"
+  launcher="$session_dir/run-t3.sh"
+  [ ! -e "$request" ] && [ ! -e "$launcher" ] \
+    || die "session already exists: $session_dir"
+  revision="$(git -C "$REPO_ROOT" rev-parse HEAD)"
+
+  jq -n \
+    --arg repository "${GITHUB_REPOSITORY:-local/nix-me}" \
+    --arg revision "$revision" \
+    --arg procedure "$procedure_id" \
+    --arg base_vm "$base_vm" \
+    --arg vm_user "$vm_user" \
+    --arg workspace "$REPO_ROOT" \
+    --arg session_dir "$session_dir" \
+    --arg created_at "$(utc_now)" \
+    '{request_version:1, repository:$repository, revision:$revision, procedure:$procedure, base_vm:$base_vm, vm_user:$vm_user, workspace:$workspace, session_dir:$session_dir, created_at:$created_at}' \
+    > "$request"
+  {
+    printf '#!/bin/bash\n'
+    printf 'exec %q run %q\n' "$SCRIPT_DIR/t3-session" "$request"
+  } > "$launcher"
+  chmod 700 "$launcher"
+  validate_request "$request"
+  printf 'T3 request staged: %s\n' "$request"
+  printf 'A human operator must run this command in Terminal on the UTM host:\n  %q\n' "$launcher"
+}
+
+list_run_directories() {
+  mkdir -p "$EVIDENCE_DIR/runs"
+  find "$EVIDENCE_DIR/runs" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; \
+    | LC_ALL=C sort
+}
+
+run_request() {
+  local request="$1"
+  local session before after status
+  local result_written=false
+
+  [ -t 0 ] && [ -t 1 ] \
+    || die "the T3 operator handoff requires an interactive terminal"
+  validate_request "$request"
+  request="$(canonical_file "$request")"
+  git -C "$REPO_ROOT" diff --quiet -- packages/app-state/evidence tests/vm \
+    || die "T3 evidence or VM tooling has uncommitted changes"
+  git -C "$REPO_ROOT" diff --cached --quiet -- packages/app-state/evidence tests/vm \
+    || die "staged T3 changes are not present in the request revision"
+  session="$(jq -r '.session_dir' "$request")"
+  if ! mkdir "$session/operator-started" 2>/dev/null; then
+    die "this T3 request has already been started"
+  fi
+  before="$session/runs-before.txt"
+  after="$session/runs-after.txt"
+  list_run_directories > "$before"
+
+  write_result() {
+    local exit_code="$1"
+    local run_dirs_json temporary
+
+    [ "$result_written" = false ] || return
+    result_written=true
+    list_run_directories > "$after"
+    run_dirs_json="$(comm -13 "$before" "$after" | jq -Rsc 'split("\n") | map(select(length > 0))')"
+    temporary="$session/result.json.next"
+    jq -n \
+      --argjson exit_code "$exit_code" \
+      --arg finished_at "$(utc_now)" \
+      --argjson run_directories "$run_dirs_json" \
+      '{exit_code:$exit_code, finished_at:$finished_at, run_directories:$run_directories}' \
+      > "$temporary"
+    mv "$temporary" "$session/result.json"
+  }
+  trap 'write_result "$?"' EXIT
+
+  set +e
+  "$VM_RUNNER" \
+    --base-vm="$(jq -r '.base_vm' "$request")" \
+    --vm-user="$(jq -r '.vm_user' "$request")" \
+    --source=local \
+    --onsuccess=keep \
+    --onfailure=keep \
+    --t3-procedure="$(jq -r '.procedure' "$request")" \
+    2>&1 | tee "$session/operator-session.log"
+  status=${PIPESTATUS[0]}
+  set -e
+  write_result "$status"
+  trap - EXIT
+  exit "$status"
+}
+
+prepare_candidate() {
+  local manifest recipe output manifest_lifecycle manifest_recipe actual_recipe
+  local recipe_digest final_manifest final_digest source_path temporary
+
+  manifest="$(canonical_file "$1")"
+  recipe="$(canonical_file "$2")"
+  output="${3:-$(dirname "$manifest")/stamp-candidate.json}"
+  require_command jq
+  "$EVIDENCE_TOOL" validate-manifest "$manifest" >/dev/null
+  [ "$(jq -r '.result.status' "$manifest")" = "passed" ] \
+    || die "only passing evidence can produce a stamp candidate"
+  manifest_lifecycle="$(jq -r '.lifecycle' "$manifest")"
+  [ "$manifest_lifecycle" = "draft" ] || [ "$manifest_lifecycle" = "final" ] \
+    || die "unsupported manifest lifecycle: $manifest_lifecycle"
+  manifest_recipe="$(jq -r '.recipe.id' "$manifest")"
+  actual_recipe="$(recipe_id "$recipe")"
+  [ "$manifest_recipe" = "$actual_recipe" ] \
+    || die "manifest recipe '$manifest_recipe' does not match '$actual_recipe'"
+  recipe_digest="$(normalized_recipe "$recipe" | sha256_stdin)" \
+    || die "cannot normalize recipe: $recipe"
+  [ "$recipe_digest" = "$(jq -r '.recipe.sha256' "$manifest")" ] \
+    || die "recipe changed after evidence collection"
+  [ "$(repository_relative "$recipe")" = "$(jq -r '.recipe.path' "$manifest")" ] \
+    || die "manifest recipe path does not match $recipe"
+
+  final_manifest="$(mktemp "${TMPDIR:-/tmp}/nix-me-final-candidate.XXXXXX")"
+  temporary="${output}.next"
+  trap 'rm -f "$final_manifest" "$temporary"' EXIT
+  jq '.lifecycle = "final"' "$manifest" > "$final_manifest"
+  "$EVIDENCE_TOOL" validate-manifest "$final_manifest" >/dev/null
+  final_digest="$(jq -cS . "$final_manifest" | sha256_stdin)"
+  source_path="$(repository_relative "$manifest")"
+
+  jq -n \
+    --arg schema "https://raw.githubusercontent.com/lucamaraschi/nix-me/main/packages/app-state/evidence/t3-stamp-candidate.schema.json" \
+    --arg source_path "$source_path" \
+    --arg source_lifecycle "$manifest_lifecycle" \
+    --arg source_sha256 "$(sha256_file "$manifest")" \
+    --argjson source_bytes "$(file_bytes "$manifest")" \
+    --arg final_sha256 "$final_digest" \
+    --argjson recipe "$(jq -c '.recipe' "$manifest")" \
+    --argjson procedure "$(jq -c '.procedure' "$manifest")" \
+    --argjson run "$(jq -c '.run' "$manifest")" \
+    --arg macos "$(jq -r '.environment.macos.version + " (" + .environment.macos.build + ")"' "$manifest")" \
+    --arg app "$(jq -r '.application.version + " (" + .application.build + ")"' "$manifest")" \
+    --arg date "$(jq -r '.run.finished_at[0:10]' "$manifest")" \
+    --arg harness "t3-evidence/v1@$(jq -r '.procedure.harness_revision' "$manifest")#sha256:$final_digest" \
+    '{
+      "$schema":$schema,
+      candidate_version:1,
+      state:"awaiting-human-review-and-signature",
+      stamp_eligible:false,
+      source_manifest:{path:$source_path, lifecycle:$source_lifecycle, sha256:$source_sha256, bytes:$source_bytes},
+      prospective_final_manifest_sha256:$final_sha256,
+      recipe:$recipe,
+      procedure:$procedure,
+      run:$run,
+      stamp_preview:{macos:$macos, app:$app, date:$date, harness:$harness},
+      required_actions:["review-retained-evidence", "finalize-manifest", "sign-final-manifest", "generate-stamp", "stamp-recipe"]
+    }' > "$temporary"
+  jq -e '
+    .candidate_version == 1
+    and .state == "awaiting-human-review-and-signature"
+    and .stamp_eligible == false
+    and (.prospective_final_manifest_sha256 | test("^[0-9a-f]{64}$"))
+    and (.required_actions | index("sign-final-manifest") != null)
+  ' "$temporary" >/dev/null || die "generated candidate failed validation"
+  mv "$temporary" "$output"
+  trap - EXIT
+  rm -f "$final_manifest"
+  printf 'Unsigned stamp candidate written: %s\n' "$output"
+  printf 'It is not stamp-eligible until a human finalizes and signs the manifest.\n'
+}
+
+wait_for_request() {
+  local request="$1"
+  local timeout="${2:-7200}"
+  local session launcher deadline status count run_name run_dir manifest recipe
+
+  case "$timeout" in *[!0-9]*|'') die "timeout must be a positive integer" ;; esac
+  [ "$timeout" -gt 0 ] || die "timeout must be a positive integer"
+  validate_request "$request"
+  request="$(canonical_file "$request")"
+  session="$(jq -r '.session_dir' "$request")"
+  launcher="$session/run-t3.sh"
+  deadline=$((SECONDS + timeout))
+  printf 'Waiting up to %s seconds for the operator session.\n' "$timeout"
+  printf 'Run on the UTM host in an interactive Terminal:\n  %q\n' "$launcher"
+
+  while [ ! -f "$session/result.json" ]; do
+    if [ "$SECONDS" -ge "$deadline" ]; then
+      die "operator session timed out before producing a result"
+    fi
+    sleep 5
+  done
+  status="$(jq -r '.exit_code' "$session/result.json")"
+  if [ "$status" -ne 0 ]; then
+    die "operator session failed with exit code $status; inspect $session/operator-session.log"
+  fi
+  count="$(jq '.run_directories | length' "$session/result.json")"
+  [ "$count" -eq 1 ] || die "expected exactly one new T3 run directory, found $count"
+  run_name="$(jq -r '.run_directories[0]' "$session/result.json")"
+  run_dir="$EVIDENCE_DIR/runs/$run_name"
+  manifest="$run_dir/draft-manifest.json"
+  "$PROCEDURE_TOOL" collect-draft "$run_dir" "$manifest" >/dev/null
+  [ "$(jq -r '.result.status' "$manifest")" = "passed" ] \
+    || die "collected T3 evidence did not pass every required check"
+  recipe="$REPO_ROOT/$(jq -r '.recipe.path' "$manifest")"
+  prepare_candidate "$manifest" "$recipe" "$run_dir/stamp-candidate.json"
+  printf 'Passing draft retained at: %s\n' "$run_dir"
+}
+
+[ "$#" -ge 1 ] || usage
+command="$1"
+shift
+
+case "$command" in
+  stage) stage_request "$@" ;;
+  run) [ "$#" -eq 1 ] || usage; run_request "$1" ;;
+  wait) [ "$#" -ge 1 ] && [ "$#" -le 2 ] || usage; wait_for_request "$@" ;;
+  candidate) [ "$#" -ge 2 ] && [ "$#" -le 3 ] || usage; prepare_candidate "$@" ;;
+  *) usage ;;
+esac

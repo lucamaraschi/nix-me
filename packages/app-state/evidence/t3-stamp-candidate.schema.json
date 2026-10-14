@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/lucamaraschi/nix-me/main/packages/app-state/evidence/t3-stamp-candidate.schema.json",
+  "title": "nix-me unsigned T3 stamp candidate",
+  "description": "A deterministic review aid derived from passing evidence. It is never authorization to stamp a recipe.",
+  "type": "object",
+  "required": [
+    "$schema",
+    "candidate_version",
+    "state",
+    "stamp_eligible",
+    "source_manifest",
+    "prospective_final_manifest_sha256",
+    "recipe",
+    "procedure",
+    "run",
+    "stamp_preview",
+    "required_actions"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "const": "https://raw.githubusercontent.com/lucamaraschi/nix-me/main/packages/app-state/evidence/t3-stamp-candidate.schema.json"
+    },
+    "candidate_version": { "const": 1 },
+    "state": { "const": "awaiting-human-review-and-signature" },
+    "stamp_eligible": { "const": false },
+    "source_manifest": {
+      "type": "object",
+      "required": ["path", "lifecycle", "sha256", "bytes"],
+      "additionalProperties": false,
+      "properties": {
+        "path": { "type": "string", "pattern": "^[A-Za-z0-9._/-]+$" },
+        "lifecycle": { "enum": ["draft", "final"] },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "bytes": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "prospective_final_manifest_sha256": { "$ref": "#/$defs/sha256" },
+    "recipe": { "type": "object" },
+    "procedure": { "type": "object" },
+    "run": { "type": "object" },
+    "stamp_preview": {
+      "type": "object",
+      "required": ["macos", "app", "date", "harness"],
+      "additionalProperties": false,
+      "properties": {
+        "macos": { "type": "string", "minLength": 1 },
+        "app": { "type": "string", "minLength": 1 },
+        "date": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+        "harness": { "type": "string", "pattern": "^t3-evidence/v1@[0-9a-f]{40}#sha256:[0-9a-f]{64}$" }
+      }
+    },
+    "required_actions": {
+      "type": "array",
+      "const": [
+        "review-retained-evidence",
+        "finalize-manifest",
+        "sign-final-manifest",
+        "generate-stamp",
+        "stamp-recipe"
+      ]
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

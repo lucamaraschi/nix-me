@@ -6,3 +6,7 @@ docs/ export-ignore
 .github/ export-ignore
 .gitignore export-ignore
 .gitattributes export-ignore
+
+# Production T3 recordings are durable evidence without bloating Git history.
+packages/app-state/evidence/runs/**/visible-artifact.mov filter=lfs diff=lfs merge=lfs -text
+packages/app-state/evidence/runs/**/visible-artifact.mp4 filter=lfs diff=lfs merge=lfs -text

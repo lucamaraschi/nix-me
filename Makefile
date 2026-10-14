@@ -9,12 +9,14 @@ MAKEFILE_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 FLAKE_DIR ?= $(if $(wildcard $(MAKEFILE_DIR)/flake.nix),$(MAKEFILE_DIR),$(HOME)/.config/nixpkgs)
 DRY_RUN ?= 0
 SKIP_BREW ?= 0
+SKIP_BREW_ON_VM ?= 0
+SKIP_MAS_APPS ?= 0
 USERNAME := $(shell whoami)
 
 # Force hostname to lowercase in all commands
 FINAL_HOSTNAME := $(shell echo "$(HOSTNAME)" | tr '[:upper:]' '[:lower:]')
 
-.PHONY: switch switch-fast build clean update check fmt help list-machines sync-projects reset-raycast-window api test-api test-actions test-details test-cli test-local-ai test-app-state app app-run app-package tui-build
+.PHONY: switch switch-fast build clean update check check-host-matrix fmt help list-machines sync-projects reset-raycast-window api test-api test-actions test-details test-cli test-local-ai test-app-state app app-run app-package tui-build
 
 # Default target
 help:
@@ -25,13 +27,14 @@ help:
 	@echo "  switch          Build and activate the configuration"
 	@echo "  switch-fast     Build and activate without Homebrew update checks"
 	@echo "  check           Run nix flake check"
+	@echo "  check-host-matrix  Evaluate every declared host configuration"
 	@echo "  update          Pull latest nix-me code and update flake inputs"
 	@echo "  api             Print the management snapshot as JSON"
 	@echo "  test-api        Validate the JSON API contract"
 	@echo "  test-actions    Validate update actions without changing the system"
 	@echo "  test-details    Validate package metadata responses"
 	@echo "  test-cli        Validate CLI syntax and management contracts"
-	@echo "  test-local-ai   Validate local AI model preflight policy"
+	@echo "  test-local-ai   Validate local AI preflight, status, and lifecycle"
 	@echo "  test-app-state  Run app-state formatting and tests"
 	@echo "  app             Build the native macOS app"
 	@echo "  app-run         Build and launch the native macOS app"
@@ -52,6 +55,8 @@ help:
 	@echo "  FLAKE_DIR       Override flake directory (default: $(FLAKE_DIR))"
 	@echo "  DRY_RUN         Set to 1 for dry run (default: 0)"
 	@echo "  SKIP_BREW       Set to 1 to skip Homebrew checks during switch (default: 0)"
+	@echo "  SKIP_BREW_ON_VM Disable nix-darwin Homebrew activation for disposable VMs (default: 0)"
+	@echo "  SKIP_MAS_APPS   Disable Mac App Store activation for disposable VMs (default: 0)"
 	@echo ""
 	@echo "Machine Types:"
 	@echo "  macbook         Laptop configuration with battery optimization, trackpad settings, etc."
@@ -81,9 +86,9 @@ help:
 build:
 	@echo "==> Building configuration for $(FINAL_HOSTNAME) ($(MACHINE_TYPE), $(MACHINE_NAME))..."
 ifeq ($(DRY_RUN), 1)
-	@echo "[DRY RUN] HOSTNAME=$(FINAL_HOSTNAME) MACHINE_TYPE=$(MACHINE_TYPE) MACHINE_NAME=\"$(MACHINE_NAME)\" nix build $(FLAKE_DIR)#darwinConfigurations.$(FINAL_HOSTNAME).system"
+	@echo "[DRY RUN] HOSTNAME=$(FINAL_HOSTNAME) MACHINE_TYPE=$(MACHINE_TYPE) MACHINE_NAME=\"$(MACHINE_NAME)\" SKIP_BREW_ON_VM=$(SKIP_BREW_ON_VM) SKIP_MAS_APPS=$(SKIP_MAS_APPS) nix build $(FLAKE_DIR)#darwinConfigurations.$(FINAL_HOSTNAME).system"
 else
-	@HOSTNAME=$(FINAL_HOSTNAME) MACHINE_TYPE=$(MACHINE_TYPE) MACHINE_NAME="$(MACHINE_NAME)" nix build $(FLAKE_DIR)#darwinConfigurations.$(FINAL_HOSTNAME).system
+	@HOSTNAME=$(FINAL_HOSTNAME) MACHINE_TYPE=$(MACHINE_TYPE) MACHINE_NAME="$(MACHINE_NAME)" SKIP_BREW_ON_VM=$(SKIP_BREW_ON_VM) SKIP_MAS_APPS=$(SKIP_MAS_APPS) nix build $(FLAKE_DIR)#darwinConfigurations.$(FINAL_HOSTNAME).system
 endif
 
 # Build and activate the configuration
@@ -122,8 +127,13 @@ else
 	@for f in /etc/shells /etc/bashrc /etc/zshrc /etc/zshenv; do \
 		if [ -f "$$f" ] && [ ! -L "$$f" ]; then \
 			if ! grep -q "nix-darwin" "$$f" 2>/dev/null; then \
-				echo "==> Backing up $$f to $$f.before-nix-darwin"; \
-				sudo mv "$$f" "$$f.before-nix-darwin"; \
+				if [ -e "$$f.before-nix-darwin" ]; then \
+					echo "==> Removing regenerated $$f; preserving existing backup"; \
+					sudo rm "$$f"; \
+				else \
+					echo "==> Backing up $$f to $$f.before-nix-darwin"; \
+					sudo mv "$$f" "$$f.before-nix-darwin"; \
+				fi; \
 			fi; \
 		fi; \
 	done
@@ -141,15 +151,15 @@ else
 		exit 1; \
 	fi; \
 	if [ "$(MACHINE_TYPE)" = "vm" ]; then \
-		echo "USERNAME: $(USERNAME)" \
-		HOSTNAME="$(FINAL_HOSTNAME)" MACHINE_TYPE="$(MACHINE_TYPE)" MACHINE_NAME="$(MACHINE_NAME)" sudo env USERNAME="$(USERNAME)" PATH="$$PATH" "$$DARWIN_REBUILD" switch --flake $(FLAKE_DIR)#$(FINAL_HOSTNAME) --impure -I vm-fix=$(FLAKE_DIR)/vm-fix.nix; \
+		echo "USERNAME: $(USERNAME)"; \
+		HOSTNAME="$(FINAL_HOSTNAME)" MACHINE_TYPE="$(MACHINE_TYPE)" MACHINE_NAME="$(MACHINE_NAME)" sudo env USERNAME="$(USERNAME)" SKIP_BREW_ON_VM="$(SKIP_BREW_ON_VM)" SKIP_MAS_APPS="$(SKIP_MAS_APPS)" PATH="$$PATH" "$$DARWIN_REBUILD" switch --flake $(FLAKE_DIR)#$(FINAL_HOSTNAME) --impure; \
 	else \
-		HOSTNAME="$(FINAL_HOSTNAME)" MACHINE_TYPE="$(MACHINE_TYPE)" MACHINE_NAME="$(MACHINE_NAME)" sudo env USERNAME="$(USERNAME)" PATH="$$PATH" "$$DARWIN_REBUILD" switch --flake $(FLAKE_DIR)#$(FINAL_HOSTNAME) --impure; \
+		HOSTNAME="$(FINAL_HOSTNAME)" MACHINE_TYPE="$(MACHINE_TYPE)" MACHINE_NAME="$(MACHINE_NAME)" sudo env USERNAME="$(USERNAME)" SKIP_BREW_ON_VM="$(SKIP_BREW_ON_VM)" SKIP_MAS_APPS="$(SKIP_MAS_APPS)" PATH="$$PATH" "$$DARWIN_REBUILD" switch --flake $(FLAKE_DIR)#$(FINAL_HOSTNAME) --impure; \
 	fi
 endif
 
 switch-fast:
-	@$(MAKE) SKIP_BREW=1 HOSTNAME="$(HOSTNAME)" MACHINE_TYPE="$(MACHINE_TYPE)" MACHINE_NAME=$(MACHINE_NAME) FLAKE_DIR="$(FLAKE_DIR)" DRY_RUN="$(DRY_RUN)" switch
+	@$(MAKE) SKIP_BREW=1 SKIP_BREW_ON_VM="$(SKIP_BREW_ON_VM)" SKIP_MAS_APPS="$(SKIP_MAS_APPS)" HOSTNAME="$(HOSTNAME)" MACHINE_TYPE="$(MACHINE_TYPE)" MACHINE_NAME=$(MACHINE_NAME) FLAKE_DIR="$(FLAKE_DIR)" DRY_RUN="$(DRY_RUN)" switch
 
 # Run a syntax check on the flake
 check:
@@ -159,6 +169,9 @@ ifeq ($(DRY_RUN), 1)
 else
 	@nix flake check "$(FLAKE_DIR)"
 endif
+
+check-host-matrix:
+	@NIX_ME_FLAKE="$(FLAKE_DIR)" $(MAKEFILE_DIR)/tools/automation/check-nix-host-matrix.sh
 
 api:
 	@NIX_ME_CONFIG_DIR="$(FLAKE_DIR)" ./apps/cli/bin/nix-me api snapshot
@@ -173,8 +186,13 @@ test-details:
 	@./tests/integration/test-details.sh
 
 test-cli:
-	@bash -n apps/cli/bin/nix-me apps/cli/lib/*.sh packages/management-api/bin/* tools/local-ai/*.sh
+	@bash -n install.sh
+	@for script in apps/cli/bin/nix-me apps/cli/lib/*.sh packages/management-api/bin/* tools/local-ai/*.sh; do \
+		bash -n "$$script" || exit; \
+	done
+	@./tests/integration/test-install-prerequisites.sh
 	@$(MAKE) test-local-ai
+	@./apps/cli/tests/test-harness-status.sh
 	@$(MAKE) test-api test-actions test-details
 
 test-local-ai:

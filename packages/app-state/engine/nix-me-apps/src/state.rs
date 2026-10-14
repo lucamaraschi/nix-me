@@ -181,3 +181,28 @@ pub fn load_no_mutation(path: &Path) -> Result<(State, Option<String>)> {
         )),
     }
 }
+
+pub fn load_status_no_mutation(path: &Path) -> (State, Option<String>) {
+    let text = match fs::read_to_string(path) {
+        Ok(text) => text,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return (
+                State::default(),
+                Some("The persisted app-state status is unavailable".to_owned()),
+            );
+        }
+        Err(_) => {
+            return (
+                State::default(),
+                Some("The persisted app-state status is unavailable".to_owned()),
+            );
+        }
+    };
+    match decode_state(&text) {
+        Ok(state) => (state, None),
+        Err(StateDecodeError::Unsupported(_) | StateDecodeError::Invalid(_)) => (
+            State::default(),
+            Some("The persisted app-state status is malformed".to_owned()),
+        ),
+    }
+}

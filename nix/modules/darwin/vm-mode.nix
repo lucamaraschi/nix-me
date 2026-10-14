@@ -1,10 +1,10 @@
 # modules/darwin/vm-mode.nix
 # Module for VM testing - skips features that don't work in VMs
-{ config, lib, pkgs, ... }:
+{ lib, ... }:
 
 {
-  # Skip Mac App Store apps (iCloud doesn't work in VMs)
-  homebrew.skipMasApps = true;
+  # Mac App Store authentication is unavailable in disposable VMs.
+  homebrew.masApps = lib.mkForce { };
 
   # Additional VM-specific settings can be added here
   # For example:

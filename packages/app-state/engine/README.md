@@ -19,6 +19,20 @@ cargo run -p nix-me-apps -- registry catalog-metric \
 cargo run -p nix-me-apps -- registry codec-smoke --json
 ```
 
+Version migration is never implicit in `status`, `diff`, or `apply`. Inspect a
+migration with `migrate --dry-run`, then opt into mutation with `migrate --apply`:
+
+```sh
+cargo run -p nix-me-apps -- migrate \
+  --kind state --input ../migrations/fixtures/state/v1.json \
+  --from 1 --to 2 --dry-run --json
+```
+
+The checked-in forward/backward fixture matrix and the atomic backup/rollback
+contract are documented in [`../migrations/README.md`](../migrations/README.md).
+The only implemented v2 shape is explicitly synthetic and remains unsupported
+by ordinary production loaders.
+
 To turn an app export into reviewable state, inspect it once or watch the
 scheduled-backup file continuously:
 

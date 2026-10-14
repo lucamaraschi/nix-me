@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "engine": {
+    "available": true,
+    "version": "0.1.0"
+  },
+  "configuredRecipeCount": 2,
+  "driftCount": 2,
+  "manualResidueCount": 1,
+  "lastApply": {
+    "status": "succeeded",
+    "time": "2026-10-05T17:56:00Z",
+    "message": "Applied 2 configured recipes"
+  },
+  "verification": {
+    "verifiedRecipeCount": 1,
+    "unverifiedRecipeCount": 1
+  },
+  "warnings": []
+}

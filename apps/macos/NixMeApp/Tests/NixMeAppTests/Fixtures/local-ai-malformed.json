@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "health": "maybe",
+  "summary": "This fixture must be rejected",
+  "server": {"state": false},
+  "remediation": []
+}

@@ -24,6 +24,8 @@ result-*
 *.tmp
 *.bak
 *.backup
+__pycache__/
+*.py[cod]
 
 # Test outputs
 tests/*.log

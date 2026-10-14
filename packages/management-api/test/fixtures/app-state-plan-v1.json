@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "generated_at": "2026-10-05T17:55:00Z",
+  "mode": "diff",
+  "apps": [],
+  "checklist": [],
+  "summary": {
+    "writes": 3,
+    "adds": 0,
+    "dels": 0,
+    "files": 1,
+    "materialize": 0,
+    "drift": 2,
+    "manual": 1
+  },
+  "exit_code": 2
+}

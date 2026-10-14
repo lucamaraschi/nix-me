@@ -1,0 +1,109 @@
+name: Flake input updates
+
+on:
+  schedule:
+    - cron: "17 16 * * 1"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: flake-input-update
+  cancel-in-progress: false
+
+jobs:
+  propose:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: cachix/install-nix-action@v31
+      - name: Update flake inputs
+        id: update
+        shell: bash
+        run: |
+          set -euo pipefail
+          nix flake update
+          if git diff --quiet -- flake.lock; then
+            echo "changed=false" >>"$GITHUB_OUTPUT"
+            echo "Flake inputs are already current"
+          else
+            echo "changed=true" >>"$GITHUB_OUTPUT"
+          fi
+      - name: Create or refresh draft pull request
+        if: steps.update.outputs.changed == 'true'
+        id: pull-request
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPDATE_BRANCH: automation/flake-inputs
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch --create "$UPDATE_BRANCH"
+          git add flake.lock
+          git commit -m "Update flake inputs ($(date -u +%F))"
+          git fetch origin \
+            "refs/heads/$UPDATE_BRANCH:refs/remotes/origin/$UPDATE_BRANCH" || true
+          git push --force-with-lease origin "HEAD:refs/heads/$UPDATE_BRANCH"
+
+          body="$RUNNER_TEMP/flake-update-pr.md"
+          cat >"$body" <<'BODY'
+          This draft is maintained by the weekly flake-input update workflow.
+
+          Review requirements:
+
+          - inspect the input revision and upstream release changes;
+          - require a green **Nix configuration** run for the current commit;
+          - investigate unexpected source builds under `docs/NIX_UPDATES.md`;
+          - keep every flake host represented in `nix/host-matrix.json`;
+          - mark ready and merge only after human review.
+
+          This automation never activates a host or merges its own pull request.
+          BODY
+
+          number="$(
+            gh pr list \
+              --repo "$GITHUB_REPOSITORY" \
+              --base main \
+              --head "$UPDATE_BRANCH" \
+              --state open \
+              --json number \
+              --jq '.[0].number'
+          )"
+          if [[ -z "$number" ]]; then
+            url="$(
+              gh pr create \
+                --repo "$GITHUB_REPOSITORY" \
+                --base main \
+                --head "$UPDATE_BRANCH" \
+                --title "Update flake inputs" \
+                --body-file "$body" \
+                --draft
+            )"
+          else
+            gh pr edit "$number" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "Update flake inputs" \
+              --body-file "$body"
+            url="$(gh pr view "$number" --repo "$GITHUB_REPOSITORY" --json url --jq .url)"
+          fi
+          echo "Pull request: $url"
+          echo "branch=$UPDATE_BRANCH" >>"$GITHUB_OUTPUT"
+      - name: Dispatch full Nix validation
+        if: steps.update.outputs.changed == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPDATE_BRANCH: ${{ steps.pull-request.outputs.branch }}
+        run: |
+          set -euo pipefail
+          gh workflow run nix-ci.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref "$UPDATE_BRANCH"

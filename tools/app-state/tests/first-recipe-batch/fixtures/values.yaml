@@ -1,0 +1,17 @@
+sublime-text:
+  preferences:
+    tab_size: 2
+    translate_tabs_to_spaces: true
+    trim_trailing_white_space_on_save: true
+iterm2:
+  dynamic_profiles:
+    Profiles:
+      - Name: Nix Me
+        Guid: 6a38647e-568f-4a44-9f2f-e2ac31265c86
+maccy:
+  defaults:
+    historySize: 200
+    pasteByDefault: false
+    removeFormattingByDefault: false
+    showFooter: true
+    showInStatusBar: true

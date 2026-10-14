@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-05T17:57:00Z",
+  "host": {
+    "hostname": "contract-test",
+    "machineName": "Contract Test",
+    "machineType": "test",
+    "username": "tester"
+  },
+  "configuration": {
+    "path": "/tmp/nix-me",
+    "exists": true,
+    "appliedManifestPath": "/etc/nix-me/manifest.json",
+    "applyState": "current",
+    "generation": 42,
+    "git": null,
+    "desiredSource": null,
+    "appliedSource": null
+  },
+  "health": {
+    "nix": {"available": true, "version": "nix 2.31"},
+    "nixDarwin": {"available": true, "version": null},
+    "homebrew": {"available": true, "version": null}
+  },
+  "inventory": {
+    "desired": {
+      "nixPackages": [],
+      "nixPackageDetails": [],
+      "homebrew": {"formulae": [], "casks": [], "masApps": {}}
+    },
+    "applied": {
+      "nixPackages": [],
+      "nixPackageDetails": [],
+      "homebrew": {"formulae": [], "casks": [], "masApps": {}}
+    },
+    "installed": {"homebrew": {"formulae": [], "casks": []}}
+  },
+  "updates": {"homebrew": [], "macAppStore": [], "nixFlake": []},
+  "projects": [],
+  "appState": {
+    "schemaVersion": 1,
+    "engine": {"available": true, "version": "0.1.0"},
+    "configuredRecipeCount": 4,
+    "driftCount": 2,
+    "manualResidueCount": 1,
+    "lastApply": {
+      "status": "succeeded",
+      "time": "2026-10-05T17:56:00Z",
+      "message": "Applied 4 configured recipes"
+    },
+    "verification": {"verifiedRecipeCount": 1, "unverifiedRecipeCount": 3},
+    "warnings": ["One recipe needs review"]
+  },
+  "warnings": []
+}

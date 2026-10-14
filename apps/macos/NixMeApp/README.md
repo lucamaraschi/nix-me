@@ -12,8 +12,17 @@ make app-run
 
 This creates and opens `build/Nix Me.app`. For development, open `Package.swift`
 in Xcode. The app discovers the configuration from
-`NIX_ME_CONFIG_DIR`, the current directory, `~/.config/nixpkgs`, or
-`~/src/lm/nix-me`, in that order.
+`NIX_ME_CONFIG_DIR`, a previously selected folder, the current directory,
+`~/.config/nixpkgs`, or `~/src/lm/nix-me`, in that order.
+
+The Setup screen remains available from the sidebar after first launch. It
+validates the configuration checkout, distinguishes required commands from
+optional integrations, shows the executable path selected for GUI launches,
+and links to the installer without running it automatically. A missing
+required command blocks management API loading; missing Homebrew, Mac App Store,
+or application-state integrations are reported without blocking the dashboard.
+Users can select an existing checkout, clone the public repository to
+`~/.config/nixpkgs`, and recheck readiness without restarting the app.
 
 The app displays desired and applied state, Git synchronization, managed
 software, updates, and configured projects using `nix-me api snapshot`.

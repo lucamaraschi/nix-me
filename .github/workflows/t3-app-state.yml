@@ -1,0 +1,76 @@
+name: Application T3 evidence
+
+on:
+  workflow_dispatch:
+    inputs:
+      procedure:
+        description: Visible application procedure to collect
+        required: true
+        type: choice
+        options:
+          - rectangle-visible-window-management
+          - raycast-generated-import
+      base_vm:
+        description: Clean UTM macOS base VM name on the runner
+        required: true
+        type: string
+      vm_user:
+        description: Passwordless-sudo account in the base VM
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: application-t3-${{ inputs.procedure }}
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    name: Collect ${{ inputs.procedure }}
+    runs-on: [self-hosted, macOS, ARM64, utm]
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          lfs: true
+      - name: Validate T3 tooling
+        run: |
+          packages/app-state/evidence/tools/t3-procedure validate
+          packages/app-state/evidence/tests/run.sh
+      - name: Stage interactive operator handoff
+        id: stage
+        shell: bash
+        env:
+          T3_PROCEDURE: ${{ inputs.procedure }}
+          T3_BASE_VM: ${{ inputs.base_vm }}
+          T3_VM_USER: ${{ inputs.vm_user }}
+        run: |
+          set -euo pipefail
+          session_dir="$RUNNER_TEMP/nix-me-t3-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          packages/app-state/evidence/tools/t3-session stage \
+            --procedure="$T3_PROCEDURE" \
+            --base-vm="$T3_BASE_VM" \
+            --vm-user="$T3_VM_USER" \
+            --session-dir="$session_dir"
+          echo "session_dir=$session_dir" >>"$GITHUB_OUTPUT"
+          echo "request=$session_dir/request.json" >>"$GITHUB_OUTPUT"
+      - name: Wait for interactive operator and prepare candidate
+        shell: bash
+        env:
+          T3_REQUEST: ${{ steps.stage.outputs.request }}
+        run: packages/app-state/evidence/tools/t3-session wait "$T3_REQUEST" 7200
+      - name: Retain T3 draft and session diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: t3-${{ inputs.procedure }}-${{ github.run_id }}
+          path: |
+            packages/app-state/evidence/runs/
+            ${{ steps.stage.outputs.session_dir }}/request.json
+            ${{ steps.stage.outputs.session_dir }}/result.json
+            ${{ steps.stage.outputs.session_dir }}/operator-session.log
+          if-no-files-found: warn
+          retention-days: 30

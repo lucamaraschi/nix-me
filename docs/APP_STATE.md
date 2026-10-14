@@ -4,7 +4,17 @@ The app-state layer manages application preferences without symlinking files tha
 macOS or an application expects to own. It is opt-in, so existing configurations
 retain their current activation behavior.
 
-Enable it in a host or profile module:
+Enable it for a host by importing the beta profile:
+
+```nix
+extraModules = [
+  ./nix/hosts/profiles/beta.nix
+];
+```
+
+The profile is never imported by default. A custom profile can enable the same
+option directly when application-state management is part of that profile's
+contract:
 
 ```nix
 apps.state.enable = true;

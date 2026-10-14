@@ -1,15 +1,20 @@
 use std::collections::BTreeSet;
-use std::io::{self, Write};
-use std::path::PathBuf;
+use std::io::{self, IsTerminal, Write};
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use anyhow::{anyhow, Result};
 use clap::{Args, Parser, Subcommand};
 use nix_me_apps::engine::{command_action_command, poke_command, Engine, Options};
+use nix_me_apps::migration::{DocumentKind, MigrationRequest};
 use nix_me_apps::model::{load_recipe, load_values, ConfigEntry, Recipe};
 use nix_me_apps::plan::Plan;
 use nix_me_apps::runner::{Clock, CommandExecutionError, RealCommandRunner, SystemClock};
-use nix_me_apps::state::{load_no_mutation, load_readonly, StateGuard};
+use nix_me_apps::state::{load_no_mutation, load_readonly, load_status_no_mutation, StateGuard};
+use nix_me_apps::status::{
+    apply_message, classify_apply, configured_recipe_count, last_apply_path, load_last_apply,
+    record_last_apply, ApplyOutcome, Status,
+};
 
 #[derive(Parser)]
 #[command(
@@ -24,14 +29,67 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Report the read-only application-state status.
+    Status(StatusArgs),
     /// Show the convergent plan without changing application state.
     Diff(RunArgs),
     /// Apply a plan, synchronize preference domains, and run required pokes.
     Apply(ApplyArgs),
     /// Capture preference changes or inspect/watch an exported artifact.
     Capture(CaptureArgs),
+    /// Explicitly inspect or apply a versioned document migration.
+    Migrate(MigrateArgs),
     /// Validate a recipe registry or compute its zero-click metric.
     Registry(RegistryArgs),
+}
+
+#[derive(Args)]
+struct MigrateArgs {
+    #[arg(long, value_enum)]
+    kind: MigrationKind,
+    #[arg(long)]
+    input: PathBuf,
+    #[arg(long = "from")]
+    source_version: u32,
+    #[arg(long = "to")]
+    target_version: u32,
+    /// Validate and print the canonical target without changing the input.
+    #[arg(long, required_unless_present = "apply", conflicts_with = "apply")]
+    dry_run: bool,
+    /// Create a backup and atomically replace the input.
+    #[arg(long, required_unless_present = "dry_run", conflicts_with = "dry_run")]
+    apply: bool,
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Clone, Copy, clap::ValueEnum)]
+enum MigrationKind {
+    Recipe,
+    Plan,
+    State,
+}
+
+impl From<MigrationKind> for DocumentKind {
+    fn from(value: MigrationKind) -> Self {
+        match value {
+            MigrationKind::Recipe => Self::Recipe,
+            MigrationKind::Plan => Self::Plan,
+            MigrationKind::State => Self::State,
+        }
+    }
+}
+
+#[derive(Args, Clone)]
+struct StatusArgs {
+    #[arg(long = "recipe", required = true)]
+    recipe: Vec<PathBuf>,
+    #[arg(long = "values", required = true)]
+    values: Vec<PathBuf>,
+    #[arg(long, value_delimiter = ',')]
+    only: Vec<String>,
+    #[arg(long)]
+    json: bool,
 }
 
 #[derive(Args)]
@@ -125,15 +183,22 @@ struct CaptureArgs {
     watch: bool,
     #[arg(long)]
     sniff: Option<PathBuf>,
-    /// Write the latest sniff result (or decoded model) atomically to this path.
+    /// Review, then atomically write the latest sniff result or decoded model.
     #[arg(long, requires = "sniff")]
     output: Option<PathBuf>,
     /// Commit output changes to the containing Git repository while watching.
     #[arg(long, requires_all = ["watch", "output"])]
     commit: bool,
+    /// Approve capture writes (and --commit) without an interactive prompt.
+    #[arg(long, requires = "output", conflicts_with = "dry_run")]
+    yes: bool,
+    /// Emit the review diff without writing or committing the capture.
+    #[arg(long, requires = "output", conflicts_with_all = ["yes", "commit"])]
+    dry_run: bool,
     /// Poll interval for --watch, in milliseconds.
     #[arg(long, default_value_t = 750, value_parser = clap::value_parser!(u64).range(100..))]
     poll_ms: u64,
+    /// Allow an otherwise-redacted key name or dotted/bracketed path; repeatable.
     #[arg(long = "include-key")]
     include_key: Vec<String>,
     #[arg(long)]
@@ -145,10 +210,13 @@ fn main() -> ExitCode {
         Ok(code) => ExitCode::from(code as u8),
         Err((code, error, json)) => {
             if json {
-                eprintln!(
-                    "{}",
-                    serde_json::json!({"version":1,"exit_code":code,"error":error.to_string()})
-                );
+                let report = error
+                    .downcast_ref::<nix_me_apps::migration::MigrationError>()
+                    .map(|error| error.json_report(code))
+                    .unwrap_or_else(|| {
+                        serde_json::json!({"version":1,"exit_code":code,"error":error.to_string()})
+                    });
+                eprintln!("{report}");
             } else {
                 eprintln!("error: {error:#}");
             }
@@ -160,6 +228,10 @@ fn main() -> ExitCode {
 fn run() -> std::result::Result<i32, (i32, anyhow::Error, bool)> {
     let cli = Cli::parse();
     match cli.command {
+        Command::Status(args) => {
+            let json = args.json;
+            run_status(args).map_err(|e| (failure_code(&e, 4), e, json))
+        }
         Command::Diff(args) => {
             let json = args.json;
             run_diff(args).map_err(|e| (failure_code(&e, 4), e, json))
@@ -172,8 +244,82 @@ fn run() -> std::result::Result<i32, (i32, anyhow::Error, bool)> {
             let json = args.json;
             run_capture(args).map_err(|e| (4, e, json))
         }
+        Command::Migrate(args) => {
+            let json = args.json;
+            run_migrate(args).map_err(|error| {
+                let code = if error.is_preflight() { 4 } else { 5 };
+                (code, error.into(), json)
+            })
+        }
         Command::Registry(args) => run_registry(args),
     }
+}
+
+fn run_migrate(
+    args: MigrateArgs,
+) -> std::result::Result<i32, nix_me_apps::migration::MigrationError> {
+    let request = MigrationRequest {
+        kind: args.kind.into(),
+        input: args.input,
+        source_version: args.source_version,
+        target_version: args.target_version,
+    };
+    let report = if args.dry_run {
+        nix_me_apps::migration::inspect(&request)?
+    } else {
+        debug_assert!(args.apply);
+        nix_me_apps::migration::apply(&request)?
+    };
+    if args.json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&report).expect("migration report is serializable")
+        );
+    } else {
+        println!("{}", report.summary());
+        if let Some(output) = &report.canonical_output {
+            print!("{output}");
+        }
+    }
+    Ok(0)
+}
+
+fn run_status(args: StatusArgs) -> Result<i32> {
+    let (recipes, values) = load_selected_inputs(&args.recipe, &args.values, &args.only)?;
+    let clock = SystemClock;
+    let path = state_path()?;
+    let (mut state, state_warning) = load_status_no_mutation(&path);
+    let mut runner = RealCommandRunner {
+        no_exec: true,
+        ..Default::default()
+    };
+    let mut prefs = platform_store();
+    let mut engine = Engine {
+        prefs: &mut prefs,
+        runner: &mut runner,
+        clock: &clock,
+        state: &mut state,
+        state_dir: path.parent().unwrap().to_path_buf(),
+        options: Options {
+            skip_missing: true,
+            no_exec: true,
+            ..Default::default()
+        },
+        warnings: vec![],
+    };
+    if let Some(warning) = state_warning {
+        engine.warnings.push(warning);
+    }
+    let plan = engine.plan(&recipes, &values, "diff")?;
+    let mut warnings = engine.warnings.clone();
+    drop(engine);
+    let (last_apply, last_apply_warning) = load_last_apply(&last_apply_path(&path));
+    if let Some(warning) = last_apply_warning {
+        warnings.push(warning);
+    }
+    let status = Status::from_plan(&recipes, &values, &plan, last_apply, warnings);
+    emit_status(&status, args.json)?;
+    Ok(0)
 }
 
 fn run_registry(args: RegistryArgs) -> std::result::Result<i32, (i32, anyhow::Error, bool)> {
@@ -233,6 +379,15 @@ fn emit_registry<T: serde::Serialize>(value: &T, json: bool) -> Result<()> {
     Ok(())
 }
 
+fn emit_status(status: &Status, json: bool) -> Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(status)?);
+    } else {
+        println!("{}", serde_yaml::to_string(status)?);
+    }
+    Ok(())
+}
+
 fn run_diff(args: RunArgs) -> Result<i32> {
     let (recipes, values) = load_inputs(&args)?;
     let clock = SystemClock;
@@ -268,8 +423,18 @@ fn run_diff(args: RunArgs) -> Result<i32> {
 }
 
 fn run_apply(args: ApplyArgs) -> std::result::Result<i32, (i32, anyhow::Error)> {
-    let (recipes, values) = load_inputs(&args.run).map_err(|e| (4, e))?;
     let clock = SystemClock;
+    let inputs = load_inputs(&args.run);
+    let (recipes, values) = match inputs {
+        Ok(inputs) => inputs,
+        Err(error) if args.run.no_exec => return Err((4, error)),
+        Err(error) => {
+            if let Ok(path) = state_path() {
+                return Err(record_failed_apply(&path, &clock, 4, error));
+            }
+            return Err((4, error));
+        }
+    };
     let path = state_path().map_err(|e| (5, e))?;
     if args.run.no_exec {
         let (mut state, state_warning) = load_no_mutation(&path).map_err(|e| (5, e))?;
@@ -299,7 +464,8 @@ fn run_apply(args: ApplyArgs) -> std::result::Result<i32, (i32, anyhow::Error)> 
         emit(&plan, args.run.json, &warnings, &commands, true).map_err(|e| (5, e))?;
         return Ok(plan.exit_code);
     }
-    let mut guard = StateGuard::acquire(&path, args.no_wait, &clock.now()).map_err(|e| (5, e))?;
+    let mut guard = StateGuard::acquire(&path, args.no_wait, &clock.now())
+        .map_err(|error| record_failed_apply(&path, &clock, 5, error))?;
     let mut runner = RealCommandRunner {
         no_exec: args.run.no_exec,
         ..Default::default()
@@ -314,9 +480,10 @@ fn run_apply(args: ApplyArgs) -> std::result::Result<i32, (i32, anyhow::Error)> 
         options: options(&args.run),
         warnings: vec![],
     };
-    let plan = engine
-        .plan(&recipes, &values, "apply")
-        .map_err(|e| (failure_code(&e, 4), e))?;
+    let plan = engine.plan(&recipes, &values, "apply").map_err(|error| {
+        let code = failure_code(&error, 4);
+        record_failed_apply(&path, &clock, code, error)
+    })?;
     if plan.has_actions() {
         let unsafe_restart = recipes.iter().any(|r| {
             r.apply.unsafe_to_kill
@@ -327,18 +494,27 @@ fn run_apply(args: ApplyArgs) -> std::result::Result<i32, (i32, anyhow::Error)> 
         });
         if !args.yes || unsafe_restart {
             if !args.run.json {
-                emit(&plan, false, &engine.warnings, &[], false).map_err(|e| (5, e))?;
+                emit(&plan, false, &engine.warnings, &[], false)
+                    .map_err(|error| record_failed_apply(&path, &clock, 5, error))?;
             }
-            if !confirm(if unsafe_restart {
+            let confirmed = confirm(if unsafe_restart {
                 "An app may have unsaved work. Apply and restart it?"
             } else {
                 "Apply this plan?"
             })
-            .map_err(|e| (5, e))?
-            {
+            .map_err(|error| record_failed_apply(&path, &clock, 5, error))?;
+            if !confirmed {
                 if args.run.json {
-                    emit(&plan, true, &engine.warnings, &[], false).map_err(|e| (5, e))?;
+                    emit(&plan, true, &engine.warnings, &[], false)
+                        .map_err(|error| record_failed_apply(&path, &clock, 5, error))?;
                 }
+                record_last_apply(
+                    &path,
+                    ApplyOutcome::Declined,
+                    clock.now(),
+                    Some("Apply declined by user".to_owned()),
+                )
+                .map_err(|error| (5, error))?;
                 return Ok(plan.exit_code);
             }
         }
@@ -346,25 +522,108 @@ fn run_apply(args: ApplyArgs) -> std::result::Result<i32, (i32, anyhow::Error)> 
     let plan = engine.apply(&recipes, &values, plan);
     let warnings = engine.warnings.clone();
     drop(engine);
-    guard.save(&clock.now()).map_err(|e| (5, e))?;
+    if let Err(error) = guard.save(&clock.now()) {
+        let has_succeeded = plan
+            .apps
+            .iter()
+            .flat_map(|app| &app.entries)
+            .flat_map(|entry| &entry.actions)
+            .any(|action| action.result.as_deref() == Some("ok"));
+        let outcome = if has_succeeded {
+            ApplyOutcome::Partial
+        } else {
+            ApplyOutcome::Failed
+        };
+        let message = format!(
+            "Apply {}: app-state persistence failed: {error}",
+            if has_succeeded {
+                "completed partially"
+            } else {
+                "failed"
+            }
+        );
+        let status_result = record_last_apply(&path, outcome, clock.now(), Some(message));
+        return Err(match status_result {
+            Ok(()) => (5, error),
+            Err(status_error) => (
+                5,
+                anyhow!(
+                    "{error:#}; recording the partial apply status also failed: {status_error:#}"
+                ),
+            ),
+        });
+    }
+    let configured = configured_recipe_count(&recipes, &values);
+    record_last_apply(
+        &path,
+        classify_apply(&plan),
+        clock.now(),
+        Some(apply_message(&plan, configured)),
+    )
+    .map_err(|error| (5, error))?;
     emit(&plan, args.run.json, &warnings, &runner.recorded, false).map_err(|e| (5, e))?;
     Ok(plan.exit_code)
 }
 
+fn record_failed_apply<C: Clock>(
+    state_path: &Path,
+    clock: &C,
+    code: i32,
+    error: anyhow::Error,
+) -> (i32, anyhow::Error) {
+    let status_result = record_last_apply(
+        state_path,
+        ApplyOutcome::Failed,
+        clock.now(),
+        Some(format!("Apply failed: {error:#}")),
+    );
+    match status_result {
+        Ok(()) => (code, error),
+        Err(status_error) => (
+            code,
+            anyhow!("{error:#}; recording the failed apply status also failed: {status_error:#}"),
+        ),
+    }
+}
+
 fn run_capture(args: CaptureArgs) -> Result<i32> {
+    let include = args.include_key.into_iter().collect::<BTreeSet<_>>();
+    let review_mode = if args.dry_run {
+        nix_me_apps::capture::ReviewMode::PreviewOnly
+    } else if args.yes {
+        nix_me_apps::capture::ReviewMode::AssumeYes
+    } else {
+        nix_me_apps::capture::ReviewMode::Prompt
+    };
     if let Some(path) = args.sniff {
         if args.watch {
             return nix_me_apps::capture::watch_artifact(
                 &path,
                 args.output.as_deref(),
                 args.commit,
+                review_mode,
+                &include,
                 args.poll_ms,
                 args.json,
             );
         }
-        let output = nix_me_apps::capture::sniff(&path)?;
-        if let Some(path) = &args.output {
-            nix_me_apps::capture::write_sniff_output(path, &output)?;
+        eprintln!(
+            "Capture target: artifact={}; output={}",
+            path.display(),
+            args.output
+                .as_ref()
+                .map(|output| output.display().to_string())
+                .unwrap_or_else(|| "<stdout-only>".into())
+        );
+        let output = nix_me_apps::capture::sniff_with_allowlist(&path, &include)?;
+        if let Some(destination) = &args.output {
+            nix_me_apps::capture::review_sniff_output(
+                &path,
+                destination,
+                &output,
+                review_mode,
+                false,
+            )?;
         }
         if args.json {
             println!("{}", serde_json::to_string_pretty(&output)?);
@@ -378,6 +637,11 @@ fn run_capture(args: CaptureArgs) -> Result<i32> {
         let app = args
             .app
             .ok_or_else(|| anyhow!("capture requires <app> or --sniff <file>"))?;
+        if !io::stdin().is_terminal() {
+            return Err(anyhow!(
+                "guided capture requires an interactive terminal; use --sniff with --dry-run or --yes for automation"
+            ));
+        }
         let domain = match args.domain {
             Some(domain) => domain,
             None => nix_me_apps::capture::resolve_bundle_id(&app)?,
@@ -385,7 +649,7 @@ fn run_capture(args: CaptureArgs) -> Result<i32> {
         nix_me_apps::capture::interactive_defaults_capture(
             &app,
             &domain,
-            &args.include_key.into_iter().collect(),
+            &include,
             args.watch,
             args.poll_ms,
         )?
@@ -401,8 +665,16 @@ fn run_capture(args: CaptureArgs) -> Result<i32> {
 fn load_inputs(
     args: &RunArgs,
 ) -> Result<(Vec<Recipe>, serde_json::Map<String, serde_json::Value>)> {
-    let only = args.only.iter().cloned().collect::<BTreeSet<_>>();
-    let paths = nix_me_apps::registry::discover_recipe_paths(&args.recipe)?;
+    load_selected_inputs(&args.recipe, &args.values, &args.only)
+}
+
+fn load_selected_inputs(
+    recipe_paths: &[PathBuf],
+    value_paths: &[PathBuf],
+    only_ids: &[String],
+) -> Result<(Vec<Recipe>, serde_json::Map<String, serde_json::Value>)> {
+    let only = only_ids.iter().cloned().collect::<BTreeSet<_>>();
+    let paths = nix_me_apps::registry::discover_recipe_paths(recipe_paths)?;
     let all_recipes = paths
         .iter()
         .map(|path| load_recipe(path))
@@ -425,7 +697,7 @@ fn load_inputs(
         .into_iter()
         .filter(|r| only.is_empty() || only.contains(&r.id))
         .collect();
-    Ok((recipes, load_values(&args.values)?))
+    Ok((recipes, load_values(value_paths)?))
 }
 fn options(args: &RunArgs) -> Options {
     Options {

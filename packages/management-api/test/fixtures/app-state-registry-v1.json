@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "valid": true,
+  "recipes": 4,
+  "ids": ["ghostty", "raycast", "rectangle", "vscode"],
+  "unverified": ["ghostty", "raycast", "vscode"],
+  "pipeline_recipes": ["raycast"],
+  "codec_recipes": []
+}

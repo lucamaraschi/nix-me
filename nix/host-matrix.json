@@ -1,0 +1,22 @@
+{
+  "darwinConfigurations": [
+    "bellerofonte",
+    "gotham",
+    "hacking-mac",
+    "home-studio",
+    "local-ai-macbook-pro",
+    "mac-mini",
+    "macbook-air",
+    "minimal-mac",
+    "nabucodonosor",
+    "personal-macbook-pro",
+    "vm-test",
+    "work-macbook",
+    "work-macbook-pro",
+    "zion"
+  ],
+  "nixosConfigurations": [
+    "nixos-vm"
+  ],
+  "homeConfigurations": []
+}

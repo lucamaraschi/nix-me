@@ -1,0 +1,30 @@
+schema_version: 1
+id: local-ai
+name: Pi + DS4 Local AI
+bundle_id: com.github.mitsuhiko.pi-ds4
+install:
+  brew: pi-coding-agent
+detect:
+  command: command -v pi >/dev/null 2>&1
+sandboxed: false
+requires: []
+config:
+  - kind: file
+    binds: pi_settings
+    path: ~/.pi/agent/settings.json
+    format: json
+    merge: deep_merge
+    mode: "0600"
+    confirm: none
+  - kind: file
+    binds: ds4_settings
+    path: ~/.pi/ds4/settings.json
+    format: json
+    merge: deep_merge
+    mode: "0600"
+    confirm: none
+apply:
+  # Pi can reload settings explicitly; never disturb a running DS4 server.
+  poke: none
+  unsafe_to_kill: false
+verified: null

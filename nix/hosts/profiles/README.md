@@ -40,6 +40,18 @@ Layer 4: nix/hosts/machines/${hostname}/              (Optional host-specific)
 
 ## Available Profiles
 
+### Beta Profile (`beta.nix`)
+
+Opts a host into the application-state harness during the external beta. It
+enables post-activation convergence through `nix-me-apps` and changes only
+hosts that explicitly import it.
+
+```nix
+extraModules = [
+  ./nix/hosts/profiles/beta.nix
+];
+```
+
 ### Work Profile (`work.nix`)
 
 Optimizes the machine for professional/corporate use.

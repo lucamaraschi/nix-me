@@ -1,0 +1,46 @@
+{
+  "$schema": "https://raw.githubusercontent.com/lucamaraschi/nix-me/main/packages/app-state/evidence/t3-evidence-manifest.schema.json",
+  "schema_version": 1,
+  "lifecycle": "final",
+  "recipe": {
+    "id": "sample-app",
+    "path": "packages/app-state/evidence/fixtures/recipes/sample-app.yaml",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "application": {
+    "bundle_id": "com.nix-me.fixture",
+    "version": "1.2.3",
+    "build": "123"
+  },
+  "procedure": {
+    "id": "sample-visible-behavior",
+    "version": 1,
+    "harness_revision": "d24c30cb35da7819f4986fb6b7366b490f91a9a6"
+  },
+  "run": {
+    "id": "fixture-missing-environment",
+    "started_at": "2026-10-05T17:00:00Z",
+    "finished_at": "2026-10-05T17:03:00Z"
+  },
+  "result": {
+    "status": "passed",
+    "summary": "This invalid fixture omits the environment.",
+    "checks": {
+      "apply": { "status": "passed", "note": "Synthetic.", "artifact_ids": ["apply-log"] },
+      "visible_behavior": { "status": "passed", "note": "Synthetic.", "artifact_ids": ["apply-log"] },
+      "idempotence": { "status": "passed", "note": "Synthetic.", "artifact_ids": ["apply-log"] }
+    }
+  },
+  "artifacts": [
+    {
+      "id": "apply-log",
+      "kind": "log",
+      "path": "packages/app-state/evidence/fixtures/artifacts/apply.log",
+      "media_type": "text/plain",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "bytes": 1,
+      "captured_at": "2026-10-05T17:01:00Z",
+      "description": "Synthetic."
+    }
+  ]
+}

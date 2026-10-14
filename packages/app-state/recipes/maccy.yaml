@@ -1,0 +1,26 @@
+schema_version: 1
+id: maccy
+name: Maccy
+bundle_id: org.p0deje.Maccy
+install:
+  cask: maccy
+detect:
+  app_path: /Applications/Maccy.app
+sandboxed: false
+requires: []
+config:
+  - kind: defaults
+    binds: defaults
+    domain: org.p0deje.Maccy
+    keys:
+      historySize: {type: int, ui: "Settings > Storage > History size"}
+      pasteByDefault: {type: bool, ui: "Settings > General > Paste automatically"}
+      removeFormattingByDefault: {type: bool, ui: "Settings > General > Paste without formatting"}
+      showFooter: {type: bool, ui: "Settings > Appearance > Show footer"}
+      showInStatusBar: {type: bool, ui: "Settings > Appearance > Show menu icon"}
+    unknown_keys: reject
+    confirm: none
+apply:
+  poke: restart_app
+  unsafe_to_kill: true
+verified: null

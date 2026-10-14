@@ -29,6 +29,7 @@
 
       # Check if we're running in VM mode (skip Mac App Store apps)
       skipMasApps = builtins.getEnv "SKIP_MAS_APPS" == "1";
+      skipHomebrew = builtins.getEnv "SKIP_BREW_ON_VM" == "1";
 
       mkUnstablePkgs =
         system:
@@ -98,12 +99,19 @@
             {
               nixpkgs.overlays = [
                 (import ./nix/overlays/airjack.nix)
-                # Add other overlays here
+                (_final: _prev: {
+                  nodejs_latest = self.packages.${system}.nodejs-current;
+                })
               ];
             }
 
             # VM mode - skip Mac App Store apps (iCloud doesn't work in VMs)
             (if skipMasApps then ./nix/modules/darwin/vm-mode.nix else { })
+
+            # Minimal disposable VMs can validate Nix without bootstrapping Homebrew.
+            (if skipHomebrew then { lib, ... }: {
+              homebrew.enable = lib.mkForce false;
+            } else { })
           ] ++ extraModules;
           specialArgs = {
             inherit inputs hostname machineType machineName username;
@@ -119,8 +127,15 @@
         "x86_64-linux"
       ]
         (system:
-          let pkgs = import nixpkgs { inherit system; };
-          in {
+          let
+            pkgs = import nixpkgs { inherit system; };
+            nodejsCurrent = pkgs.callPackage ./nix/packages/nodejs-current-bin.nix { };
+          in
+          {
+            nodejs-current = nodejsCurrent;
+            nix-me-tui = pkgs.callPackage ./nix/packages/post-install-tui.nix {
+              inherit nodejsCurrent;
+            };
             nix-me-apps = pkgs.rustPlatform.buildRustPackage {
               pname = "nix-me-apps";
               version = "0.1.0";
@@ -133,6 +148,10 @@
               cargoLock.lockFile = ./packages/app-state/engine/Cargo.lock;
               cargoBuildFlags = [ "-p" "nix-me-apps" ];
               cargoTestFlags = [ "-p" "nix-me-apps" ];
+              preCheck = ''
+                mkdir -p ../migrations
+                cp -R ${./packages/app-state/migrations}/. ../migrations/
+              '';
               meta.mainProgram = "nix-me-apps";
             };
             default = self.packages.${system}.nix-me-apps;
@@ -216,14 +235,7 @@
           machineName = "VM";
           username = username; # Use USERNAME env var or default
           # Exercise the opt-in activation path in the disposable macOS VM.
-          extraModules = [{ apps.state.enable = true; }];
-        };
-
-        # Add a generic VM configuration for testing
-        "nixos-vm" = mkDarwinSystem {
-          hostname = "nixos-vm";
-          machineType = "vm";
-          machineName = "NixOS VM";
+          extraModules = [ ./nix/hosts/profiles/beta.nix ];
         };
 
         # ========================================

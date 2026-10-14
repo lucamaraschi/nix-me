@@ -8,6 +8,7 @@ on:
       - "tools/release/**"
       - "Makefile"
       - ".github/workflows/macos-app-ci.yml"
+      - ".github/workflows/release-macos.yml"
   push:
     branches: [main]
     paths:
@@ -16,6 +17,7 @@ on:
       - "tools/release/**"
       - "Makefile"
       - ".github/workflows/macos-app-ci.yml"
+      - ".github/workflows/release-macos.yml"
 
 permissions:
   contents: read
@@ -25,6 +27,8 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v7
+      - name: Validate release tooling
+        run: bash -n tools/release/*.sh
       - name: Test Swift package
         run: swift test --package-path apps/macos/NixMeApp
       - name: Build ad-hoc signed application
@@ -33,3 +37,10 @@ jobs:
         run: tools/release/build-macos-app.sh
       - name: Package local DMG
         run: tools/release/package-macos-app.sh
+      - name: Upload beta DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: nix-me-macos-arm64-${{ github.run_id }}
+          path: dist/*.dmg
+          if-no-files-found: error
+          retention-days: 14

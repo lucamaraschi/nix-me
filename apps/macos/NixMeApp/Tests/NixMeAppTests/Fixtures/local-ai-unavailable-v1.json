@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "health": "unavailable",
+  "summary": "Local AI status is unavailable",
+  "ds4Checkout": {"state": "unavailable", "path": "/Users/tester/src/ai/ds4"},
+  "piDs4Checkout": {"state": "unavailable", "path": "/Users/tester/src/ai/pi-ds4"},
+  "extension": {"state": "unavailable", "path": "/Users/tester/.pi/agent/extensions/pi-ds4"},
+  "runtime": {"state": "unavailable", "path": "/Users/tester/src/ai/ds4/ds4-server"},
+  "model": {"state": "unavailable", "name": "DeepSeek V4 Flash Q2", "path": "/Users/tester/src/ai/ds4/ds4flash.gguf"},
+  "server": {"state": "unavailable"},
+  "configuration": {"state": "unavailable", "driftCount": null},
+  "remediation": ["Run local-ai-doctor --json to retry the unavailable checks."]
+}
