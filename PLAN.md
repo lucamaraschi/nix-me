@@ -146,7 +146,7 @@ Status: in progress
 | AUT-003 | Done | Support signed and notarized GitHub prereleases from tags such as `v0.2.0-beta.1`. | Prereleases never update the stable Homebrew tap. |
 | AUT-004 | Done | Open grouped weekly dependency pull requests for GitHub Actions, npm, Cargo, and Swift. | Dependency changes still require normal CI and review. |
 | AUT-005 | Done | Open a reviewed flake-input update pull request on a fixed cadence. | Weekly automation maintains a draft PR, explicitly dispatches CI, and is gated by the cache policy and complete host manifest in `docs/NIX_UPDATES.md`. |
-| AUT-006 | Planned | Dispatch Rectangle and Raycast T3 runs, retain evidence, and prepare a stamp candidate. | A production signer remains an explicit human action; CI must never own the signing key. |
+| AUT-006 | Ready for operator | Dispatch Rectangle and Raycast T3 runs, retain evidence, and prepare a stamp candidate. | The dispatch-only workflow and unsigned candidate path are complete. Register the documented UTM runner, perform both visible procedures, and sign only after human review; CI never owns the signing key. |
 | AUT-007 | Planned | Protect stable release publication with a GitHub environment and required approval. | Beta prereleases may remain self-service; stable promotion must be deliberate. |
 | AUT-008 | Planned | Run a scheduled disposable-host smoke test covering `make switch`, app launch, status refresh, and idempotence. | It must run only on an isolated runner or VM and must never target a developer workstation. |
 

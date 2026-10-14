@@ -18,6 +18,7 @@ packages/app-state/evidence/tools/evidence-tool generate-stamp manifest.json rec
 packages/app-state/evidence/tools/evidence-tool stamp-recipe manifest.json recipe.yaml
 packages/app-state/evidence/tools/evidence-tool verify-repository
 packages/app-state/evidence/tools/t3-procedure validate
+packages/app-state/evidence/tools/t3-session candidate manifest.json recipe.yaml
 packages/app-state/evidence/tests/run.sh
 ```
 
@@ -149,6 +150,17 @@ the adjacent `.sig`. `generate-stamp` is a review-only preview, and
 `stamp-recipe` is the separate explicit action that replaces `verified: null`.
 Do not sign or stamp a failed or incomplete run. This repository does not bundle
 a production T3 run, production signer identity, or visual artifact.
+
+### GitHub operator handoff
+
+The dispatch-only `Application T3 evidence` workflow stages a request on a
+dedicated self-hosted UTM runner and waits for a person to execute its generated
+launcher in a local interactive Terminal. GitHub Actions never answers the
+operator challenge. A passing run is uploaded for 30 days with an unsigned
+`stamp-candidate.json`; the candidate is a deterministic review aid and has
+`stamp_eligible: false`. Runner setup, dispatch commands, artifact review, and
+the explicit production-signing sequence are documented in
+`docs/automation/AUT-006-T3.md`.
 
 ### Cleanup
 

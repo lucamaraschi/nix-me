@@ -32,6 +32,8 @@ on:
       - "nix/modules/darwin/apps/nix-me.nix"
       - "nix/modules/home-manager/rectangle.nix"
       - ".github/workflows/app-state.yml"
+      - ".github/workflows/t3-app-state.yml"
+      - ".github/actionlint.yaml"
   push:
     branches: [main]
     paths:
@@ -49,6 +51,8 @@ on:
       - "nix/modules/darwin/apps/nix-me.nix"
       - "nix/modules/home-manager/rectangle.nix"
       - ".github/workflows/app-state.yml"
+      - ".github/workflows/t3-app-state.yml"
+      - ".github/actionlint.yaml"
 
 permissions:
   contents: read
@@ -61,6 +65,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          lfs: true
       - name: Validate T3 evidence contract and verification stamps
         run: packages/app-state/evidence/tests/run.sh
       - name: Validate recipe candidate scoring and freshness

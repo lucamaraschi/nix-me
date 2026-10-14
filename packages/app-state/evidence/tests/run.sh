@@ -5,6 +5,7 @@ TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EVIDENCE_DIR="$(cd "$TEST_DIR/.." && pwd)"
 REPO_ROOT="$(cd "$EVIDENCE_DIR/../../.." && pwd)"
 TOOL="$EVIDENCE_DIR/tools/evidence-tool"
+SESSION_TOOL="$EVIDENCE_DIR/tools/t3-session"
 PASSED="$EVIDENCE_DIR/fixtures/valid/passed.json"
 FAILED="$EVIDENCE_DIR/fixtures/valid/failed.json"
 RECIPE="$EVIDENCE_DIR/fixtures/recipes/sample-app.yaml"
@@ -78,12 +79,41 @@ cp "$FIXTURE_KEY_SOURCE" "$TEST_KEY"
 chmod 600 "$TEST_KEY"
 
 jq empty "$EVIDENCE_DIR/t3-evidence-manifest.schema.json"
+jq empty "$EVIDENCE_DIR/t3-stamp-candidate.schema.json"
 "$TOOL" validate-manifest "$PASSED" >/dev/null
 "$TOOL" validate-manifest "$FAILED" >/dev/null
 jq '.lifecycle = "draft"' "$PASSED" > "$TMP/draft.json"
 "$TOOL" validate-manifest "$TMP/draft.json" >/dev/null
 expect_failure 'lifecycle must be final' \
   "$TOOL" generate-stamp "$TMP/draft.json" "$RECIPE"
+
+"$SESSION_TOOL" candidate "$TMP/draft.json" "$RECIPE" "$TMP/candidate.json" >/dev/null
+jq -e '
+  .state == "awaiting-human-review-and-signature"
+  and .stamp_eligible == false
+  and .source_manifest.lifecycle == "draft"
+  and (.required_actions | index("sign-final-manifest") != null)
+' "$TMP/candidate.json" >/dev/null
+jq -S '.stamp_preview' "$TMP/candidate.json" > "$TMP/candidate-stamp.json"
+jq -S . "$EVIDENCE_DIR/fixtures/expected/sample-app.stamp.json" > "$TMP/expected-stamp.json"
+cmp "$TMP/candidate-stamp.json" "$TMP/expected-stamp.json"
+expect_failure 'only passing evidence can produce a stamp candidate' \
+  "$SESSION_TOOL" candidate "$FAILED" "$RECIPE" "$TMP/failed-candidate.json"
+
+"$SESSION_TOOL" stage \
+  --procedure=rectangle-visible-window-management \
+  --base-vm='Synthetic macOS base' \
+  --vm-user=fixture \
+  --session-dir="$TMP/session" >/dev/null
+jq -e \
+  --arg revision "$(git -C "$REPO_ROOT" rev-parse HEAD)" \
+  '.request_version == 1
+    and .revision == $revision
+    and .procedure == "rectangle-visible-window-management"
+    and .base_vm == "Synthetic macOS base"
+    and .vm_user == "fixture"' \
+  "$TMP/session/request.json" >/dev/null
+expect_failure 'requires an interactive terminal' "$TMP/session/run-t3.sh"
 
 expect_failure '$.environment: is required' \
   "$TOOL" validate-manifest "$EVIDENCE_DIR/fixtures/invalid/missing-environment.json"
