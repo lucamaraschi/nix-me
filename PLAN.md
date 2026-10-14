@@ -145,7 +145,7 @@ Status: in progress
 | AUT-002 | Done | Run CLI and management contract checks when Local AI scripts or profile declarations change. | Tests use fixtures and never download a model. |
 | AUT-003 | Done | Support signed and notarized GitHub prereleases from tags such as `v0.2.0-beta.1`. | Prereleases never update the stable Homebrew tap. |
 | AUT-004 | Done | Open grouped weekly dependency pull requests for GitHub Actions, npm, Cargo, and Swift. | Dependency changes still require normal CI and review. |
-| AUT-005 | Planned | Open a reviewed flake-input update pull request on a fixed cadence. | Do not enable until the binary-cache policy and full-host evaluation matrix are defined. |
+| AUT-005 | Done | Open a reviewed flake-input update pull request on a fixed cadence. | Weekly automation maintains a draft PR, explicitly dispatches CI, and is gated by the cache policy and complete host manifest in `docs/NIX_UPDATES.md`. |
 | AUT-006 | Planned | Dispatch Rectangle and Raycast T3 runs, retain evidence, and prepare a stamp candidate. | A production signer remains an explicit human action; CI must never own the signing key. |
 | AUT-007 | Planned | Protect stable release publication with a GitHub environment and required approval. | Beta prereleases may remain self-service; stable promotion must be deliberate. |
 | AUT-008 | Planned | Run a scheduled disposable-host smoke test covering `make switch`, app launch, status refresh, and idempotence. | It must run only on an isolated runner or VM and must never target a developer workstation. |
@@ -166,7 +166,7 @@ Status: in progress
 | BETA-003 | Done | Publish a beta testing guide covering installation, rollback, diagnostics, and issue reports. |
 | BETA-004 | Done | Make the native app detect and guide setup of its configuration checkout and command dependencies. |
 | BETA-005 | Partial | Run the install and first-launch path on a disposable macOS host and record the result. Installation, activation, repeat apply, API refresh, app signing, and process launch passed; visual first-launch validation remains blocked by unavailable clone login credentials. See `docs/beta/BETA-005-2026-10-12.md`. |
-| BETA-006 | Partial | Configure protected signing and notarization secrets for distributable macOS beta artifacts. The tag-restricted environment and Sparkle secret are configured; Developer ID and App Store Connect credentials are not available on this Mac and remain required. See `docs/beta/BETA-006-2026-10-13.md`. |
+| BETA-006 | Parked | Configure protected signing and notarization secrets for distributable macOS beta artifacts. The repository-side protection is complete; an Apple account holder must supply the Developer ID and App Store Connect credentials and run the documented release trial. See `docs/beta/BETA-006-2026-10-13.md` for the full handoff. |
 
 ## Decision log
 

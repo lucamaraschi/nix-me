@@ -238,13 +238,6 @@
           extraModules = [ ./nix/hosts/profiles/beta.nix ];
         };
 
-        # Add a generic VM configuration for testing
-        "nixos-vm" = mkDarwinSystem {
-          hostname = "nixos-vm";
-          machineType = "vm";
-          machineName = "NixOS VM";
-        };
-
         # ========================================
         # Multi-profile configuration examples
         # ========================================

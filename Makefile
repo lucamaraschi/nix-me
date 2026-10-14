@@ -16,7 +16,7 @@ USERNAME := $(shell whoami)
 # Force hostname to lowercase in all commands
 FINAL_HOSTNAME := $(shell echo "$(HOSTNAME)" | tr '[:upper:]' '[:lower:]')
 
-.PHONY: switch switch-fast build clean update check fmt help list-machines sync-projects reset-raycast-window api test-api test-actions test-details test-cli test-local-ai test-app-state app app-run app-package tui-build
+.PHONY: switch switch-fast build clean update check check-host-matrix fmt help list-machines sync-projects reset-raycast-window api test-api test-actions test-details test-cli test-local-ai test-app-state app app-run app-package tui-build
 
 # Default target
 help:
@@ -27,6 +27,7 @@ help:
 	@echo "  switch          Build and activate the configuration"
 	@echo "  switch-fast     Build and activate without Homebrew update checks"
 	@echo "  check           Run nix flake check"
+	@echo "  check-host-matrix  Evaluate every declared host configuration"
 	@echo "  update          Pull latest nix-me code and update flake inputs"
 	@echo "  api             Print the management snapshot as JSON"
 	@echo "  test-api        Validate the JSON API contract"
@@ -168,6 +169,9 @@ ifeq ($(DRY_RUN), 1)
 else
 	@nix flake check "$(FLAKE_DIR)"
 endif
+
+check-host-matrix:
+	@NIX_ME_FLAKE="$(FLAKE_DIR)" $(MAKEFILE_DIR)/tools/automation/check-nix-host-matrix.sh
 
 api:
 	@NIX_ME_CONFIG_DIR="$(FLAKE_DIR)" ./apps/cli/bin/nix-me api snapshot
