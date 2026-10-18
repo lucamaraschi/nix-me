@@ -2303,6 +2303,7 @@ mod security_tests {
             .contains("group/world writable"));
     }
 
+    #[cfg(target_os = "macos")]
     #[test]
     fn settings_writes_preserve_restrictive_mode_and_extended_attributes() {
         use std::process::Command;
