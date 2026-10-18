@@ -22,6 +22,7 @@
     "updates": { "type": "object" },
     "projects": { "type": "array" },
     "appState": { "$ref": "#/$defs/appState" },
+    "appStateSettings": { "$ref": "#/$defs/appStateSettings" },
     "localAI": { "$ref": "#/$defs/localAI" },
     "warnings": {
       "type": "array",
@@ -91,6 +92,87 @@
         "warnings": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 }
+        }
+      },
+      "additionalProperties": true
+    },
+    "appStateSettings": {
+      "type": ["object", "null"],
+      "required": ["schemaVersion", "root", "enabled", "activeProfiles", "applications"],
+      "properties": {
+        "schemaVersion": { "const": 1 },
+        "root": { "type": "string", "minLength": 1 },
+        "enabled": { "type": "boolean" },
+        "activeProfiles": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" }
+        },
+        "applications": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "name", "bundleId", "installed", "capturable", "captureKinds"],
+            "properties": {
+              "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+              "name": { "type": "string", "minLength": 1 },
+              "bundleId": { "type": "string", "minLength": 1 },
+              "installed": { "type": "boolean" },
+              "capturable": { "type": "boolean" },
+              "captureKinds": {
+                "type": "array",
+                "items": { "enum": ["defaults", "file", "command"] }
+              },
+              "managedPaths": {
+                "type": "array",
+                "items": { "type": "string", "minLength": 1 }
+              },
+              "manualSteps": {
+                "type": "array",
+                "items": { "type": "string", "minLength": 1 }
+              },
+              "exportableSettings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["kind", "label", "source"],
+                  "properties": {
+                    "kind": { "enum": ["preference", "file", "command"] },
+                    "label": { "type": "string", "minLength": 1 },
+                    "source": { "type": "string", "minLength": 1 },
+                    "requiresConfirmation": { "type": "boolean" }
+                  },
+                  "additionalProperties": true
+                }
+              },
+              "privateState": {
+                "type": ["object", "null"],
+                "required": ["readiness", "exclusionReason"],
+                "properties": {
+                  "readiness": { "enum": ["ready", "notReady", "unknown"] },
+                  "exclusionReason": { "type": "string", "minLength": 1 }
+                },
+                "additionalProperties": true
+              },
+              "recipeAvailable": { "type": "boolean" },
+              "recipePath": { "type": ["string", "null"] },
+              "appPath": { "type": ["string", "null"] },
+              "configured": { "type": "boolean" },
+              "configurationSources": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["scope", "label", "path"],
+                  "properties": {
+                    "scope": { "enum": ["builtIn", "shared", "profile", "machine", "external"] },
+                    "label": { "type": "string", "minLength": 1 },
+                    "path": { "type": "string", "minLength": 1 }
+                  },
+                  "additionalProperties": true
+                }
+              }
+            },
+            "additionalProperties": true
+          }
         }
       },
       "additionalProperties": true

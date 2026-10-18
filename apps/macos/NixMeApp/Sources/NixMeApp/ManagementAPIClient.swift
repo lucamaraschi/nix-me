@@ -1,5 +1,35 @@
 import Foundation
 
+enum ManagementBackend {
+    static func bundledExecutable(
+        named name: String,
+        resourcesDirectory: URL? = Bundle.main.resourceURL
+    ) -> URL? {
+        guard let bundled = resourcesDirectory?
+            .appendingPathComponent("management-api", isDirectory: true)
+            .appendingPathComponent(name),
+            FileManager.default.isExecutableFile(atPath: bundled.path)
+        else {
+            return nil
+        }
+        return bundled
+    }
+
+    static func executable(
+        named name: String,
+        configurationDirectory: URL,
+        resourcesDirectory: URL? = Bundle.main.resourceURL
+    ) -> URL {
+        if let bundled = bundledExecutable(named: name, resourcesDirectory: resourcesDirectory) {
+            return bundled
+        }
+
+        return configurationDirectory
+            .appendingPathComponent("packages/management-api/bin", isDirectory: true)
+            .appendingPathComponent(name)
+    }
+}
+
 enum ManagementAPIError: LocalizedError {
     case configurationNotFound
     case commandFailed(Int32, String)
@@ -34,7 +64,10 @@ struct ManagementAPIClient {
     }
 
     func snapshot() async throws -> ManagementSnapshot {
-        let api = configurationDirectory.appendingPathComponent("packages/management-api/bin/nix-me-api")
+        let api = ManagementBackend.executable(
+            named: "nix-me-api",
+            configurationDirectory: configurationDirectory
+        )
         let data = try await run(executable: api, arguments: ["snapshot"])
 
         do {
@@ -56,7 +89,10 @@ struct ManagementAPIClient {
             return embeddedDetails
         }
 
-        let executable = configurationDirectory.appendingPathComponent("packages/management-api/bin/nix-me-details")
+        let executable = ManagementBackend.executable(
+            named: "nix-me-details",
+            configurationDirectory: configurationDirectory
+        )
         var arguments = [item.kind.rawValue, item.name]
         if let storeId = item.storeId {
             arguments.append(String(storeId))
@@ -103,6 +139,9 @@ struct ManagementAPIClient {
 
                 var environment = ProcessInfo.processInfo.environment
                 environment["NIX_ME_CONFIG_DIR"] = configurationDirectory.path
+                if let engine = ManagementBackend.bundledExecutable(named: "nix-me-apps") {
+                    environment["NIX_ME_APP_STATE_ENGINE"] = engine.path
+                }
                 process.environment = environment
 
                 do {
@@ -152,9 +191,6 @@ struct ManagementAPIClient {
     static func isConfigurationDirectory(_ directory: URL) -> Bool {
         let fileManager = FileManager.default
         return fileManager.fileExists(atPath: directory.appendingPathComponent("flake.nix").path)
-            && fileManager.fileExists(
-                atPath: directory.appendingPathComponent("packages/management-api/bin/nix-me-api").path
-            )
     }
 }
 

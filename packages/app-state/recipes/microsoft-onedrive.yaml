@@ -1,0 +1,18 @@
+schema_version: 1
+id: microsoft-onedrive
+name: Microsoft OneDrive
+bundle_id: com.microsoft.OneDrive
+install:
+  cask: microsoft-office
+detect:
+  app_path: /Applications/OneDrive.app
+sandboxed: false
+requires: []
+config:
+  - kind: manual
+    step: Configure OneDrive manually. In version 24.055.0317 the local UBF8T346G9.OneDriveStandaloneSuite preference schema contains only SQM machine/user identifiers and successful-updater check metadata; the observable standalone domains are updater domains. Those values are machine, telemetry, or updater state rather than portable user settings, and no ordinary launch, notification, bandwidth, or Files On-Demand key is proven. Accounts, tokens, synchronized roots, file-provider authorization, sync databases, and files are excluded.
+    confirm: full_manual
+apply:
+  poke: none
+  unsafe_to_kill: false
+verified: null

@@ -10,6 +10,8 @@
     <string>NixMeApp</string>
     <key>CFBundleIdentifier</key>
     <string>com.nix-me.manager</string>
+    <key>CFBundleIconFile</key>
+    <string>NixMe.icns</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>

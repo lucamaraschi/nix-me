@@ -1,3 +1,4 @@
+pub mod accessibility;
 pub mod capture;
 pub mod catalog;
 pub mod engine;
@@ -8,5 +9,6 @@ pub mod plan;
 pub mod prefs;
 pub mod registry;
 pub mod runner;
+pub mod snapshot;
 pub mod state;
 pub mod status;

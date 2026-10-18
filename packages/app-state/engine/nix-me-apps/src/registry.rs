@@ -4,7 +4,9 @@ use std::path::{Path, PathBuf};
 use anyhow::{bail, Context, Result};
 use serde::Serialize;
 
-use crate::model::{load_recipe, Artifact, ConfigEntry, Confirm, Recipe};
+use crate::engine::recipe_is_installed;
+use crate::model::{load_recipe, Artifact, ConfigEntry, Confirm, FileExport, FileFormat, Recipe};
+use crate::runner::CommandRunner;
 
 #[derive(Debug, Serialize)]
 pub struct ValidationReport {
@@ -35,6 +37,36 @@ pub struct EntryCounts {
     pub none: usize,
     pub one_click: usize,
     pub full_manual: usize,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecipeCatalog {
+    pub version: u32,
+    pub applications: Vec<RecipeCatalogEntry>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecipeCatalogEntry {
+    pub id: String,
+    pub name: String,
+    pub bundle_id: String,
+    pub installed: bool,
+    pub capturable: bool,
+    pub capture_kinds: Vec<String>,
+    pub exportable_settings: Vec<ExportableSetting>,
+    pub managed_paths: Vec<String>,
+    pub manual_steps: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportableSetting {
+    pub kind: String,
+    pub label: String,
+    pub source: String,
+    pub requires_confirmation: bool,
 }
 
 pub fn discover_recipe_paths(inputs: &[PathBuf]) -> Result<Vec<PathBuf>> {
@@ -139,6 +171,136 @@ pub fn validate(inputs: &[PathBuf]) -> Result<ValidationReport> {
     })
 }
 
+pub fn catalog<R: CommandRunner>(inputs: &[PathBuf], runner: &mut R) -> Result<RecipeCatalog> {
+    let recipes = load_registry(inputs)?;
+    let applications = recipes
+        .into_iter()
+        .map(|recipe| {
+            let exportable_settings = recipe
+                .config
+                .iter()
+                .flat_map(|entry| match entry {
+                    ConfigEntry::Defaults(defaults) => defaults
+                        .keys
+                        .iter()
+                        .map(|(key, schema)| ExportableSetting {
+                            kind: "preference".into(),
+                            label: schema
+                                .ui
+                                .clone()
+                                .or_else(|| schema.doc.clone())
+                                .unwrap_or_else(|| key.clone()),
+                            source: format!("{}/{}", defaults.domain, key),
+                            requires_confirmation: false,
+                        })
+                        .collect::<Vec<_>>(),
+                    ConfigEntry::File(file)
+                        if file.format != FileFormat::Text && file.paths.is_some() =>
+                    {
+                        vec![ExportableSetting {
+                            kind: "file".into(),
+                            label: "Allowlisted structured settings file".into(),
+                            source: file.path.clone(),
+                            requires_confirmation: false,
+                        }]
+                    }
+                    ConfigEntry::File(file) if file.export == FileExport::ReviewedText => {
+                        vec![ExportableSetting {
+                            kind: "file".into(),
+                            label: "Reviewed text settings file".into(),
+                            source: file.path.clone(),
+                            requires_confirmation: true,
+                        }]
+                    }
+                    ConfigEntry::Command(command) => vec![ExportableSetting {
+                        kind: "command".into(),
+                        label: "Application-managed list".into(),
+                        source: command.name.clone(),
+                        requires_confirmation: false,
+                    }],
+                    ConfigEntry::CommandValue(command) => vec![ExportableSetting {
+                        kind: "command_value".into(),
+                        label: "Application-managed setting".into(),
+                        source: command.name.clone(),
+                        requires_confirmation: false,
+                    }],
+                    ConfigEntry::Accessibility(accessibility) => vec![ExportableSetting {
+                        kind: "accessibility".into(),
+                        label: accessibility.name.clone(),
+                        source: crate::accessibility::target(&recipe.bundle_id, accessibility),
+                        requires_confirmation: false,
+                    }],
+                    ConfigEntry::File(_)
+                    | ConfigEntry::GeneratedImport(_)
+                    | ConfigEntry::Manual(_) => Vec::new(),
+                })
+                .collect::<Vec<_>>();
+            let managed_paths = recipe
+                .config
+                .iter()
+                .filter_map(|entry| match entry {
+                    ConfigEntry::File(file) => Some(file.path.clone()),
+                    ConfigEntry::GeneratedImport(entry) => Some(entry.deliver.clone()),
+                    ConfigEntry::Defaults(_)
+                    | ConfigEntry::Command(_)
+                    | ConfigEntry::CommandValue(_)
+                    | ConfigEntry::Accessibility(_)
+                    | ConfigEntry::Manual(_) => None,
+                })
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .collect::<Vec<_>>();
+            let capture_kinds = recipe
+                .config
+                .iter()
+                .filter_map(|entry| match entry {
+                    ConfigEntry::Defaults(_) => Some("defaults"),
+                    ConfigEntry::File(file)
+                        if file.format != FileFormat::Text && file.paths.is_some() =>
+                    {
+                        Some("file")
+                    }
+                    ConfigEntry::File(file) if file.export == FileExport::ReviewedText => {
+                        Some("file")
+                    }
+                    ConfigEntry::Command(_) => Some("command"),
+                    ConfigEntry::CommandValue(_) => Some("command_value"),
+                    ConfigEntry::Accessibility(_) => Some("accessibility"),
+                    ConfigEntry::File(_)
+                    | ConfigEntry::GeneratedImport(_)
+                    | ConfigEntry::Manual(_) => None,
+                })
+                .map(str::to_owned)
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .collect::<Vec<_>>();
+            let manual_steps = recipe
+                .config
+                .iter()
+                .filter_map(|entry| match entry {
+                    ConfigEntry::Manual(entry) => Some(entry.step.clone()),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            RecipeCatalogEntry {
+                installed: recipe_is_installed(&recipe, runner),
+                id: recipe.id,
+                name: recipe.name,
+                bundle_id: recipe.bundle_id,
+                capturable: !capture_kinds.is_empty(),
+                capture_kinds,
+                exportable_settings,
+                managed_paths,
+                manual_steps,
+            }
+        })
+        .collect();
+    Ok(RecipeCatalog {
+        version: 1,
+        applications,
+    })
+}
+
 pub fn metric(inputs: &[PathBuf], denominator: Option<usize>) -> Result<MetricReport> {
     let recipes = load_registry(inputs)?;
     let denominator = denominator.unwrap_or(recipes.len());
@@ -199,6 +361,7 @@ fn severity(confirm: Confirm) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::runner::ReplayCommandRunner;
     use std::fs;
 
     #[test]
@@ -250,5 +413,78 @@ mod tests {
         .unwrap();
         let paths = discover_recipe_paths(&[directory.path().to_path_buf()]).unwrap();
         assert_eq!(paths, [recipe]);
+    }
+
+    #[test]
+    fn catalog_reports_only_detected_apps_as_installed() {
+        let directory = tempfile::TempDir::new().unwrap();
+        fs::write(
+            directory.path().join("installed.yaml"),
+            "schema_version: 1\nid: installed\nname: Installed\nbundle_id: com.example.Installed\ndetect:\n  command: detect-installed\nconfig:\n  - kind: defaults\n    domain: com.example.Installed\n    keys:\n      enabled: {type: bool}\nverified: null\n",
+        )
+        .unwrap();
+        fs::write(
+            directory.path().join("missing.yaml"),
+            "schema_version: 1\nid: missing\nname: Missing\nbundle_id: com.example.Missing\ndetect:\n  command: detect-missing\nconfig:\n  - kind: defaults\n    domain: com.example.Missing\n    keys:\n      enabled: {type: bool}\nverified: null\n",
+        )
+        .unwrap();
+        let mut runner = ReplayCommandRunner::default();
+        runner
+            .outputs
+            .insert("detect-installed".into(), Ok(String::new()));
+        runner
+            .outputs
+            .insert("detect-missing".into(), Err("not found".into()));
+
+        let report = catalog(&[directory.path().to_path_buf()], &mut runner).unwrap();
+
+        assert!(report.applications[0].installed);
+        assert!(!report.applications[1].installed);
+        assert!(report.applications.iter().all(|app| app.capturable));
+        assert_eq!(report.applications[0].exportable_settings.len(), 1);
+        assert_eq!(
+            report.applications[0].exportable_settings[0].source,
+            "com.example.Installed/enabled"
+        );
+    }
+
+    #[test]
+    fn catalog_advertises_only_opted_in_text_files_as_exportable() {
+        let directory = tempfile::TempDir::new().unwrap();
+        fs::write(
+            directory.path().join("reviewed.yaml"),
+            "schema_version: 1\nid: reviewed\nname: Reviewed\nbundle_id: com.example.Reviewed\nconfig:\n  - kind: file\n    path: ~/.config/reviewed.conf\n    format: text\n    export: reviewed_text\nverified: null\n",
+        )
+        .unwrap();
+        fs::write(
+            directory.path().join("closed.yaml"),
+            "schema_version: 1\nid: closed\nname: Closed\nbundle_id: com.example.Closed\nconfig:\n  - kind: file\n    path: ~/.config/closed.conf\n    format: text\nverified: null\n",
+        )
+        .unwrap();
+        let mut runner = ReplayCommandRunner::default();
+
+        let report = catalog(&[directory.path().to_path_buf()], &mut runner).unwrap();
+        let reviewed = report
+            .applications
+            .iter()
+            .find(|application| application.id == "reviewed")
+            .unwrap();
+        let closed = report
+            .applications
+            .iter()
+            .find(|application| application.id == "closed")
+            .unwrap();
+
+        assert!(reviewed.capturable);
+        assert_eq!(reviewed.capture_kinds, ["file"]);
+        assert_eq!(reviewed.exportable_settings.len(), 1);
+        assert_eq!(
+            reviewed.exportable_settings[0].label,
+            "Reviewed text settings file"
+        );
+        assert!(reviewed.exportable_settings[0].requires_confirmation);
+        assert!(!closed.capturable);
+        assert!(closed.capture_kinds.is_empty());
+        assert!(closed.exportable_settings.is_empty());
     }
 }

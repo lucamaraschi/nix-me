@@ -4,8 +4,11 @@
 { config, pkgs, lib, ... }:
 
 {
+  projects.settingsProfiles = [ "dev" ];
+
   apps = {
     useBaseLists = true;
+    state.settingsProfiles = [ "dev" ];
 
     # Development GUI applications
     casksToAdd = [
@@ -14,8 +17,8 @@
 
       # Development tools
       "docker-desktop"
-      "orbstack"          # Lightweight Docker/Linux VMs
-      "github"            # GitHub Desktop
+      "orbstack" # Lightweight Docker/Linux VMs
+      "github" # GitHub Desktop
 
       # API & Database
       # "postman"
@@ -32,13 +35,13 @@
       "fd"
       "gcc"
       "jq"
-      "k3d"               # Local Kubernetes
+      "k3d" # Local Kubernetes
     ];
 
     # Development packages via Nix
     systemPackagesToAdd = [
       # Languages & Runtimes
-      "nodejs_latest"     # Track the latest current Node.js release by default
+      "nodejs_latest" # Track the latest current Node.js release by default
       "pnpm"
       "typescript"
       "python3"
@@ -46,7 +49,7 @@
       "go"
 
       # Development utilities
-      "gh"                # GitHub CLI
+      "gh" # GitHub CLI
       "pandoc"
       "imagemagick"
 

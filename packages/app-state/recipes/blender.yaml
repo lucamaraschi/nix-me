@@ -1,0 +1,27 @@
+schema_version: 1
+id: blender
+name: Blender
+bundle_id: org.blenderfoundation.blender
+install:
+  cask: blender
+detect:
+  app_path: /Applications/Blender.app
+sandboxed: false
+requires: []
+app_version:
+  source: bundle_short_version
+  supported_majors: [5]
+config:
+  - kind: manual
+    step: Configure Blender interface, editing, input, save/load, and enabled-extension preferences manually.
+    doc: >-
+      Blender 5.1 is detected and version-gated, but the engine still has no
+      constrained typed RNA adapter. userpref.blend is an opaque binary and is
+      not safe to copy. Startup scenes and content, recent files, credentials,
+      downloaded extensions, models, project history, device settings and
+      arbitrary Python are never exported or executed.
+    confirm: full_manual
+apply:
+  poke: none
+  unsafe_to_kill: false
+verified: null

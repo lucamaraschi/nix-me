@@ -221,15 +221,22 @@ fn execution_failure_is_exit_five_and_json_agrees() {
 }
 
 #[test]
-fn successful_and_partial_applies_are_persisted_accurately() {
+fn successful_and_failed_transactional_applies_are_persisted_accurately() {
     let success_dir = TempDir::new().unwrap();
     let success_recipe = success_dir.path().join("success.yaml");
     let success_values = success_dir.path().join("values.yaml");
+    let success_target = success_dir.path().join("settings.json");
     write(
         &success_recipe,
-        "schema_version: 1\nid: success-test\nname: Success Test\nbundle_id: com.nix-me.test.success\nconfig:\n  - kind: command\n    name: items\n    list:\n      get: \"printf ''\"\n      add: \"true # {item}\"\n    converges: add_only\nverified: null\n",
+        &format!(
+            "schema_version: 1\nid: success-test\nname: Success Test\nbundle_id: com.nix-me.test.success\nconfig:\n  - kind: file\n    binds: settings\n    path: {:?}\n    format: json\nverified: null\n",
+            success_target.display().to_string()
+        ),
     );
-    write(&success_values, "success-test:\n  items: [new]\n");
+    write(
+        &success_values,
+        "success-test:\n  settings: {enabled: true}\n",
+    );
     let success = run(
         &success_dir,
         &[
@@ -247,6 +254,10 @@ fn successful_and_partial_applies_are_persisted_accurately() {
     assert_eq!(persisted["version"], 1);
     assert_eq!(persisted["status"], "succeeded");
     assert_eq!(persisted["message"], "Applied 1 configured recipe");
+    assert_eq!(
+        serde_json::from_slice::<Value>(&fs::read(success_target).unwrap()).unwrap(),
+        serde_json::json!({"enabled":true})
+    );
 
     let partial_dir = TempDir::new().unwrap();
     let partial_recipe = partial_dir.path().join("partial.yaml");
@@ -269,7 +280,7 @@ fn successful_and_partial_applies_are_persisted_accurately() {
         ],
     );
     assert_eq!(partial.status.code(), Some(5));
-    assert_eq!(last_apply(&partial_dir)["status"], "partial");
+    assert_eq!(last_apply(&partial_dir)["status"], "failed");
 }
 
 #[test]
@@ -378,11 +389,16 @@ fn status_counts_configured_recipes_and_emits_json_only_on_request() {
     assert_eq!(status["manualResidueCount"], 0);
     assert_eq!(status["verification"]["verifiedRecipeCount"], 0);
     assert_eq!(status["verification"]["unverifiedRecipeCount"], 1);
-    assert!(status["warnings"]
+    assert!(!status["warnings"]
         .as_array()
         .unwrap()
         .iter()
         .any(|warning| warning == "The persisted app-state status is unavailable"));
+    assert!(status["warnings"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|warning| warning == "recipe configured is unverified"));
     assert!(!dir.path().join("state/apps.json").exists());
 
     let yaml = run(
@@ -495,6 +511,72 @@ fn registry_validate_and_metric_are_machine_readable() {
     assert_eq!(metric["zero_click_apps"], 1);
     assert_eq!(metric["uncovered_apps"], 199);
     assert_eq!(metric["zero_click_percent"], 0.5);
+}
+
+#[test]
+fn reviewed_text_snapshot_requires_confirmation_and_preserves_exact_content() {
+    let dir = TempDir::new().unwrap();
+    let recipes = dir.path().join("recipes");
+    fs::create_dir(&recipes).unwrap();
+    let settings = dir.path().join("settings.conf");
+    let exact = "theme = dark\n\n# exact final newline\n";
+    write(&settings, exact);
+    write(
+        &recipes.join("reviewed.yaml"),
+        &format!(
+            "schema_version: 1\nid: reviewed\nname: Reviewed\nbundle_id: com.example.Reviewed\nconfig:\n  - kind: file\n    path: {:?}\n    format: text\n    export: reviewed_text\nverified: null\n",
+            settings.display().to_string()
+        ),
+    );
+    let recipe_arg = recipes.to_str().unwrap();
+
+    let catalog = run(
+        &dir,
+        &["registry", "list", "--recipe", recipe_arg, "--json"],
+    );
+    assert!(catalog.status.success());
+    let catalog: Value = serde_json::from_slice(&catalog.stdout).unwrap();
+    assert_eq!(catalog["applications"][0]["capturable"], true);
+    assert_eq!(
+        catalog["applications"][0]["captureKinds"],
+        serde_json::json!(["file"])
+    );
+    assert_eq!(
+        catalog["applications"][0]["exportableSettings"][0],
+        serde_json::json!({
+            "kind":"file",
+            "label":"Reviewed text settings file",
+            "source":settings.display().to_string(),
+            "requiresConfirmation":true
+        })
+    );
+
+    let closed = run(&dir, &["snapshot", "--recipe", recipe_arg, "--json"]);
+    assert!(closed.status.success());
+    let closed: Value = serde_json::from_slice(&closed.stdout).unwrap();
+    assert_eq!(closed["values"]["reviewed"], serde_json::json!({}));
+    assert_eq!(
+        closed["applications"][0]["skipped"][0]["reason"],
+        "reviewed text export requires explicit caller confirmation"
+    );
+
+    let confirmed = run(
+        &dir,
+        &[
+            "snapshot",
+            "--recipe",
+            recipe_arg,
+            "--confirm-reviewed-text",
+            "--json",
+        ],
+    );
+    assert!(confirmed.status.success());
+    let confirmed: Value = serde_json::from_slice(&confirmed.stdout).unwrap();
+    assert_eq!(confirmed["values"]["reviewed"]["file"], exact);
+    assert_eq!(
+        confirmed["applications"][0]["skipped"],
+        serde_json::json!([])
+    );
 }
 
 #[test]

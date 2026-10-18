@@ -1,0 +1,29 @@
+schema_version: 1
+id: virtualbuddy
+name: VirtualBuddy
+bundle_id: codes.rambo.VirtualBuddy
+install:
+  cask: virtualbuddy
+detect:
+  app_path: /Applications/VirtualBuddy.app
+sandboxed: false
+requires: []
+config:
+  - kind: defaults
+    domain: codes.rambo.VirtualBuddy
+    keys:
+      SUEnableAutomaticChecks: {type: bool, ui: "Updates > Automatically check for updates", doc: "Observed in VirtualBuddy 2.1."}
+      SUSendProfileInfo: {type: bool, ui: "Updates > Send system profile", doc: "Observed in VirtualBuddy 2.1."}
+      bootDiskImagesUseASIF: {type: bool, ui: "Virtualization > Use ASIF for boot disk images", doc: "Observed in VirtualBuddy 2.1."}
+      enableTSSCheck: {type: bool, ui: "Virtualization > Check restore-image signing status", doc: "Observed in VirtualBuddy 2.1."}
+      showDesktopPictureThumbnails: {type: bool, ui: "Library > Show desktop picture thumbnails", doc: "Observed in VirtualBuddy 2.1."}
+      updateChannel: {type: string, ui: "Updates > Update channel", doc: "Observed in VirtualBuddy 2.1."}
+    unknown_keys: reject
+    confirm: none
+  - kind: manual
+    step: Review remaining library and virtualization defaults manually. libraryPath, VM window records, VM bundles, disk images, restore state, machine identifiers, and guest secrets are excluded.
+    confirm: full_manual
+apply:
+  poke: restart_app
+  unsafe_to_kill: true
+verified: null

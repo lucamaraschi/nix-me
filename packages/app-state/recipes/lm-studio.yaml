@@ -1,0 +1,32 @@
+schema_version: 1
+id: lm-studio
+name: LM Studio
+bundle_id: ai.elementlabs.lmstudio
+install:
+  cask: lm-studio
+detect:
+  app_path: /Applications/LM Studio.app
+sandboxed: false
+requires: []
+config:
+  - kind: manual
+    step: Configure LM Studio locally until an installed-version fixture establishes its bundle metadata, settings paths, and schema.
+    doc: >-
+      LM Studio is not installed on the evidence machine, so no local version,
+      preference domain, configuration path, or schema can be proven. None are
+      inferred from package metadata. Before enabling an adapter, capture a
+      sanitized fixture and identify typed paths for theme, runtime defaults,
+      model-directory preference, and local-server behavior.
+      The required primitive is a version-gated RFC 6901 JSON-pointer projection
+      that refuses unknown formats and schema/type mismatches, closes LM Studio
+      before an atomic pointer-only deep merge, restarts it, verifies the same
+      paths by read-back, and checks local-server status where applicable.
+      Downloaded models, model files, chats, prompts/content, API tokens,
+      credentials, accounts, telemetry IDs, history, extensions, cache,
+      machine paths unless explicitly host-scoped, and machine identity are
+      permanently excluded.
+    confirm: full_manual
+apply:
+  poke: none
+  unsafe_to_kill: false
+verified: null

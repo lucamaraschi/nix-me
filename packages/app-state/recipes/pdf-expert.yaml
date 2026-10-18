@@ -1,0 +1,28 @@
+schema_version: 1
+id: pdf-expert
+name: PDF Expert
+bundle_id: com.readdle.PDFExpert-Mac
+install:
+  mas: 1055273043
+detect:
+  app_path: /Applications/PDF Expert.app
+sandboxed: true
+requires: []
+config:
+  - kind: defaults
+    domain: com.readdle.PDFExpert-Mac
+    keys:
+      lastUsedZoomPercents: {type: int, ui: "View > Last custom zoom percentage", doc: "Observed in PDF Expert 3.13.1."}
+      pdfViewInitialZoom: {type: int, ui: "View > Initial zoom", doc: "Observed in PDF Expert 3.13.1."}
+      userPreferredPageSizeUnit: {type: int, ui: "General > Page size units", doc: "Observed in PDF Expert 3.13.1."}
+      useNewLexer: {type: bool, ui: "Advanced > PDF text engine", doc: "App-owned rendering preference observed in PDF Expert 3.13.1."}
+      useSwiftKernel: {type: bool, ui: "Advanced > PDF rendering engine", doc: "App-owned rendering preference observed in PDF Expert 3.13.1."}
+    unknown_keys: reject
+    confirm: none
+  - kind: manual
+    step: Review appearance, tabs, and annotation-tool defaults manually until their keys are independently proven. Accounts, subscriptions, analytics identifiers, documents, cloud connections, credentials, recents, and synchronization databases are excluded.
+    confirm: full_manual
+apply:
+  poke: restart_app
+  unsafe_to_kill: true
+verified: null

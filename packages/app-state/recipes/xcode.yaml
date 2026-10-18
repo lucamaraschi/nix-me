@@ -1,0 +1,29 @@
+schema_version: 1
+id: xcode
+name: Xcode
+bundle_id: com.apple.dt.Xcode
+install:
+  mas: 497799835
+detect:
+  app_path: /Applications/Xcode.app
+sandboxed: false
+requires: []
+config:
+  - kind: defaults
+    domain: com.apple.dt.Xcode
+    keys:
+      DVTTextEnablePredictiveCompletion: {type: bool, ui: "Text Editing > Editing > Predictive code completion", doc: "Observed in Xcode 26.6."}
+      IDEDisableGitSupportForNewProjects: {type: bool, ui: "Source Control > Enable Git for new projects", doc: "Observed in Xcode 26.6; the stored value has inverse semantics."}
+      IDEKeyBindingCurrentPreferenceSet: {type: string, ui: "Key Bindings > Current key-binding set", doc: "Observed in Xcode 26.6; this selects a built-in or separately installed set and does not copy key-binding files."}
+      IDEStringCatalogAutomaticCommentGenerationEnabled: {type: bool, ui: "Text Editing > String Catalog > Automatically generate comments", doc: "Observed in Xcode 26.6."}
+      IDEWorkspaceSuppressCleanBuildPrompt: {type: bool, ui: "General > Suppress clean build prompt", doc: "Observed in Xcode 26.6."}
+      XCFontAndColorCurrentDarkTheme: {type: string, ui: "Themes > Dark appearance theme", doc: "Observed in Xcode 26.6; this selects a built-in or separately installed theme and does not copy theme files."}
+    unknown_keys: reject
+    confirm: none
+  - kind: manual
+    step: Review navigation, remaining editor preferences, themes, snippets, and custom key bindings manually; file-backed customizations need separate reviewed schemas. Developer accounts, source-control accounts and hosts, credentials, signing identities and certificates, provisioning profiles, simulators, derived data, recents, and analytics are excluded.
+    confirm: full_manual
+apply:
+  poke: restart_app
+  unsafe_to_kill: true
+verified: null

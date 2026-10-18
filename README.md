@@ -293,9 +293,10 @@ extraModules = [
 ```
 
 The `local-ai` profile intentionally does not download the large model during
-activation. After `make switch`, run `local-ai-doctor`, then
-`local-ai-setup --download-model`. Start `pi`, run `/model`, and select
-`ds4/dsv4-flash-q2`.
+activation. `make switch` installs Pi, syncs DS4 and pi-ds4, and configures Pi
+to load the extension with `ds4/dsv4-flash-q2` as its default model. Run
+`local-ai-doctor`, then `local-ai-model start`; start Pi after the download
+finishes. `local-ai-setup` is available only when an eager DS4 build is useful.
 
 Importing the profile runs `local-ai-preflight` before every activation.
 Unsupported hardware stops the switch; memory and initial-download disk
@@ -352,6 +353,9 @@ nix-me/
 ├── packages/
 │   ├── app-state/            # Rust engine, recipes, values, and catalog
 │   └── management-api/       # Versioned JSON process boundary
+├── config/
+│   ├── app-state/            # Shared, profile, and machine app settings
+│   └── projects/             # Projects added through the native app
 ├── nix/
 │   ├── hosts/
 │   │   ├── types/

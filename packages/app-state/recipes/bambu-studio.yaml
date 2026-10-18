@@ -1,0 +1,22 @@
+schema_version: 1
+id: bambu-studio
+name: Bambu Studio
+bundle_id: com.bambulab.bambu-studio
+install:
+  cask: bambu-studio
+detect:
+  app_path: /Applications/BambuStudio.app
+sandboxed: false
+requires: []
+config:
+  - kind: file
+    binds: settings
+    path: ~/Library/Application Support/BambuStudio/BambuStudio.conf
+    format: json
+    merge: deep_merge
+    mode: "0600"
+    confirm: none
+apply:
+  poke: restart_app
+  unsafe_to_kill: true
+verified: null

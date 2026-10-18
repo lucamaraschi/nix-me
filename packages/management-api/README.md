@@ -7,6 +7,34 @@ and future clients. Commands emit JSON on stdout and diagnostics on stderr.
 - `nix-me-action` validates and performs explicit mutations.
 - `nix-me-details` resolves package metadata lazily.
 
+Application settings are captured through `settings-preview` and written only
+after an explicit `settings-save` action. These actions can create or update
+files under `config/app-state/{shared,profiles,machines}`; they never stage,
+commit, or push repository changes. Local evaluation and apply include newly
+created settings files before they are committed.
+
+`appStateSettings.applications` merges the recipe registry with user-installed
+bundles found in `/Applications` and `~/Applications`. Recipe-backed entries
+include their recipe path and active built-in, shared, profile, and machine
+value sources. Unmanaged installed bundles are included with
+`recipeAvailable: false` and cannot be captured until a recipe is added.
+Each recipe-backed entry also exposes `exportableSettings`, the exact
+preference keys, structured files, and command-managed lists that can be
+converted into harness JSON. An empty list is an explicit non-exportable
+boundary, not an invitation for clients to inspect application data directly.
+Entries with `requiresConfirmation: true` are reviewed source files. Clients
+must obtain explicit approval before sending `confirmReviewedText: true` to
+`settings-preview` and must carry the same confirmation into `settings-save`.
+
+`harness-enable` changes the per-machine `enabled` marker to `true` and reports
+that a configuration apply is required. It does not itself apply, stage, commit,
+or push the change; the native app follows it with the normal Apply confirmation.
+
+Projects are added through `project-preview` and `project-save`. The actions
+write validated declarations under `config/projects/{shared,profiles,machines}`
+and never clone, sync, apply, stage, commit, or push. Repository network access
+remains an explicit `sync-projects` action.
+
 Clients must invoke these executables rather than reading generated manifests,
 Nix modules, or application-state files directly.
 

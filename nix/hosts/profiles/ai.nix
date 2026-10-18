@@ -3,18 +3,21 @@
 { config, pkgs, lib, ... }:
 
 {
+  projects.settingsProfiles = [ "ai" ];
+
   apps = {
     useBaseLists = true;
+    state.settingsProfiles = [ "ai" ];
 
     # GUI Applications
     casksToAdd = [
-      "lm-studio"           # MLX models, great Apple Silicon memory efficiency
-      "docker"              # For Open WebUI container
+      "lm-studio" # MLX models, great Apple Silicon memory efficiency
+      "docker-desktop" # For Open WebUI container
     ];
 
     # Nix packages
     systemPackagesToAdd = [
-      "ollama"              # Local LLM runner with OpenAI-compatible API
+      "ollama" # Local LLM runner with OpenAI-compatible API
     ];
   };
 

@@ -1,0 +1,18 @@
+schema_version: 1
+id: microsoft-onenote
+name: Microsoft OneNote
+bundle_id: com.microsoft.onenote.mac
+install:
+  cask: microsoft-office
+detect:
+  app_path: /Applications/Microsoft OneNote.app
+sandboxed: false
+requires: []
+config:
+  - kind: manual
+    step: Configure OneNote manually. Version 16.83 has no local com.microsoft.onenote.mac preference domain or main application container on the evidence machine; only its share-extension container and shared Office stores are present. Shared Office keys cannot be safely attributed to OneNote without a controlled preference delta, so editing, appearance, and proofing keys remain unproven. Accounts, notebooks, content, cache, identities, tokens, and synchronization state are excluded.
+    confirm: full_manual
+apply:
+  poke: none
+  unsafe_to_kill: false
+verified: null

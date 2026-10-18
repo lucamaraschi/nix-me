@@ -5,7 +5,9 @@ use std::process::ExitCode;
 
 use anyhow::{anyhow, Result};
 use clap::{Args, Parser, Subcommand};
-use nix_me_apps::engine::{command_action_command, poke_command, Engine, Options};
+use nix_me_apps::engine::{
+    command_action_command, command_value_set_display, poke_command, Engine, Options,
+};
 use nix_me_apps::migration::{DocumentKind, MigrationRequest};
 use nix_me_apps::model::{load_recipe, load_values, ConfigEntry, Recipe};
 use nix_me_apps::plan::Plan;
@@ -37,6 +39,8 @@ enum Command {
     Apply(ApplyArgs),
     /// Capture preference changes or inspect/watch an exported artifact.
     Capture(CaptureArgs),
+    /// Read current values owned by recipes without changing application state.
+    Snapshot(SnapshotArgs),
     /// Explicitly inspect or apply a versioned document migration.
     Migrate(MigrateArgs),
     /// Validate a recipe registry or compute its zero-click metric.
@@ -100,6 +104,13 @@ struct RegistryArgs {
 
 #[derive(Subcommand)]
 enum RegistryCommand {
+    /// List recipes and their safe current-state capture capabilities.
+    List {
+        #[arg(long = "recipe", required = true)]
+        recipe: Vec<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
     /// Validate schema, semantic invariants, IDs, filenames, and duplicates.
     Validate {
         #[arg(long = "recipe", required = true)]
@@ -205,6 +216,19 @@ struct CaptureArgs {
     json: bool,
 }
 
+#[derive(Args)]
+struct SnapshotArgs {
+    #[arg(long = "recipe", required = true)]
+    recipe: Vec<PathBuf>,
+    #[arg(long, value_delimiter = ',')]
+    only: Vec<String>,
+    /// Confirm that recipe-reviewed text files may be read into the snapshot.
+    #[arg(long)]
+    confirm_reviewed_text: bool,
+    #[arg(long)]
+    json: bool,
+}
+
 fn main() -> ExitCode {
     match run() {
         Ok(code) => ExitCode::from(code as u8),
@@ -243,6 +267,10 @@ fn run() -> std::result::Result<i32, (i32, anyhow::Error, bool)> {
         Command::Capture(args) => {
             let json = args.json;
             run_capture(args).map_err(|e| (4, e, json))
+        }
+        Command::Snapshot(args) => {
+            let json = args.json;
+            run_snapshot(args).map_err(|e| (4, e, json))
         }
         Command::Migrate(args) => {
             let json = args.json;
@@ -324,6 +352,13 @@ fn run_status(args: StatusArgs) -> Result<i32> {
 
 fn run_registry(args: RegistryArgs) -> std::result::Result<i32, (i32, anyhow::Error, bool)> {
     match args.command {
+        RegistryCommand::List { recipe, json } => {
+            let mut runner = RealCommandRunner::default();
+            let report = nix_me_apps::registry::catalog(&recipe, &mut runner)
+                .map_err(|error| (4, error, json))?;
+            emit_registry(&report, json).map_err(|error| (5, error, json))?;
+            Ok(0)
+        }
         RegistryCommand::Validate { recipe, json } => {
             let report =
                 nix_me_apps::registry::validate(&recipe).map_err(|error| (4, error, json))?;
@@ -662,6 +697,35 @@ fn run_capture(args: CaptureArgs) -> Result<i32> {
     Ok(0)
 }
 
+fn run_snapshot(args: SnapshotArgs) -> Result<i32> {
+    let recipes = nix_me_apps::registry::load_registry(&args.recipe)?;
+    let known = recipes
+        .iter()
+        .map(|recipe| recipe.id.clone())
+        .collect::<BTreeSet<_>>();
+    let only = args.only.into_iter().collect::<BTreeSet<_>>();
+    let unknown = only.difference(&known).cloned().collect::<Vec<_>>();
+    if !unknown.is_empty() {
+        return Err(anyhow!(
+            "--only contains unknown recipe id(s): {}",
+            unknown.join(", ")
+        ));
+    }
+    let prefs = nix_me_apps::prefs::DefaultsCliStore;
+    let mut runner = RealCommandRunner::default();
+    let report = nix_me_apps::snapshot::current_values_with_options(
+        &recipes,
+        &only,
+        &prefs,
+        &mut runner,
+        nix_me_apps::snapshot::SnapshotOptions {
+            confirm_reviewed_text: args.confirm_reviewed_text,
+        },
+    );
+    emit_registry(&report, args.json)?;
+    Ok(0)
+}
+
 fn load_inputs(
     args: &RunArgs,
 ) -> Result<(Vec<Recipe>, serde_json::Map<String, serde_json::Value>)> {
@@ -820,6 +884,38 @@ fn audit_commands(recipes: &[Recipe], plan: &Plan, recorded: &[String]) -> Resul
                 ConfigEntry::Command(command) => {
                     for action in &entry_plan.actions {
                         push_unique(&mut commands, command_action_command(command, action)?);
+                    }
+                }
+                ConfigEntry::CommandValue(command) => {
+                    for action in &entry_plan.actions {
+                        if let Some(desired) = &action.desired {
+                            push_unique(
+                                &mut commands,
+                                command_value_set_display(command, desired)?,
+                            );
+                        }
+                    }
+                }
+                ConfigEntry::Accessibility(accessibility) => {
+                    for action in &entry_plan.actions {
+                        let expected = action.current.clone().ok_or_else(|| {
+                            anyhow::anyhow!("Accessibility audit action is missing expected")
+                        })?;
+                        let desired = action.desired.clone().ok_or_else(|| {
+                            anyhow::anyhow!("Accessibility audit action is missing desired")
+                        })?;
+                        let transition = nix_me_apps::accessibility::AccessibilityTransition {
+                            expected,
+                            desired,
+                        };
+                        push_unique(
+                            &mut commands,
+                            nix_me_apps::accessibility::apply_command(
+                                &recipe.bundle_id,
+                                accessibility,
+                                &transition,
+                            )?,
+                        );
                     }
                 }
                 ConfigEntry::GeneratedImport(_) => {

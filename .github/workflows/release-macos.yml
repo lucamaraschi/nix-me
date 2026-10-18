@@ -97,6 +97,7 @@ jobs:
           set -euo pipefail
           APP_VERSION="${APP_VERSION#v}" ./tools/release/build-macos-app.sh
           file "build/Nix Me.app/Contents/MacOS/NixMeApp" | grep -q 'arm64.*x86_64\|x86_64.*arm64'
+          file "build/Nix Me.app/Contents/Resources/management-api/nix-me-apps" | grep -q 'arm64.*x86_64\|x86_64.*arm64'
 
       - name: Package signed DMG
         env:

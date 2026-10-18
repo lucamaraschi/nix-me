@@ -16,7 +16,7 @@
   "remediation": [
     "Run make sync-projects to restore the pi-ds4 checkout.",
     "Run local-ai-setup to build the DS4 runtime.",
-    "Run local-ai-setup to relink the pi-ds4 extension and runtime support.",
+    "Run make switch to restore the Pi pi-ds4 package declaration.",
     "Run local-ai-model start to install DeepSeek V4 Flash Q2.",
     "Run make switch to restore the local-AI harness configuration."
   ]

@@ -4,8 +4,11 @@
 { config, pkgs, lib, ... }:
 
 {
+  projects.settingsProfiles = [ "personal" ];
+
   apps = {
     useBaseLists = true;
+    state.settingsProfiles = [ "personal" ];
 
     # Personal GUI applications
     casksToAdd = [
@@ -19,8 +22,8 @@
 
     # Personal CLI tools
     systemPackagesToAdd = [
-      "yt-dlp"            # Video downloader
-      "ffmpeg"            # Media processing
+      "yt-dlp" # Video downloader
+      "ffmpeg" # Media processing
     ];
 
     # Personal MAS apps

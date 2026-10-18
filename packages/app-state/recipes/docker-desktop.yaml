@@ -1,0 +1,165 @@
+schema_version: 1
+id: docker-desktop
+name: Docker Desktop
+bundle_id: com.docker.docker
+install:
+  cask: docker-desktop
+detect:
+  app_path: /Applications/Docker.app
+sandboxed: false
+requires: []
+app_version:
+  command: /usr/bin/plutil -extract CFBundleShortVersionString raw -o - '/Applications/Docker.app/Contents/Info.plist'
+  supported_majors: [4]
+config:
+  - kind: file
+    binds: settings
+    path: ~/Library/Group Containers/group.com.docker/settings-store.json
+    format: json
+    merge: deep_merge
+    paths:
+      allow:
+        - /AcceptCanaryUpdates
+        - /AllowBetaFeatures
+        - /AllowExperimentalFeatures
+        - /AnalyticsEnabled
+        - /AutoDownloadUpdates
+        - /AutoStart
+        - /ContainerTerminal
+        - /Cpus
+        - /DesktopTerminalEnabled
+        - /DisableHardwareAcceleration
+        - /DiskSizeMiB
+        - /ExtensionsEnabled
+        - /MemoryMiB
+        - /OpenUIOnStartupDisabled
+        - /SbomIndexing
+        - /ScoutNotificationPopupsEnabled
+        - /ScoutOsNotificationsEnabled
+        - /ShowAnnouncementNotifications
+        - /ShowGeneralNotifications
+        - /ShowPromotionalNotifications
+        - /ShowSurveyNotifications
+        - /SwapMiB
+        - /ThemeSource
+        - /UseBackgroundIndexing
+        - /UseContainerdSnapshotter
+        - /UseResourceSaver
+      sensitive:
+        - /ActiveOrganizationName
+        - /ContainersOverrideProxyExclude
+        - /ContainersOverrideProxyHTTP
+        - /ContainersOverrideProxyHTTPS
+        - /ContainersOverrideProxyPAC
+        - /ContainersOverrideProxyTCP
+        - /ContainersOverrideProxyTransparentPorts
+        - /ContainersProxyHTTPMode
+        - /CredentialHelper
+        - /CustomWslDistroDir
+        - /DataFolder
+        - /Displayed18362Deprecation
+        - /DisplayedElectronPopup
+        - /DisplayedOnboarding
+        - /DockerAppLaunchPath
+        - /DockerBinInstallPath
+        - /ECIDockerSocketAllowDerivedImages
+        - /ECIDockerSocketCmdList
+        - /ECIDockerSocketCmdListType
+        - /ECIDockerSocketImgList
+        - /EnableDefaultDockerSocket
+        - /EnableIntegrationWithDefaultWslDistro
+        - /ExtensionsPrivateMarketplace
+        - /ExtensionsPrivateMarketplaceAdminContactURL
+        - /FilesharingDirectories
+        - /HostNetworkingEnabled
+        - /KubernetesEnabled
+        - /KubernetesImagesRepository
+        - /KubernetesInitialInstallPerformed
+        - /KubernetesMode
+        - /KubernetesNodesCount
+        - /LastLoginDate
+        - /NetworkType
+        - /OnlyMarketplaceExtensions
+        - /OverrideProxyExclude
+        - /OverrideProxyHTTP
+        - /OverrideProxyHTTPS
+        - /OverrideProxyPAC
+        - /OverrideProxyTCP
+        - /ProxyEnableKerberosNTLM
+        - /ProxyHTTPMode
+        - /ProxyLocalhostPort
+        - /RequireVmnetd
+        - /RunWinServiceInWslMode
+        - /ShowExtensionsSystemContainers
+        - /ShowInstallScreen
+        - /ShowKubernetesSystemContainers
+        - /SkipUpdateToWSLPrompt
+        - /SkipWSLMountPerfWarning
+        - /SocksProxyPort
+        - /SynchronizedDirectories
+        - /UpdateAvailableTime
+        - /UpdateHostsFile
+        - /UpdateInstallTime
+        - /UseCredentialHelper
+        - /UseVpnkit
+        - /VpnKitAllowedBindAddresses
+        - /VpnKitMTU
+        - /VpnKitMaxConnections
+        - /VpnKitMaxPortIdleTime
+        - /VpnKitTransparentProxy
+        - /VpnkitCIDR
+        - /WslDiskCompactionThresholdGb
+        - /WslEnableGrpcfuse
+        - /WslEngineEnabled
+        - /WslInstallMode
+        - /WslUpdateRequired
+    checks:
+      preflight: >-
+        command -v jq >/dev/null 2>&1 &&
+        jq -e '
+          ([.AcceptCanaryUpdates, .AllowBetaFeatures, .AllowExperimentalFeatures,
+            .AnalyticsEnabled, .AutoDownloadUpdates, .AutoStart,
+            .DesktopTerminalEnabled, .DisableHardwareAcceleration,
+            .ExtensionsEnabled, .OpenUIOnStartupDisabled, .SbomIndexing,
+            .ScoutNotificationPopupsEnabled, .ScoutOsNotificationsEnabled,
+            .ShowAnnouncementNotifications, .ShowGeneralNotifications,
+            .ShowPromotionalNotifications, .ShowSurveyNotifications,
+            .UseBackgroundIndexing, .UseContainerdSnapshotter,
+            .UseResourceSaver] | all(.[]; type == "boolean")) and
+          ([.Cpus, .DiskSizeMiB, .MemoryMiB, .SwapMiB] |
+            all(.[]; type == "number" and . >= 0 and floor == .)) and
+          (.ContainerTerminal | type == "string") and
+          (.ThemeSource | type == "string")
+        ' {file} >/dev/null
+      verify: >-
+        command -v jq >/dev/null 2>&1 &&
+        jq -e '
+          ([.AcceptCanaryUpdates, .AllowBetaFeatures, .AllowExperimentalFeatures,
+            .AnalyticsEnabled, .AutoDownloadUpdates, .AutoStart,
+            .DesktopTerminalEnabled, .DisableHardwareAcceleration,
+            .ExtensionsEnabled, .OpenUIOnStartupDisabled, .SbomIndexing,
+            .ScoutNotificationPopupsEnabled, .ScoutOsNotificationsEnabled,
+            .ShowAnnouncementNotifications, .ShowGeneralNotifications,
+            .ShowPromotionalNotifications, .ShowSurveyNotifications,
+            .UseBackgroundIndexing, .UseContainerdSnapshotter,
+            .UseResourceSaver] | all(.[]; type == "boolean")) and
+          ([.Cpus, .DiskSizeMiB, .MemoryMiB, .SwapMiB] |
+            all(.[]; type == "number" and . >= 0 and floor == .)) and
+          (.ContainerTerminal | type == "string") and
+          (.ThemeSource | type == "string")
+        ' {path} >/dev/null
+    mode: "0644"
+    confirm: one_click
+  - kind: manual
+    step: Configure Docker Desktop settings outside the allowlist locally. Registry credentials and helpers, organization identity, contexts, proxy endpoints, file-sharing and data paths, Kubernetes data, installed extensions, VM disks and machine identifiers are never exported.
+    doc: >-
+      Docker Desktop 4.38.0 stores the reviewed values in
+      ~/Library/Group Containers/group.com.docker/settings-store.json. The
+      similarly named settings.json is a stale compatibility store on this Mac
+      and is not managed. Resource values are portable desired limits, not VM
+      disk contents; applying them requires confirmation and an app restart.
+    confirm: full_manual
+apply:
+  poke: restart_app
+  unsafe_to_kill: true
+verified: null

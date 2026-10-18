@@ -1,0 +1,31 @@
+schema_version: 1
+id: hammerspoon
+name: Hammerspoon
+bundle_id: org.hammerspoon.Hammerspoon
+install:
+  cask: hammerspoon
+detect:
+  app_path: /Applications/Hammerspoon.app
+sandboxed: false
+requires:
+  - accessibility
+app_version:
+  command: /usr/bin/plutil -extract CFBundleShortVersionString raw -o - '/Applications/Hammerspoon.app/Contents/Info.plist'
+  supported_majors: [0]
+config:
+  - kind: file
+    binds: init_lua
+    path: ~/.hammerspoon/init.lua
+    format: text
+    export: reviewed_text
+    merge: replace
+    mode: "0644"
+    confirm: one_click
+  - kind: manual
+    step: Review init.lua before saving it and remove credentials, tokens, personal paths, history, and device-specific values. Hammerspoon does not ship a non-executing standalone Lua parser, so the engine cannot safely add an app-independent syntax preflight; applying this executable source always requires explicit confirmation.
+    confirm: full_manual
+apply:
+  poke: script
+  poke_script: 'if command -v hs >/dev/null 2>&1; then hs -c "hs.reload()"; fi'
+  unsafe_to_kill: false
+verified: null

@@ -93,6 +93,7 @@ make switch HOST=my-work-mac
 - Pi coding agent
 - Public DS4 and pi-ds4 checkouts under `~/src/ai`
 - `local-ai-preflight`, `local-ai-setup`, and `local-ai-doctor` commands
+- Pi settings that load `pi-ds4` as a native package and select DS4 by default
 - Pi DS4 settings for the OpenAI Responses protocol
 
 Before activation, the profile rejects unsupported hardware and checks the
@@ -104,14 +105,17 @@ the host configuration:
 localAi.requirements.enforcement = "fail";
 ```
 
-**First-time setup:**
+**First-time model setup:**
 ```bash
 local-ai-doctor
-local-ai-setup
 local-ai-model start
 local-ai-model status
 pi
 ```
+
+`make switch` installs Pi, syncs both public repositories, and converges the Pi
+and DS4 settings. `local-ai-setup` is optional; use it only to build
+`ds4-server` eagerly instead of letting the Pi extension build it on first use.
 
 `local-ai-model start` performs a disk-space preflight and returns an operation
 record immediately. `local-ai-model status` reports progress and integrity;

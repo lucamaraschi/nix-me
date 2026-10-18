@@ -6,12 +6,21 @@ install:
   cask: ghostty
 detect:
   app_path: /Applications/Ghostty.app
+app_version:
+  command: /usr/bin/plutil -extract CFBundleShortVersionString raw -o - '/Applications/Ghostty.app/Contents/Info.plist'
+  supported_majors: [1]
 config:
   - kind: file
     binds: config
     path: ~/.config/ghostty/config
     format: text
+    export: reviewed_text
     merge: replace
+    checks:
+      preflight: >-
+        '/Applications/Ghostty.app/Contents/MacOS/ghostty' +validate-config --config-file={file}
+      verify: >-
+        '/Applications/Ghostty.app/Contents/MacOS/ghostty' +validate-config --config-file={path}
     mode: "0644"
     confirm: none
 apply:

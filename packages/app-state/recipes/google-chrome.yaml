@@ -1,0 +1,32 @@
+schema_version: 1
+id: google-chrome
+name: Google Chrome
+bundle_id: com.google.Chrome
+install:
+  cask: google-chrome
+detect:
+  command: >-
+    test "$(/usr/bin/plutil -extract CFBundleShortVersionString raw -o - '/Applications/Google Chrome.app/Contents/Info.plist' 2>/dev/null)" = '155.0.8059.82'
+sandboxed: false
+requires: []
+app_version:
+  command: /usr/bin/plutil -extract CFBundleShortVersionString raw -o - '/Applications/Google Chrome.app/Contents/Info.plist'
+  supported_majors: [155]
+config:
+  - kind: manual
+    step: Configure Chrome through reviewed managed policies. Version 155.0.8059.82 has no safe app-owned scalar export boundary in the reviewed profile stores.
+    doc: >-
+      Local State and each profile Preferences file combine ordinary choices
+      with profile identity and private browser data. Even apparently portable
+      paths are profile-relative or internal migration state. A future adapter
+      should own an explicit Chrome managed-policy schema and verify effective
+      policy rather than mutate profile JSON. Passwords, cookies, history,
+      bookmarks, extensions, downloads, autofill, search providers, profile and
+      sync identity, content/workspaces, device salts, telemetry IDs, cache,
+      IndexedDB, URLs, window geometry, and machine identity are permanently
+      excluded.
+    confirm: full_manual
+apply:
+  poke: none
+  unsafe_to_kill: false
+verified: null

@@ -1,0 +1,88 @@
+schema_version: 1
+id: zenmap
+name: Zenmap
+bundle_id: org.insecure.Zenmap
+install:
+  cask: zenmap
+detect:
+  app_path: /Applications/Zenmap.app
+sandboxed: false
+requires: []
+app_version:
+  command: /usr/bin/plutil -extract CFBundleShortVersionString raw -o - '/Applications/Zenmap.app/Contents/Info.plist'
+  supported_majors: [7]
+config:
+  - kind: file
+    binds: appearance
+    path: ~/.zenmap/zenmap.conf
+    format: ini
+    paths:
+      allow:
+        - /sections/closed_port_highlight/regex
+        - /sections/closed_port_highlight/bold
+        - /sections/closed_port_highlight/text
+        - /sections/closed_port_highlight/italic
+        - /sections/closed_port_highlight/highlight
+        - /sections/closed_port_highlight/underline
+        - /sections/date_highlight/regex
+        - /sections/date_highlight/bold
+        - /sections/date_highlight/text
+        - /sections/date_highlight/italic
+        - /sections/date_highlight/highlight
+        - /sections/date_highlight/underline
+        - /sections/details_highlight/regex
+        - /sections/details_highlight/bold
+        - /sections/details_highlight/text
+        - /sections/details_highlight/italic
+        - /sections/details_highlight/highlight
+        - /sections/details_highlight/underline
+        - /sections/filtered_port_highlight/regex
+        - /sections/filtered_port_highlight/bold
+        - /sections/filtered_port_highlight/text
+        - /sections/filtered_port_highlight/italic
+        - /sections/filtered_port_highlight/highlight
+        - /sections/filtered_port_highlight/underline
+        - /sections/hostname_highlight/regex
+        - /sections/hostname_highlight/bold
+        - /sections/hostname_highlight/text
+        - /sections/hostname_highlight/italic
+        - /sections/hostname_highlight/highlight
+        - /sections/hostname_highlight/underline
+        - /sections/ip_highlight/regex
+        - /sections/ip_highlight/bold
+        - /sections/ip_highlight/text
+        - /sections/ip_highlight/italic
+        - /sections/ip_highlight/highlight
+        - /sections/ip_highlight/underline
+        - /sections/open_port_highlight/regex
+        - /sections/open_port_highlight/bold
+        - /sections/open_port_highlight/text
+        - /sections/open_port_highlight/italic
+        - /sections/open_port_highlight/highlight
+        - /sections/open_port_highlight/underline
+        - /sections/output_highlight/enable_highlight
+        - /sections/port_list_highlight/regex
+        - /sections/port_list_highlight/bold
+        - /sections/port_list_highlight/text
+        - /sections/port_list_highlight/italic
+        - /sections/port_list_highlight/highlight
+        - /sections/port_list_highlight/underline
+      sensitive:
+        - /sections/paths/nmap_command_path
+        - /sections/paths/ndiff_command_path
+        - /sections/search/search_db
+        - /sections/search/store_results
+        - /sections/search/directory
+        - /sections/window/x
+        - /sections/window/y
+        - /sections/window/width
+        - /sections/window/height
+    mode: "0600"
+    confirm: none
+  - kind: manual
+    step: Review scan profiles locally before adding any individually allowlisted defaults. Scan and target history, credentials, output files, search-result storage, window geometry, and machine-specific command or filesystem paths are never exported.
+    confirm: full_manual
+apply:
+  poke: restart_app
+  unsafe_to_kill: true
+verified: null

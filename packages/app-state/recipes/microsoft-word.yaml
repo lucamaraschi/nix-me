@@ -1,0 +1,26 @@
+schema_version: 1
+id: microsoft-word
+name: Microsoft Word
+bundle_id: com.microsoft.Word
+install:
+  cask: microsoft-office
+detect:
+  app_path: /Applications/Microsoft Word.app
+sandboxed: true
+requires: []
+config:
+  - kind: defaults
+    domain: com.microsoft.Word
+    keys:
+      DisableAutoAltText: {type: bool, ui: "Accessibility > Automatically generate alt text", doc: "Observed in Microsoft Word 16.83."}
+      MacPDFM_Word_bUseServiceConversion: {type: bool, ui: "Save > PDF conversion service", doc: "Observed in Microsoft Word 16.83."}
+      kOUIRibbonDefaultCollapse: {type: bool, ui: "View > Ribbon", doc: "Observed in Microsoft Word 16.83."}
+    unknown_keys: reject
+    confirm: none
+  - kind: manual
+    step: Review editing, proofing, save, and remaining view preferences manually; only the three allowlisted keys are proven portable for Word 16.83. Identity, licensing, templates, add-ins, documents, macros, recent files, secure bookmarks, and cloud policy are excluded.
+    confirm: full_manual
+apply:
+  poke: restart_app
+  unsafe_to_kill: true
+verified: null

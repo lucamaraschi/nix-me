@@ -1,8 +1,10 @@
 { config, inputs, lib, hostname, machineName, machineType, username, ... }:
 
 let
+  environmentRevision = builtins.getEnv "NIX_ME_SOURCE_REVISION";
   sourceRevision =
-    if inputs.self ? rev then inputs.self.rev
+    if environmentRevision != "" then environmentRevision
+    else if inputs.self ? rev then inputs.self.rev
     else if inputs.self ? dirtyRev then inputs.self.dirtyRev
     else "unknown";
 
@@ -43,7 +45,7 @@ let
     };
     source = {
       revision = sourceRevision;
-      dirty = !(inputs.self ? rev);
+      dirty = lib.hasSuffix "-dirty" sourceRevision || (environmentRevision == "" && !(inputs.self ? rev));
       contentHash = builtins.baseNameOf (toString inputs.self.outPath);
       lockHash = builtins.hashFile "sha256" ../../../flake.lock;
     };
@@ -57,6 +59,11 @@ let
       };
     };
     projects = config.projects.finalRepos;
+    appState = {
+      enabled = config.apps.state.enable;
+      settingsProfiles = lib.sort builtins.lessThan (lib.unique config.apps.state.settingsProfiles);
+      valueFiles = map toString config.apps.state.resolvedValues;
+    };
   };
 in
 {

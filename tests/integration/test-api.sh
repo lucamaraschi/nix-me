@@ -10,12 +10,28 @@ trap 'rm -rf "$TEMP_DIR"' EXIT
 export NIX_ME_CONFIG_DIR="$REPO_DIR"
 export NIX_ME_SKIP_UPDATES=1
 export NIX_ME_DESIRED_MANIFEST="$TEMP_DIR/desired-manifest.json"
+export NIX_ME_APPLIED_MANIFEST="$TEMP_DIR/applied-manifest.json"
 FIXTURES_DIR="$REPO_DIR/packages/management-api/test/fixtures"
 export NIX_ME_APP_STATE_ENGINE_VERSION="0.1.0"
 export NIX_ME_APP_STATE_STATUS="$FIXTURES_DIR/app-state-status-v1.json"
 export NIX_ME_LOCAL_AI_STATUS="$FIXTURES_DIR/local-ai-status-healthy-v1.json"
+export NIX_ME_APPLICATION_CATALOG="$TEMP_DIR/application-catalog.json"
 
-grep -Fq 'nix eval --impure --json' \
+cat >"$NIX_ME_APPLICATION_CATALOG" <<'JSON'
+{
+  "applications": [
+    {
+      "name": "Unsupported Fixture",
+      "bundleId": "com.example.UnsupportedFixture",
+      "appPath": "/Applications/Unsupported Fixture.app"
+    }
+  ]
+}
+JSON
+
+grep -Fq 'nix eval --impure --json "path:$CONFIG_DIR#' \
+  "$REPO_DIR/packages/management-api/bin/nix-me-api"
+grep -Fq 'NIX_ME_SOURCE_REVISION="$source_revision" nix eval' \
   "$REPO_DIR/packages/management-api/bin/nix-me-api"
 
 cat >"$NIX_ME_DESIRED_MANIFEST" <<'JSON'
@@ -37,6 +53,11 @@ cat >"$NIX_ME_DESIRED_MANIFEST" <<'JSON'
 }
 JSON
 
+jq '
+  .source.contentHash = "applied-fixture" |
+  .source.lockHash = "applied-lock"
+' "$NIX_ME_DESIRED_MANIFEST" >"$NIX_ME_APPLIED_MANIFEST"
+
 "$REPO_DIR/apps/cli/bin/nix-me" api snapshot >"$TEMP_DIR/snapshot.json"
 
 schema_version="$(jq -r '.properties.schemaVersion.const' \
@@ -48,8 +69,17 @@ jq -e '
   .schemaVersion == 1 and
   (.generatedAt | type == "string") and
   (.host.hostname | type == "string") and
-  (.configuration.applyState | IN("current", "pending", "unknown")) and
+  .configuration.applyState == "pending" and
   ((.configuration.desiredSource | type) == "object") and
+  .configuration.changes == {
+    softwareChanged: false,
+    projectsChanged: false,
+    appSettingsChanged: false,
+    flakeInputsChanged: true,
+    repositoryChanged: true,
+    filesComplete: false,
+    files: []
+  } and
   (.inventory.desired.nixPackages | type == "array") and
   (.inventory.desired.nixPackageDetails | type == "array") and
   (.inventory.desired.homebrew.casks | type == "array") and
@@ -85,10 +115,83 @@ jq -e '
   (.warnings | type == "array")
 ' "$TEMP_DIR/snapshot.json" >/dev/null
 
-for endpoint in status inventory updates projects app-state local-ai manifest; do
+for endpoint in status inventory updates projects app-state app-state-settings local-ai manifest; do
   "$REPO_DIR/apps/cli/bin/nix-me" api "$endpoint" >"$TEMP_DIR/$endpoint.json"
   jq -e '.schemaVersion == 1' "$TEMP_DIR/$endpoint.json" >/dev/null
 done
+
+jq -e '
+  .appStateSettings.schemaVersion == 1 and
+  .appStateSettings.root == "config/app-state" and
+  (.appStateSettings.enabled | type == "boolean") and
+  (.appStateSettings.activeProfiles | type == "array") and
+  (.appStateSettings.applications | length > 0) and
+  all(.appStateSettings.applications[];
+    (.id | type == "string") and
+    (.name | type == "string") and
+    (.installed | type == "boolean") and
+    (.capturable | type == "boolean") and
+    (.captureKinds | type == "array") and
+    (.managedPaths | type == "array") and
+    all(.managedPaths[]; type == "string" and length > 0) and
+    (.manualSteps | type == "array") and
+    all(.manualSteps[]; type == "string" and length > 0) and
+    (.exportableSettings | type == "array") and
+    all(.exportableSettings[];
+      (.kind | IN("preference", "file", "command")) and
+      (.label | type == "string" and length > 0) and
+      (.source | type == "string" and length > 0) and
+      (.requiresConfirmation | type == "boolean")) and
+    (.recipeAvailable | type == "boolean") and
+    (.recipePath == null or (.recipePath | type == "string")) and
+    (.appPath == null or (.appPath | type == "string")) and
+    (.configured | type == "boolean") and
+    (.configurationSources | type == "array") and
+    all(.configurationSources[];
+      (.scope | IN("builtIn", "shared", "profile", "machine", "external")) and
+      (.label | type == "string") and
+      (.path | type == "string"))) and
+  any(.appStateSettings.applications[];
+    .bundleId == "com.example.UnsupportedFixture" and
+    .installed == true and
+    .recipeAvailable == false and
+    .capturable == false) and
+  any(.appStateSettings.applications[];
+    .id == "rectangle" and
+    .configured == true and
+    any(.configurationSources[];
+      .scope == "builtIn" and
+      .path == "packages/app-state/values/rectangle.yaml")) and
+  any(.appStateSettings.applications[];
+    .id == "ghostty" and
+    .managedPaths == ["~/.config/ghostty/config"] and
+    .capturable == true and
+    .exportableSettings == [{
+      kind: "file",
+      label: "Reviewed text settings file",
+      source: "~/.config/ghostty/config",
+      requiresConfirmation: true
+    }]) and
+  any(.appStateSettings.applications[];
+    .id == "rectangle" and
+    any(.exportableSettings[];
+      .kind == "preference" and
+      .source == "com.knollsoft.Rectangle/launchOnLogin")) and
+  any(.appStateSettings.applications[];
+    .id == "bambu-studio" and
+    .exportableSettings == [{
+      kind: "file",
+      label: "Structured settings file",
+      source: "~/Library/Application Support/BambuStudio/BambuStudio.conf",
+      requiresConfirmation: false
+    }]) and
+  any(.appStateSettings.applications[];
+    .id == "onepassword" and
+    (.manualSteps | length) == 1 and
+    (.manualSteps[0] | contains("Vaults")) and
+    (.manualSteps[0] | contains("credentials")) and
+    (.manualSteps[0] | contains("private databases")))
+' "$TEMP_DIR/snapshot.json" >/dev/null
 
 jq -e --slurpfile snapshot "$TEMP_DIR/snapshot.json" '
   .appState == $snapshot[0].appState and
@@ -102,6 +205,15 @@ jq -e --slurpfile snapshot "$TEMP_DIR/snapshot.json" '
 
 jq -e '
   .properties.appState."$ref" == "#/$defs/appState" and
+  .properties.appStateSettings."$ref" == "#/$defs/appStateSettings" and
+  (."$defs".appStateSettings.type | index("null")) != null and
+  ."$defs".appStateSettings.required == [
+    "schemaVersion",
+    "root",
+    "enabled",
+    "activeProfiles",
+    "applications"
+  ] and
   ."$defs".appState.required == [
     "schemaVersion",
     "engine",
@@ -207,7 +319,8 @@ jq -e '
   (.warnings | any(. == "The local-AI status check timed out"))
 ' "$TEMP_DIR/local-ai-timeout.json" >/dev/null
 
-cat >"$TEMP_DIR/fake-nix-me-apps" <<'SH'
+mkdir -p "$TEMP_DIR/fake engine"
+cat >"$TEMP_DIR/fake engine/nix-me-apps" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >>"$FAKE_APP_STATE_ENGINE_LOG"
 case "${1:-}" in
@@ -222,12 +335,12 @@ case "${1:-}" in
     ;;
 esac
 SH
-chmod +x "$TEMP_DIR/fake-nix-me-apps"
+chmod +x "$TEMP_DIR/fake engine/nix-me-apps"
 
 (
   unset NIX_ME_APP_STATE_ENGINE_VERSION
   unset NIX_ME_APP_STATE_STATUS
-  export NIX_ME_APP_STATE_ENGINE="$TEMP_DIR/fake-nix-me-apps"
+  export NIX_ME_APP_STATE_ENGINE="$TEMP_DIR/fake engine/nix-me-apps"
   export FAKE_APP_STATE_ENGINE_LOG="$TEMP_DIR/fake-engine.log"
   export FAKE_APP_STATE_STATUS="$FIXTURES_DIR/app-state-status-v1.json"
   "$REPO_DIR/apps/cli/bin/nix-me" api app-state >"$TEMP_DIR/app-state-live.json"
@@ -237,7 +350,8 @@ jq -e '
   .appState.engine == {available: true, version: "9.8.7"} and
   .appState.configuredRecipeCount == 2 and
   .appState.driftCount == 2 and
-  .appState.manualResidueCount == 1
+  .appState.manualResidueCount == 1 and
+  (.appState.warnings | all(. != "The app-state engine version could not be discovered"))
 ' "$TEMP_DIR/app-state-live.json" >/dev/null
 available_recipe_count="$(find "$REPO_DIR/packages/app-state/recipes" -maxdepth 1 -type f \( -name '*.yaml' -o -name '*.yml' \) | wc -l | tr -d ' ')"
 [[ "$available_recipe_count" -gt 2 ]]
@@ -246,6 +360,83 @@ if grep -Eq '(^| )(apply|diff|registry)( |$)' "$TEMP_DIR/fake-engine.log"; then
   echo "app-state endpoint bypassed the engine status command" >&2
   exit 1
 fi
+
+cat >"$TEMP_DIR/fake-legacy-nix-me-apps" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$FAKE_APP_STATE_ENGINE_LOG"
+case "${1:-} ${2:-}" in
+  "--version ")
+    echo "nix-me-apps 0.1.0"
+    ;;
+  "registry validate")
+    cat "$FAKE_APP_STATE_REGISTRY"
+    ;;
+  "registry list" | "status --json")
+    echo "unsupported command" >&2
+    exit 64
+    ;;
+  "diff --json")
+    cat "$FAKE_APP_STATE_PLAN"
+    ;;
+  *)
+    exit 98
+    ;;
+esac
+SH
+chmod +x "$TEMP_DIR/fake-legacy-nix-me-apps"
+jq '.apps = [{id: "ghostty", verified: null}]' \
+  "$FIXTURES_DIR/app-state-plan-v1.json" >"$TEMP_DIR/app-state-legacy-plan.json"
+
+(
+  unset NIX_ME_APP_STATE_ENGINE_VERSION
+  unset NIX_ME_APP_STATE_STATUS
+  unset NIX_ME_APP_STATE_REGISTRY
+  unset NIX_ME_APP_STATE_PLAN
+  export NIX_ME_APP_STATE_ENGINE="$TEMP_DIR/fake-legacy-nix-me-apps"
+  export NIX_ME_STATE_DIR="$TEMP_DIR/legacy-engine-state"
+  export FAKE_APP_STATE_ENGINE_LOG="$TEMP_DIR/fake-legacy-engine.log"
+  export FAKE_APP_STATE_REGISTRY="$FIXTURES_DIR/app-state-registry-v1.json"
+  export FAKE_APP_STATE_PLAN="$TEMP_DIR/app-state-legacy-plan.json"
+  "$REPO_DIR/apps/cli/bin/nix-me" api snapshot >"$TEMP_DIR/legacy-engine-snapshot.json"
+)
+
+if ! jq -e '
+  .appState.engine == {available: true, version: "0.1.0"} and
+  .appState.configuredRecipeCount == 1 and
+  .appState.driftCount == 2 and
+  .appState.manualResidueCount == 1 and
+  .appState.verification == {verifiedRecipeCount: 0, unverifiedRecipeCount: 1} and
+  .appState.lastApply.status == null and
+  (.appState.warnings | any(. == "The app-state status command is unavailable; using compatibility status")) and
+  .appStateSettings.schemaVersion == 1 and
+  any(.appStateSettings.applications[];
+    .id == "rectangle" and
+    .bundleId == "com.knollsoft.Rectangle" and
+    .capturable == true and
+    .captureKinds == ["defaults"]) and
+  any(.appStateSettings.applications[];
+    .id == "ghostty" and
+    .capturable == true and
+    .captureKinds == ["file"] and
+    .exportableSettings == [{
+      kind: "file",
+      label: "Reviewed text settings file",
+      source: "~/.config/ghostty/config",
+      requiresConfirmation: true
+    }]) and
+  any(.appStateSettings.applications[];
+    .id == "vscode" and
+    .capturable == true and
+    .captureKinds == ["command", "file"])
+' "$TEMP_DIR/legacy-engine-snapshot.json" >/dev/null; then
+  echo "legacy app-state compatibility snapshot did not match the contract:" >&2
+  jq '{appState, appStateSettings, warnings}' "$TEMP_DIR/legacy-engine-snapshot.json" >&2
+  exit 1
+fi
+grep -q '^status --json ' "$TEMP_DIR/fake-legacy-engine.log"
+grep -q '^registry validate ' "$TEMP_DIR/fake-legacy-engine.log"
+grep -q '^registry list ' "$TEMP_DIR/fake-legacy-engine.log"
+grep -q '^diff --json ' "$TEMP_DIR/fake-legacy-engine.log"
 
 (
   unset NIX_ME_APP_STATE_ENGINE_VERSION

@@ -139,10 +139,7 @@ pub fn load_last_apply(path: &Path) -> (LastApply, Option<String>) {
     let text = match fs::read_to_string(path) {
         Ok(text) => text,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            return (
-                LastApply::default(),
-                Some("The last app-state apply status is unavailable".to_owned()),
-            );
+            return (LastApply::default(), None);
         }
         Err(_) => {
             return (
@@ -324,6 +321,7 @@ mod tests {
             detect: None,
             sandboxed: false,
             requires: vec![],
+            app_version: None,
             config: vec![],
             apply: ApplyPolicy::default(),
             verified: verified.then(|| Verified {
@@ -409,6 +407,17 @@ mod tests {
                 0o600
             );
         }
+    }
+
+    #[test]
+    fn missing_last_apply_is_a_normal_first_run() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("last-apply.json");
+
+        let (last_apply, warning) = load_last_apply(&path);
+
+        assert_eq!(last_apply, LastApply::default());
+        assert_eq!(warning, None);
     }
 
     #[test]

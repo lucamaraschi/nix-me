@@ -19,6 +19,7 @@ json5 = "=0.4.1"
 jsonschema = { version = "=0.17.1", default-features = false }
 getrandom = "=0.2.15"
 plist = "=1.7.0"
+quick-xml = "=0.32.0"
 regex = "=1.11.1"
 serde = { version = "=1.0.217", features = ["derive"] }
 serde_json = { version = "=1.0.134", features = ["preserve_order"] }

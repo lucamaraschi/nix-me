@@ -1,0 +1,56 @@
+schema_version: 1
+id: slack
+name: Slack
+bundle_id: com.tinyspeck.slackmacgap
+install:
+  cask: slack
+detect:
+  command: >-
+    test "$(/usr/bin/plutil -extract CFBundleShortVersionString raw -o - '/Applications/Slack.app/Contents/Info.plist' 2>/dev/null)" = '4.51.180'
+sandboxed: false
+requires: []
+app_version:
+  command: /usr/bin/plutil -extract CFBundleShortVersionString raw -o - '/Applications/Slack.app/Contents/Info.plist'
+  supported_majors: [4]
+config:
+  - kind: file
+    binds: settings
+    path: ~/Library/Application Support/Slack/local-settings.json
+    format: json
+    merge: deep_merge
+    paths:
+      allow:
+        - /useHwAcceleration
+      sensitive:
+        - /cookiePersistenceLogging
+        - /electronFeatureOverrides
+        - /lastEffectiveClientEnvironment
+        - /lastElectronVersionLaunched
+        - /nextExpectedMinAppVersion
+        - /releaseChannelOverride
+    checks:
+      preflight: >-
+        test "$(/usr/bin/plutil -extract CFBundleShortVersionString raw -o - '/Applications/Slack.app/Contents/Info.plist' 2>/dev/null)" = '4.51.180' &&
+        command -v jq >/dev/null 2>&1 &&
+        jq -e '(.useHwAcceleration | type == "boolean")' {file} >/dev/null
+      verify: >-
+        test "$(/usr/bin/plutil -extract CFBundleShortVersionString raw -o - '/Applications/Slack.app/Contents/Info.plist' 2>/dev/null)" = '4.51.180' &&
+        command -v jq >/dev/null 2>&1 &&
+        jq -e '(.useHwAcceleration | type == "boolean")' {path} >/dev/null
+    mode: "0600"
+    confirm: none
+  - kind: manual
+    step: Configure Slack workspaces, notifications, appearance, locale, spellcheck, and update channel locally. Only hardware acceleration is a proven portable scalar for Slack 4.51.180.
+    doc: >-
+      The adapter projects only /useHwAcceleration from local-settings.json,
+      refuses version or type mismatches, performs an atomic pointer-only deep
+      merge, and verifies the same path after write-back. Workspace tokens and
+      metadata, users, messages/files/content, cookies, IndexedDB, cache,
+      telemetry and updater IDs, history, extensions, URLs, download paths,
+      media and device salts, experiments, keyboard/device identity, and machine
+      identity are permanently excluded. storage/root-state.json is never read.
+    confirm: full_manual
+apply:
+  poke: restart_app
+  unsafe_to_kill: true
+verified: null

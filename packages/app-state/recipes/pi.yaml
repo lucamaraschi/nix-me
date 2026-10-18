@@ -1,0 +1,112 @@
+schema_version: 1
+id: pi
+name: Pi Coding Agent
+bundle_id: dev.pi.coding-agent
+install:
+  brew: pi-coding-agent
+detect:
+  command: command -v pi >/dev/null 2>&1
+sandboxed: false
+requires: []
+config:
+  - kind: file
+    binds: settings
+    path: ~/.pi/agent/settings.json
+    format: json
+    merge: deep_merge
+    paths:
+      allow:
+        - /$schema
+        - /defaultProvider
+        - /defaultModel
+        - /defaultThinkingLevel
+        - /modelThinkingLevels
+        - /thinkingBudgets
+        - /enabledModels
+        - /hideThinkingBlock
+        - /showCacheMissNotices
+        - /cacheWarming
+        - /steeringMode
+        - /followUpMode
+        - /doubleEscapeAction
+        - /treeFilterMode
+        - /defaultProjectTrust
+        - /defaultTools
+        - /codemode
+        - /sessionDir
+        - /sessionShareDestination
+        - /compaction
+        - /branchSummary
+        - /theme
+        - /quietStartup
+        - /tuiMode
+        - /fullscreenExitOutput
+        - /fullscreenScrollbar
+        - /fullscreenCopyOnSelect
+        - /fullscreenWheelScrollLines
+        - /editorPaddingX
+        - /outputPad
+        - /autocompleteMaxVisible
+        - /showHardwareCursor
+        - /terminal
+        - /images
+        - /markdown
+        - /transport
+        - /httpIdleTimeoutMs
+        - /websocketConnectTimeoutMs
+        - /retry
+        - /shellPath
+        - /npmCommand
+        - /packages
+        - /extensions
+        - /skills
+        - /prompts
+        - /themes
+        - /enableSkillCommands
+        - /collapseChangelog
+        - /enableInstallTelemetry
+        - /enableAnalytics
+        - /warnings
+      sensitive:
+        - /externalEditor
+        - /httpProxy
+        - /shellCommandPrefix
+    mode: "0600"
+    confirm: none
+  - kind: file
+    binds: ds4
+    path: ~/.pi/ds4/settings.json
+    format: json
+    merge: deep_merge
+    paths:
+      allow:
+        - /$schema
+        - /protocol
+        - /supportRepo
+        - /supportBranch
+        - /runtimeDir
+        - /autoUpdate
+        - /contextTokens
+        - /power
+        - /ssdStreaming
+        - /readyTimeoutMs
+      sensitive:
+        - /apiKey
+        - /api_key
+        - /DS4_API_KEY
+        - /ds4_api_key
+        - /serverBinary
+        - /server_binary
+        - /DS4_SERVER_BINARY
+        - /ds4_server_binary
+        - /watchdogScript
+        - /watchdog_script
+        - /DS4_WATCHDOG_SCRIPT
+        - /ds4_watchdog_script
+    mode: "0600"
+    confirm: none
+apply:
+  # Pi reloads these settings explicitly or on its next launch.
+  poke: none
+  unsafe_to_kill: false
+verified: null

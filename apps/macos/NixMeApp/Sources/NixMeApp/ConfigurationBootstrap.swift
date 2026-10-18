@@ -4,6 +4,7 @@ enum ConfigurationBootstrapError: LocalizedError {
     case destinationExists(String)
     case missingDependency(String)
     case cloneFailed(String)
+    case updateFailed(String)
     case invalidConfiguration(String)
 
     var errorDescription: String? {
@@ -11,11 +12,13 @@ enum ConfigurationBootstrapError: LocalizedError {
         case .destinationExists(let path):
             "The destination already exists at \(path). Choose that folder or move it before cloning."
         case .missingDependency(let command):
-            "\(command) is required for this action. Resolve it in Setup, then try again."
+            "\(command) is required for this action. Install it, then try again."
         case .cloneFailed(let message):
             "Could not clone the configuration: \(message)"
+        case .updateFailed(let message):
+            "Could not update the configuration: \(message)"
         case .invalidConfiguration(let path):
-            "\(path) is not a nix-me configuration. It must contain flake.nix and the management API."
+            "\(path) is not a nix-me configuration. It must contain flake.nix."
         }
     }
 }
@@ -44,6 +47,7 @@ struct ConfigurationSetupStatus: Equatable {
     let checkoutMessage: String
     let defaultCloneDestination: URL
     let canCloneToDefaultDestination: Bool
+    let canUpdateCheckout: Bool
     let dependencies: [CommandDependency]
 
     var missingRequiredDependencies: [CommandDependency] {
@@ -201,6 +205,11 @@ struct ConfigurationBootstrap {
                 )
             )
         }
+        let gitIsAvailable = dependencies.first(where: { $0.command == "git" })?.isAvailable == true
+        let canUpdateCheckout = gitIsAvailable
+            && discoveredDirectory.map {
+                fileManager.fileExists(atPath: $0.appendingPathComponent(".git").path)
+            } == true
 
         return ConfigurationSetupStatus(
             checkoutState: checkoutState,
@@ -208,6 +217,7 @@ struct ConfigurationBootstrap {
             checkoutMessage: checkoutMessage,
             defaultCloneDestination: defaultCloneDestination,
             canCloneToDefaultDestination: !fileManager.fileExists(atPath: defaultCloneDestination.path),
+            canUpdateCheckout: canUpdateCheckout,
             dependencies: dependencies
         )
     }
@@ -258,6 +268,57 @@ struct ConfigurationBootstrap {
                     continuation.resume(returning: ())
                 } catch {
                     try? FileManager.default.removeItem(at: destination)
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
+    static func updateCheckout(at directory: URL, gitURL: URL? = nil) async throws {
+        let fileManager = FileManager.default
+        guard fileManager.fileExists(atPath: directory.appendingPathComponent(".git").path) else {
+            throw ConfigurationBootstrapError.updateFailed(
+                "\(directory.path) is not a Git checkout. Choose another folder instead."
+            )
+        }
+        guard
+            let git = gitURL ?? executableURL(
+                for: "git",
+                searchDirectories: executableSearchDirectories(
+                    environment: ProcessInfo.processInfo.environment,
+                    homeDirectory: fileManager.homeDirectoryForCurrentUser
+                ),
+                fileManager: fileManager
+            )
+        else {
+            throw ConfigurationBootstrapError.missingDependency("Git")
+        }
+
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let process = Process()
+                let output = Pipe()
+                process.executableURL = git
+                process.arguments = ["-C", directory.path, "pull", "--rebase", "--autostash"]
+                process.standardOutput = output
+                process.standardError = output
+
+                do {
+                    try process.run()
+                    let outputData = output.fileHandleForReading.readDataToEndOfFile()
+                    process.waitUntilExit()
+                    guard process.terminationStatus == 0 else {
+                        let gitOutput = String(data: outputData, encoding: .utf8)?
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                        let message = gitOutput.flatMap { $0.isEmpty ? nil : $0 }
+                            ?? "Git exited with an error"
+                        continuation.resume(
+                            throwing: ConfigurationBootstrapError.updateFailed(message)
+                        )
+                        return
+                    }
+                    continuation.resume(returning: ())
+                } catch {
                     continuation.resume(throwing: error)
                 }
             }
@@ -337,11 +398,6 @@ struct ConfigurationBootstrap {
         var missing: [String] = []
         if !fileManager.fileExists(atPath: directory.appendingPathComponent("flake.nix").path) {
             missing.append("flake.nix")
-        }
-        if !fileManager.fileExists(
-            atPath: directory.appendingPathComponent("packages/management-api/bin/nix-me-api").path
-        ) {
-            missing.append("the management API")
         }
         let detail = missing.isEmpty ? "required files" : missing.joined(separator: " and ")
         return "The checkout at \(directory.path) is incomplete or outdated; it is missing \(detail)."

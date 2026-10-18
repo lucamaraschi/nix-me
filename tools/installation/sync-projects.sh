@@ -5,6 +5,7 @@ projects_json=""
 flake_dir=""
 hostname=""
 home_dir="${HOME:-}"
+git_timeout_seconds="${NIX_ME_PROJECT_GIT_TIMEOUT_SECONDS:-120}"
 
 usage() {
   cat <<'EOF'
@@ -58,6 +59,21 @@ if [[ -z "$home_dir" ]]; then
   exit 1
 fi
 
+if [[ ! "$git_timeout_seconds" =~ ^[1-9][0-9]*$ ]]; then
+  echo "NIX_ME_PROJECT_GIT_TIMEOUT_SECONDS must be a positive integer." >&2
+  exit 1
+fi
+
+git_timeout_command="$(command -v timeout || command -v gtimeout || true)"
+
+run_git() {
+  if [[ -n "$git_timeout_command" ]]; then
+    GIT_TERMINAL_PROMPT=0 "$git_timeout_command" --foreground "$git_timeout_seconds" git "$@"
+  else
+    GIT_TERMINAL_PROMPT=0 git "$@"
+  fi
+}
+
 configure_ssh_agent() {
   local candidate
   local candidates=(
@@ -102,7 +118,7 @@ resolve_path() {
 
 sync_project() {
   local project_json="$1"
-  local name url path branch remote clone update abs_path parent_dir dirty current_branch
+  local name url path branch remote clone update abs_path parent_dir dirty current_branch current_url
 
   name="$(printf '%s' "$project_json" | jq -r '.name')"
   url="$(printf '%s' "$project_json" | jq -r '.url')"
@@ -125,9 +141,15 @@ sync_project() {
 
     echo "==> [$name] Cloning into $abs_path"
     if [[ -n "$branch" ]]; then
-      git clone --branch "$branch" "$url" "$abs_path"
+      if ! run_git clone --branch "$branch" "$url" "$abs_path"; then
+        echo "==> [$name] Clone failed; continuing with the remaining projects" >&2
+        return 1
+      fi
     else
-      git clone "$url" "$abs_path"
+      if ! run_git clone "$url" "$abs_path"; then
+        echo "==> [$name] Clone failed; continuing with the remaining projects" >&2
+        return 1
+      fi
     fi
     return 0
   fi
@@ -137,15 +159,38 @@ sync_project() {
     return 0
   fi
 
+  if git -C "$abs_path" remote get-url "$remote" >/dev/null 2>&1; then
+    current_url="$(git -C "$abs_path" remote get-url "$remote")"
+    if [[ "$current_url" != "$url" ]]; then
+      echo "==> [$name] Updating $remote remote to $url"
+      if ! git -C "$abs_path" remote set-url "$remote" "$url"; then
+        echo "==> [$name] Could not update the $remote remote" >&2
+        return 1
+      fi
+    fi
+  else
+    echo "==> [$name] Adding $remote remote"
+    if ! git -C "$abs_path" remote add "$remote" "$url"; then
+      echo "==> [$name] Could not add the $remote remote" >&2
+      return 1
+    fi
+  fi
+
   echo "==> [$name] Fetching updates"
-  git -C "$abs_path" fetch "$remote" --prune
+  if ! run_git -C "$abs_path" fetch "$remote" --prune; then
+    echo "==> [$name] Fetch failed; continuing with the remaining projects" >&2
+    return 1
+  fi
 
   if [[ "$update" != "true" ]]; then
     echo "==> [$name] Update disabled, fetched only"
     return 0
   fi
 
-  dirty="$(git -C "$abs_path" status --porcelain)"
+  if ! dirty="$(git -C "$abs_path" status --porcelain)"; then
+    echo "==> [$name] Could not inspect the working tree" >&2
+    return 1
+  fi
   if [[ -n "$dirty" ]]; then
     echo "==> [$name] Working tree has local changes, skipping pull"
     return 0
@@ -164,18 +209,32 @@ sync_project() {
 
   if [[ -n "$branch" ]]; then
     echo "==> [$name] Fast-forwarding $current_branch from $remote/$branch"
-    git -C "$abs_path" pull --ff-only "$remote" "$branch"
+    if ! run_git -C "$abs_path" pull --ff-only "$remote" "$branch"; then
+      echo "==> [$name] Fast-forward failed; continuing with the remaining projects" >&2
+      return 1
+    fi
     return 0
   fi
 
   if git -C "$abs_path" rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
     echo "==> [$name] Fast-forwarding tracked branch"
-    git -C "$abs_path" pull --ff-only
+    if ! run_git -C "$abs_path" pull --ff-only; then
+      echo "==> [$name] Fast-forward failed; continuing with the remaining projects" >&2
+      return 1
+    fi
   else
     echo "==> [$name] No upstream configured, fetched only"
   fi
 }
 
+failures=0
 while IFS= read -r project; do
-  sync_project "$project"
+  if ! sync_project "$project"; then
+    failures=$((failures + 1))
+  fi
 done < <(printf '%s' "$projects_json" | jq -c '.[]')
+
+if (( failures > 0 )); then
+  echo "==> $failures project(s) could not be synchronized" >&2
+  exit 1
+fi

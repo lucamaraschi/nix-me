@@ -43,6 +43,59 @@ IDs, and `--no-exec` to audit discovery, mutation, delivery, and poke commands
 without executing them. State and file checksums live under
 `~/.local/state/nix-me/apps.json`.
 
+## User-owned settings
+
+Reusable recipes and shipped baseline values remain under `packages/app-state`.
+Settings captured from a user's Mac live separately under `config/app-state`:
+
+```text
+config/app-state/
+  shared/settings.json
+  profiles/<profile>/settings.json
+  machines/<hostname>/enabled
+  machines/<hostname>/settings.json
+```
+
+Nix merges shipped values, shared settings, active profiles in sorted order, and
+finally the current machine. The native app lets the user choose one of these
+scopes, previews the redacted current values, and updates the selected tracked
+JSON file only after explicit confirmation. It never stages, commits, or pushes
+the resulting repository change.
+
+The Application state screen inventories user-installed applications from
+`/Applications` and `~/Applications` and merges them with the integration
+registry by bundle ID. Each application shows its integration contract, managed
+paths, the built-in, shared, active-profile, and machine files currently
+contributing values, and its harness export boundary. Exportable integrations
+list every declared preference key, structured file, or command-managed list
+that Review and Save can convert into harness JSON. Installed
+applications without an integration remain visible, but Nix Me will not read or
+write their settings until a reviewed recipe defines the safe state boundary.
+
+Every Homebrew cask and Mac App Store application declared by a Darwin host must
+map to at least one recipe. Recipes use one of three honest boundaries:
+
+- Structured files, declared defaults, and command-managed lists are shown as
+  exportable and can be reviewed before they are saved and converged.
+- A recipe may explicitly classify a user-authored text file as reviewed source.
+  The native app asks before reading the exact file, shows the complete preview,
+  and requires a separate Save action. Other unstructured files remain closed.
+- Credential, cloud, license, and opaque database state is represented as an
+  explicit manual step and is never copied into the repository.
+
+`make test-app-coverage` evaluates every `darwinConfiguration` and fails when a
+configured cask or Mac App Store identifier has no recipe. The same check runs as
+part of `make test-app-state`.
+
+The extensionless per-machine `enabled` file contains a JSON boolean and is not
+loaded as application values. The native app can set it to `true`, after which
+the user applies the pending Nix configuration to activate convergence.
+
+The tracked empty files are deliberate: Git-backed flakes ignore untracked files,
+so a newly created value file would not participate in evaluation until manually
+added to Git. New profiles and machines should add their empty `settings.json`
+file as part of their configuration skeleton.
+
 Before planning any writes, the engine aggregates recipe preflight failures.
 On macOS it checks Accessibility, Input Monitoring, and Screen Recording through
 their non-prompting system APIs, and checks readable sandbox container roots for

@@ -1,5 +1,5 @@
 # Local DeepSeek inference through DS4 and the Pi coding agent.
-{ config, lib, options, pkgs, username, ... }:
+{ config, lib, pkgs, username, ... }:
 
 let
   models = {
@@ -25,15 +25,20 @@ let
   piModelName = lib.concatStringsSep "/" (builtins.tail piModelParts);
 
   localAiStateValues = pkgs.writeText "nix-me-local-ai-values.json" (builtins.toJSON {
-    "local-ai" = {
-      pi_settings = {
+    pi = {
+      settings = {
+        "$schema" = "https://pi.dev/schemas/settings.schema.json";
         defaultProvider = piProvider;
         defaultModel = piModelName;
+        defaultProjectTrust = "ask";
+        enabledModels = [ selectedModel.piModel ];
+        enableAnalytics = false;
+        enableInstallTelemetry = false;
+        packages = [ "~/src/ai/pi-ds4" ];
       };
-      ds4_settings = {
+      ds4 = {
         "$schema" = "https://raw.githubusercontent.com/mitsuhiko/pi-ds4/main/settings.schema.json";
         protocol = "openai-responses";
-        runtimeDir = ds4RuntimeDir;
         autoUpdate = false;
         contextTokens = 32768;
         power = 70;
@@ -55,6 +60,7 @@ let
     runtimeInputs = with pkgs; [
       coreutils
       gnumake
+      jq
     ];
     text = builtins.readFile ../../../tools/local-ai/setup.sh;
   };
@@ -127,9 +133,12 @@ in
   };
 
   config = {
-    projects.sets = [
-      (import ../../projects/local-ai.nix)
-    ];
+    projects = {
+      sets = [
+        (import ../../projects/local-ai.nix)
+      ];
+      settingsProfiles = [ "local-ai" ];
+    };
 
     apps = {
       useBaseLists = true;
@@ -138,7 +147,8 @@ in
       ];
       state = {
         enable = lib.mkDefault true;
-        values = lib.mkAfter (options.apps.state.values.default ++ [ localAiStateValues ]);
+        settingsProfiles = [ "local-ai" ];
+        values = lib.mkAfter [ localAiStateValues ];
       };
     };
 

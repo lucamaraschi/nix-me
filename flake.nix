@@ -140,18 +140,15 @@
               pname = "nix-me-apps";
               version = "0.1.0";
               src = pkgs.lib.cleanSourceWith {
-                src = ./packages/app-state/engine;
+                src = ./packages/app-state;
                 filter = path: type:
                   let base = baseNameOf path;
                   in base != "target" && base != ".git";
               };
+              sourceRoot = "source/engine";
               cargoLock.lockFile = ./packages/app-state/engine/Cargo.lock;
               cargoBuildFlags = [ "-p" "nix-me-apps" ];
               cargoTestFlags = [ "-p" "nix-me-apps" ];
-              preCheck = ''
-                mkdir -p ../migrations
-                cp -R ${./packages/app-state/migrations}/. ../migrations/
-              '';
               meta.mainProgram = "nix-me-apps";
             };
             default = self.packages.${system}.nix-me-apps;
@@ -203,6 +200,7 @@
             ./nix/hosts/profiles/hacking.nix # Hacking tools for on the go
             ./nix/hosts/profiles/maker.nix # 3D printing & CAD
             ./nix/hosts/profiles/ai.nix
+            ./nix/hosts/profiles/local-ai.nix # Pi with local DS4 inference
           ];
         };
 

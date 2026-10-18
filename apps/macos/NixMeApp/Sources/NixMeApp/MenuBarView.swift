@@ -173,7 +173,7 @@ struct MenuBarView: View {
 
     private func openDashboard(section: DashboardSection? = nil) {
         if store.setupStatus?.isReady == false {
-            store.selectedSection = .setup
+            store.selectedSection = .overview
         } else if let section {
             store.selectedSection = section
         }

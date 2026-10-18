@@ -4,12 +4,16 @@
 { config, pkgs, lib, ... }:
 
 {
-  projects.sets = [
-    (import ../../projects/platformatic.nix)
-  ];
+  projects = {
+    sets = [
+      (import ../../projects/platformatic.nix)
+    ];
+    settingsProfiles = [ "work" ];
+  };
 
   apps = {
     useBaseLists = true;
+    state.settingsProfiles = [ "work" ];
 
     # Work GUI applications
     casksToAdd = [
@@ -17,9 +21,9 @@
       "slack"
       "zoom"
       "microsoft-teams"
-      "loom"              # Video messaging
-      "miro"              # Whiteboarding
-      "linear-linear"     # Project management
+      "loom" # Video messaging
+      "miro" # Whiteboarding
+      "linear-linear" # Project management
 
       # Productivity
       "microsoft-office"
@@ -33,7 +37,7 @@
     systemPackagesToAdd = [
       "terraform"
       "kubectl"
-      "kubernetes-helm"   # Helm CLI (the 'helm' package is Linux-only)
+      "kubernetes-helm" # Helm CLI (the 'helm' package is Linux-only)
       "awscli2"
     ];
 

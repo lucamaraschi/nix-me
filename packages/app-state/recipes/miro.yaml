@@ -1,0 +1,58 @@
+schema_version: 1
+id: miro
+name: Miro
+bundle_id: com.electron.realtimeboard
+install:
+  cask: miro
+detect:
+  command: >-
+    test "$(/usr/bin/plutil -extract CFBundleShortVersionString raw -o - '/Applications/Miro.app/Contents/Info.plist' 2>/dev/null)" = '0.11.125'
+sandboxed: false
+requires: []
+config:
+  - kind: file
+    binds: settings
+    path: ~/Library/Application Support/RealtimeBoard/settings.json
+    format: json
+    merge: deep_merge
+    paths:
+      allow:
+        - /SAVED_APP_SETTINGS/spellCheck
+        - /SAVED_APP_SETTINGS/useHardwareAcceleration
+      sensitive:
+        - /SAVED_APP_SETTINGS/appRegion
+        - /SAVED_APP_SETTINGS/appUsageType
+        - /SAVED_APP_SETTINGS/enableLogs
+        - /SAVED_APP_SETTINGS/isHardwareAccelerationAvailable
+        - /SAVED_TABS_KEY
+        - /SAVED_TABS_WORKSPACE_KEY
+        - /SAVED_TAB_TITLES
+        - /URLsToOpen
+        - /boardTitles
+    checks:
+      preflight: >-
+        command -v jq >/dev/null 2>&1 &&
+        jq -e '(.SAVED_APP_SETTINGS.spellCheck | type == "boolean") and (.SAVED_APP_SETTINGS.useHardwareAcceleration | type == "boolean")' {file} >/dev/null
+      verify: >-
+        command -v jq >/dev/null 2>&1 &&
+        jq -e '(.SAVED_APP_SETTINGS.spellCheck | type == "boolean") and (.SAVED_APP_SETTINGS.useHardwareAcceleration | type == "boolean")' {path} >/dev/null
+    mode: "0600"
+    confirm: none
+  - kind: manual
+    step: Configure Miro region, usage classification, diagnostics, tabs, boards, URLs, window placement, and notification presentation locally. Only spell checking and hardware acceleration are proven portable for version 0.11.125.
+    doc: >-
+      Local evidence identifies ~/Library/Application Support/RealtimeBoard/
+      settings.json as Miro 0.11.125's settings store. The adapter projects only
+      the two boolean paths above, performs an atomic pointer-only deep merge,
+      enforces their types before replacement and after read-back, and requires
+      this exact app version. The CFPreferences domain contains only generic
+      AppKit values, while window-state.json is machine-specific state.
+      Credentials, accounts, teams, boards, tab titles and identifiers, URLs,
+      files/content, cookies, IndexedDB, cache, sessions, telemetry and updater
+      IDs, history, extensions, region/usage metadata, and machine identity are
+      permanently excluded.
+    confirm: full_manual
+apply:
+  poke: restart_app
+  unsafe_to_kill: true
+verified: null

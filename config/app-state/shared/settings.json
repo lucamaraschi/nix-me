@@ -1,0 +1,5 @@
+{
+  "ghostty": {
+    "config": "# Ghostty Configuration\n\n# Font settings\nfont-family = JetBrainsMono Nerd Font\nfont-size = 13\n\n# UI settings\nwindow-decoration = false\nwindow-padding-x = 10\nwindow-padding-y = 10\n\n# Color scheme - Tokyo Night\nbackground = #1a1b26\nforeground = #c0caf5\n\n# Tokyo Night colors\npalette = 0=#1a1b26\npalette = 1=#f7768e\npalette = 2=#9ece6a\npalette = 3=#e0af68\npalette = 4=#7aa2f7\npalette = 5=#bb9af7\npalette = 6=#7dcfff\npalette = 7=#a9b1d6\npalette = 8=#414868\npalette = 9=#f7768e\npalette = 10=#9ece6a\npalette = 11=#e0af68\npalette = 12=#7aa2f7\npalette = 13=#bb9af7\npalette = 14=#7dcfff\npalette = 15=#c0caf5\n\n# Key bindings\n# Configure shift+enter for Claude Code compatibility\nkeybind = shift+enter=text:\\x1b[13;2u\n"
+  }
+}

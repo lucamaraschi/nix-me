@@ -1,0 +1,60 @@
+schema_version: 1
+id: proton-mail
+name: Proton Mail
+bundle_id: ch.protonmail.desktop
+install:
+  cask: proton-mail
+detect:
+  command: >-
+    test "$(/usr/bin/plutil -extract CFBundleShortVersionString raw -o - '/Applications/Proton Mail.app/Contents/Info.plist' 2>/dev/null)" = '1.8.0'
+sandboxed: false
+requires: []
+app_version:
+  command: /usr/bin/plutil -extract CFBundleShortVersionString raw -o - '/Applications/Proton Mail.app/Contents/Info.plist'
+  supported_majors: [1]
+config:
+  - kind: file
+    binds: settings
+    path: ~/Library/Application Support/Proton Mail/config.json
+    format: json
+    merge: deep_merge
+    paths:
+      allow:
+        - /defaultProtocols/mailto/shouldBeDefault
+        - /settings/releaseCategory
+        - /settings/spellChecker
+        - /windowBounds/zoom
+      sensitive:
+        - /appID
+        - /defaultProtocols/mailto/lastReport
+        - /telemetry
+        - /windowBounds/height
+        - /windowBounds/width
+        - /windowBounds/x
+        - /windowBounds/y
+    checks:
+      preflight: >-
+        test "$(/usr/bin/plutil -extract CFBundleShortVersionString raw -o - '/Applications/Proton Mail.app/Contents/Info.plist' 2>/dev/null)" = '1.8.0' &&
+        command -v jq >/dev/null 2>&1 &&
+        jq -e '(.defaultProtocols.mailto.shouldBeDefault | type == "boolean") and (.settings.releaseCategory | type == "string") and (.settings.spellChecker | type == "boolean") and (.windowBounds.zoom | type == "number")' {file} >/dev/null
+      verify: >-
+        test "$(/usr/bin/plutil -extract CFBundleShortVersionString raw -o - '/Applications/Proton Mail.app/Contents/Info.plist' 2>/dev/null)" = '1.8.0' &&
+        command -v jq >/dev/null 2>&1 &&
+        jq -e '(.defaultProtocols.mailto.shouldBeDefault | type == "boolean") and (.settings.releaseCategory | type == "string") and (.settings.spellChecker | type == "boolean") and (.windowBounds.zoom | type == "number")' {path} >/dev/null
+    mode: "0600"
+    confirm: none
+  - kind: manual
+    step: Configure Proton Mail accounts, notifications, encryption, and remaining protocol or window state locally. Only the four scalar settings above are portable and proven for Proton Mail 1.8.0.
+    doc: >-
+      The adapter projects only reviewed paths from config.json, refuses version
+      or type mismatches, performs an atomic pointer-only deep merge, and
+      verifies the same paths after write-back. Accounts, mail/calendar data and
+      content, encryption material, app and device IDs, sessions, cookies,
+      IndexedDB, cache, telemetry, report timestamps, history, extensions, URLs,
+      window coordinates and dimensions, and machine identity are permanently
+      excluded.
+    confirm: full_manual
+apply:
+  poke: restart_app
+  unsafe_to_kill: true
+verified: null

@@ -50,12 +50,16 @@ final class ConfigurationBootstrapTests: XCTestCase {
         XCTAssertEqual(status.configurationDirectory?.path, current.resolvingSymlinksInPath().path)
     }
 
-    func testOutdatedConfiguredCheckoutExplainsMissingAPI() throws {
+    func testCheckoutWithoutManagementAPIRemainsValidConfiguration() throws {
         let root = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let checkout = root.appendingPathComponent("checkout", isDirectory: true)
         let bin = root.appendingPathComponent("bin", isDirectory: true)
         try FileManager.default.createDirectory(at: checkout, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: checkout.appendingPathComponent(".git", isDirectory: true),
+            withIntermediateDirectories: true
+        )
         try "{}".write(
             to: checkout.appendingPathComponent("flake.nix"),
             atomically: true,
@@ -72,11 +76,12 @@ final class ConfigurationBootstrapTests: XCTestCase {
             commandSearchDirectories: [bin]
         )
 
-        XCTAssertEqual(status.checkoutState, .invalid)
+        XCTAssertEqual(status.checkoutState, .ready)
         XCTAssertEqual(status.configurationDirectory?.path, checkout.resolvingSymlinksInPath().path)
-        XCTAssertTrue(status.checkoutMessage.contains("management API"))
-        XCTAssertFalse(status.isReady)
-        XCTAssertEqual(status.requiredIssueCount, 1)
+        XCTAssertEqual(status.checkoutMessage, "Connected to a valid nix-me configuration.")
+        XCTAssertTrue(status.isReady)
+        XCTAssertEqual(status.requiredIssueCount, 0)
+        XCTAssertTrue(status.canUpdateCheckout)
     }
 
     func testExistingDefaultDestinationDisablesCloneAction() throws {
@@ -98,6 +103,7 @@ final class ConfigurationBootstrapTests: XCTestCase {
 
         XCTAssertEqual(status.checkoutState, .invalid)
         XCTAssertFalse(status.canCloneToDefaultDestination)
+        XCTAssertFalse(status.canUpdateCheckout)
         XCTAssertEqual(status.defaultCloneDestination.path, checkout.path)
     }
 
@@ -135,6 +141,25 @@ final class ConfigurationBootstrapTests: XCTestCase {
         XCTAssertFalse(status.isReady)
         XCTAssertEqual(status.missingRequiredDependencies.map(\.command), ["jq"])
         XCTAssertEqual(status.requiredIssueCount, 1)
+    }
+
+    func testUpdateCheckoutRebasesLocalWorkOntoLatestRemote() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let checkout = root.appendingPathComponent("checkout", isDirectory: true)
+        let git = root.appendingPathComponent("git")
+        try FileManager.default.createDirectory(
+            at: checkout.appendingPathComponent(".git", isDirectory: true),
+            withIntermediateDirectories: true
+        )
+        try """
+        #!/bin/bash
+        [[ "$1" == "-C" && "$2" == "\(checkout.path)" && "$3" == "pull" && "$4" == "--rebase" && "$5" == "--autostash" ]]
+        """.write(to: git, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755], ofItemAtPath: git.path)
+
+        try await ConfigurationBootstrap.updateCheckout(at: checkout, gitURL: git)
     }
 
     private var allCommands: [String] {

@@ -1,0 +1,72 @@
+schema_version: 1
+id: notion
+name: Notion
+bundle_id: notion.id
+install:
+  cask: notion
+detect:
+  command: >-
+    test "$(/usr/bin/plutil -extract CFBundleShortVersionString raw -o - '/Applications/Notion.app/Contents/Info.plist' 2>/dev/null)" = '7.37.1'
+sandboxed: false
+requires: []
+app_version:
+  command: /usr/bin/plutil -extract CFBundleShortVersionString raw -o - '/Applications/Notion.app/Contents/Info.plist'
+  supported_majors: [7]
+config:
+  - kind: file
+    binds: settings
+    path: ~/Library/Application Support/Notion/state.json
+    format: json
+    merge: deep_merge
+    paths:
+      allow:
+        - /appState/contrastMode
+        - /appState/locale
+        - /appState/preferences/isAlwaysOnTabBarEnabled
+        - /appState/preferences/isHideLastWindowOnCloseEnabled
+        - /appState/preferences/isMenuBarIconEnabled
+        - /appState/preferences/isNewTabSearchEnabled
+        - /appState/preferences/isOpenAtLoginEnabled
+        - /appState/preferences/isPinnedTabNewTabEnabled
+        - /appState/preferences/isQuickSearchEnabled
+        - /appState/preferences/isTabPreviewEnabled
+        - /appState/preferences/isTabSpacesEnabled
+        - /appState/preferences/isUniversalLinksEnabled
+        - /appState/preferences/isZenModeEnabled
+        - /appState/preferences/notionAiShortcut
+        - /appState/preferences/onStartup
+        - /appState/theme/mode
+        - /appState/theme/usingSystemTheme
+        - /appState/zoomFactor
+      sensitive:
+        - /appState/preferences/disabledExtensions
+        - /appState/preferences/ignoreLogMessages
+        - /appState/preferences/sqliteConnectionType
+        - /history
+        - /quickSearchLastOpenedTimestamp
+    checks:
+      preflight: >-
+        test "$(/usr/bin/plutil -extract CFBundleShortVersionString raw -o - '/Applications/Notion.app/Contents/Info.plist' 2>/dev/null)" = '7.37.1' &&
+        command -v jq >/dev/null 2>&1 &&
+        jq -e '(.appState.contrastMode | type == "string") and (.appState.locale | type == "string") and (.appState.preferences.isAlwaysOnTabBarEnabled | type == "boolean") and (.appState.preferences.isHideLastWindowOnCloseEnabled | type == "boolean") and (.appState.preferences.isMenuBarIconEnabled | type == "boolean") and (.appState.preferences.isNewTabSearchEnabled | type == "boolean") and (.appState.preferences.isOpenAtLoginEnabled | type == "boolean") and (.appState.preferences.isPinnedTabNewTabEnabled | type == "boolean") and (.appState.preferences.isQuickSearchEnabled | type == "boolean") and (.appState.preferences.isTabPreviewEnabled | type == "boolean") and (.appState.preferences.isTabSpacesEnabled | type == "boolean") and (.appState.preferences.isUniversalLinksEnabled | type == "boolean") and (.appState.preferences.isZenModeEnabled | type == "boolean") and (.appState.preferences.notionAiShortcut | type == "string") and (.appState.preferences.onStartup | type == "string") and (.appState.theme.mode | type == "string") and (.appState.theme.usingSystemTheme | type == "boolean") and (.appState.zoomFactor | type == "number")' {file} >/dev/null
+      verify: >-
+        test "$(/usr/bin/plutil -extract CFBundleShortVersionString raw -o - '/Applications/Notion.app/Contents/Info.plist' 2>/dev/null)" = '7.37.1' &&
+        command -v jq >/dev/null 2>&1 &&
+        jq -e '(.appState.contrastMode | type == "string") and (.appState.locale | type == "string") and (.appState.preferences.isAlwaysOnTabBarEnabled | type == "boolean") and (.appState.preferences.isHideLastWindowOnCloseEnabled | type == "boolean") and (.appState.preferences.isMenuBarIconEnabled | type == "boolean") and (.appState.preferences.isNewTabSearchEnabled | type == "boolean") and (.appState.preferences.isOpenAtLoginEnabled | type == "boolean") and (.appState.preferences.isPinnedTabNewTabEnabled | type == "boolean") and (.appState.preferences.isQuickSearchEnabled | type == "boolean") and (.appState.preferences.isTabPreviewEnabled | type == "boolean") and (.appState.preferences.isTabSpacesEnabled | type == "boolean") and (.appState.preferences.isUniversalLinksEnabled | type == "boolean") and (.appState.preferences.isZenModeEnabled | type == "boolean") and (.appState.preferences.notionAiShortcut | type == "string") and (.appState.preferences.onStartup | type == "string") and (.appState.theme.mode | type == "string") and (.appState.theme.usingSystemTheme | type == "boolean") and (.appState.zoomFactor | type == "number")' {path} >/dev/null
+    mode: "0600"
+    confirm: none
+  - kind: manual
+    step: Configure Notion accounts, workspaces, tabs, extensions, quick-search shortcut, and remaining experimental or performance settings locally. Only the eighteen scalar settings above are portable and proven for Notion 7.37.1.
+    doc: >-
+      The adapter projects only reviewed paths from state.json, refuses version
+      or type mismatches, performs an atomic pointer-only deep merge, and
+      verifies the same paths after write-back. notion.db, bridge and session
+      tokens, accounts, workspaces, pages/files/content, cookies, IndexedDB,
+      cache, telemetry and install IDs, history, extensions, URLs, window
+      geometry, internal heuristics, and machine identity are permanently
+      excluded.
+    confirm: full_manual
+apply:
+  poke: restart_app
+  unsafe_to_kill: true
+verified: null

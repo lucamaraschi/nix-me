@@ -1,0 +1,19 @@
+schema_version: 1
+id: autodesk-fusion
+name: Autodesk Fusion
+bundle_id: com.autodesk.dls.streamer.scriptapp.Autodesk-Fusion
+install:
+  cask: autodesk-fusion
+detect:
+  command: test -d "$HOME/Applications/Autodesk Fusion.app"
+sandboxed: false
+requires: []
+config:
+  - kind: manual
+    step: Configure portable UI, editor, navigation, and update preferences in Autodesk Fusion, then sign in and select the required workspace manually.
+    doc: No Accessibility action runs. A future adapter must be pinned to a verified Fusion UI version and must not read or write login, license, cloud-project, session, or project-content state.
+    confirm: full_manual
+apply:
+  poke: none
+  unsafe_to_kill: false
+verified: null

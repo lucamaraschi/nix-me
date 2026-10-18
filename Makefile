@@ -7,6 +7,8 @@ MACHINE_TYPE ?= $(shell if [[ "$(HOSTNAME)" == *"macbook"* || "$(HOSTNAME)" == *
 MACHINE_NAME ?= "$(HOSTNAME)"
 MAKEFILE_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 FLAKE_DIR ?= $(if $(wildcard $(MAKEFILE_DIR)/flake.nix),$(MAKEFILE_DIR),$(HOME)/.config/nixpkgs)
+FLAKE_REF ?= $(FLAKE_DIR)
+NIX_ME_SOURCE_REVISION ?=
 DRY_RUN ?= 0
 SKIP_BREW ?= 0
 SKIP_BREW_ON_VM ?= 0
@@ -53,6 +55,7 @@ help:
 	@echo "  MACHINE_TYPE    Specify machine type (macbook or macmini) (default: auto-detected)"
 	@echo "  MACHINE_NAME    Set the friendly computer name (default: $(MACHINE_NAME))"
 	@echo "  FLAKE_DIR       Override flake directory (default: $(FLAKE_DIR))"
+	@echo "  FLAKE_REF       Override flake reference (default: $(FLAKE_REF))"
 	@echo "  DRY_RUN         Set to 1 for dry run (default: 0)"
 	@echo "  SKIP_BREW       Set to 1 to skip Homebrew checks during switch (default: 0)"
 	@echo "  SKIP_BREW_ON_VM Disable nix-darwin Homebrew activation for disposable VMs (default: 0)"
@@ -86,9 +89,9 @@ help:
 build:
 	@echo "==> Building configuration for $(FINAL_HOSTNAME) ($(MACHINE_TYPE), $(MACHINE_NAME))..."
 ifeq ($(DRY_RUN), 1)
-	@echo "[DRY RUN] HOSTNAME=$(FINAL_HOSTNAME) MACHINE_TYPE=$(MACHINE_TYPE) MACHINE_NAME=\"$(MACHINE_NAME)\" SKIP_BREW_ON_VM=$(SKIP_BREW_ON_VM) SKIP_MAS_APPS=$(SKIP_MAS_APPS) nix build $(FLAKE_DIR)#darwinConfigurations.$(FINAL_HOSTNAME).system"
+	@echo "[DRY RUN] HOSTNAME=$(FINAL_HOSTNAME) MACHINE_TYPE=$(MACHINE_TYPE) MACHINE_NAME=\"$(MACHINE_NAME)\" SKIP_BREW_ON_VM=$(SKIP_BREW_ON_VM) SKIP_MAS_APPS=$(SKIP_MAS_APPS) nix build $(FLAKE_REF)#darwinConfigurations.$(FINAL_HOSTNAME).system"
 else
-	@HOSTNAME=$(FINAL_HOSTNAME) MACHINE_TYPE=$(MACHINE_TYPE) MACHINE_NAME="$(MACHINE_NAME)" SKIP_BREW_ON_VM=$(SKIP_BREW_ON_VM) SKIP_MAS_APPS=$(SKIP_MAS_APPS) nix build $(FLAKE_DIR)#darwinConfigurations.$(FINAL_HOSTNAME).system
+	@HOSTNAME=$(FINAL_HOSTNAME) MACHINE_TYPE=$(MACHINE_TYPE) MACHINE_NAME="$(MACHINE_NAME)" SKIP_BREW_ON_VM=$(SKIP_BREW_ON_VM) SKIP_MAS_APPS=$(SKIP_MAS_APPS) nix build "$(FLAKE_REF)#darwinConfigurations.$(FINAL_HOSTNAME).system"
 endif
 
 # Build and activate the configuration
@@ -96,7 +99,7 @@ switch:
 	@echo "==> Building and activating configuration for $(FINAL_HOSTNAME) ($(MACHINE_TYPE), $(MACHINE_NAME))..."
 	@echo "==> Using hostname: $(FINAL_HOSTNAME)"
 ifeq ($(DRY_RUN), 1)
-	@echo "[DRY RUN] HOSTNAME=$(FINAL_HOSTNAME) MACHINE_TYPE=$(MACHINE_TYPE) MACHINE_NAME=\"$(MACHINE_NAME)\" darwin-rebuild switch --flake $(FLAKE_DIR)#$(FINAL_HOSTNAME) --impure"
+	@echo "[DRY RUN] HOSTNAME=$(FINAL_HOSTNAME) MACHINE_TYPE=$(MACHINE_TYPE) MACHINE_NAME=\"$(MACHINE_NAME)\" darwin-rebuild switch --flake $(FLAKE_REF)#$(FINAL_HOSTNAME) --impure"
 else
 	@# Check for Homebrew updates before switch
 	@if [ "$(SKIP_BREW)" = "1" ]; then \
@@ -152,22 +155,22 @@ else
 	fi; \
 	if [ "$(MACHINE_TYPE)" = "vm" ]; then \
 		echo "USERNAME: $(USERNAME)"; \
-		HOSTNAME="$(FINAL_HOSTNAME)" MACHINE_TYPE="$(MACHINE_TYPE)" MACHINE_NAME="$(MACHINE_NAME)" sudo env USERNAME="$(USERNAME)" SKIP_BREW_ON_VM="$(SKIP_BREW_ON_VM)" SKIP_MAS_APPS="$(SKIP_MAS_APPS)" PATH="$$PATH" "$$DARWIN_REBUILD" switch --flake $(FLAKE_DIR)#$(FINAL_HOSTNAME) --impure; \
+		HOSTNAME="$(FINAL_HOSTNAME)" MACHINE_TYPE="$(MACHINE_TYPE)" MACHINE_NAME="$(MACHINE_NAME)" sudo env USERNAME="$(USERNAME)" NIX_ME_SOURCE_REVISION="$(NIX_ME_SOURCE_REVISION)" SKIP_BREW_ON_VM="$(SKIP_BREW_ON_VM)" SKIP_MAS_APPS="$(SKIP_MAS_APPS)" GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0="$(FLAKE_DIR)" PATH="$$PATH" "$$DARWIN_REBUILD" switch --flake "$(FLAKE_REF)#$(FINAL_HOSTNAME)" --impure; \
 	else \
-		HOSTNAME="$(FINAL_HOSTNAME)" MACHINE_TYPE="$(MACHINE_TYPE)" MACHINE_NAME="$(MACHINE_NAME)" sudo env USERNAME="$(USERNAME)" SKIP_BREW_ON_VM="$(SKIP_BREW_ON_VM)" SKIP_MAS_APPS="$(SKIP_MAS_APPS)" PATH="$$PATH" "$$DARWIN_REBUILD" switch --flake $(FLAKE_DIR)#$(FINAL_HOSTNAME) --impure; \
+		HOSTNAME="$(FINAL_HOSTNAME)" MACHINE_TYPE="$(MACHINE_TYPE)" MACHINE_NAME="$(MACHINE_NAME)" sudo env USERNAME="$(USERNAME)" NIX_ME_SOURCE_REVISION="$(NIX_ME_SOURCE_REVISION)" SKIP_BREW_ON_VM="$(SKIP_BREW_ON_VM)" SKIP_MAS_APPS="$(SKIP_MAS_APPS)" GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0="$(FLAKE_DIR)" PATH="$$PATH" "$$DARWIN_REBUILD" switch --flake "$(FLAKE_REF)#$(FINAL_HOSTNAME)" --impure; \
 	fi
 endif
 
 switch-fast:
-	@$(MAKE) SKIP_BREW=1 SKIP_BREW_ON_VM="$(SKIP_BREW_ON_VM)" SKIP_MAS_APPS="$(SKIP_MAS_APPS)" HOSTNAME="$(HOSTNAME)" MACHINE_TYPE="$(MACHINE_TYPE)" MACHINE_NAME=$(MACHINE_NAME) FLAKE_DIR="$(FLAKE_DIR)" DRY_RUN="$(DRY_RUN)" switch
+	@$(MAKE) SKIP_BREW=1 SKIP_BREW_ON_VM="$(SKIP_BREW_ON_VM)" SKIP_MAS_APPS="$(SKIP_MAS_APPS)" HOSTNAME="$(HOSTNAME)" MACHINE_TYPE="$(MACHINE_TYPE)" MACHINE_NAME=$(MACHINE_NAME) FLAKE_DIR="$(FLAKE_DIR)" FLAKE_REF="$(FLAKE_REF)" NIX_ME_SOURCE_REVISION="$(NIX_ME_SOURCE_REVISION)" DRY_RUN="$(DRY_RUN)" switch
 
 # Run a syntax check on the flake
 check:
 	@echo "==> Checking flake..."
 ifeq ($(DRY_RUN), 1)
-	@echo "[DRY RUN] nix flake check \"$(FLAKE_DIR)\""
+	@echo "[DRY RUN] nix flake check \"$(FLAKE_REF)\""
 else
-	@nix flake check "$(FLAKE_DIR)"
+	@nix flake check "$(FLAKE_REF)"
 endif
 
 check-host-matrix:
@@ -201,6 +204,10 @@ test-local-ai:
 test-app-state:
 	@cd packages/app-state/engine && cargo fmt --all -- --check
 	@cd packages/app-state/engine && cargo test --workspace
+	@./tools/app-state/check-configured-app-recipes.sh
+
+test-app-coverage:
+	@./tools/app-state/check-configured-app-recipes.sh
 
 app:
 	@./tools/release/build-macos-app.sh

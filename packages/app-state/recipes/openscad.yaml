@@ -1,0 +1,35 @@
+schema_version: 1
+id: openscad
+name: OpenSCAD
+bundle_id: org.openscad.OpenSCAD
+install:
+  cask: openscad
+detect:
+  app_path: /Applications/OpenSCAD-2021.01.app
+sandboxed: false
+requires: []
+config:
+  - kind: defaults
+    domain: org.openscad.OpenSCAD
+    keys:
+      SUEnableAutomaticChecks: {type: bool, ui: "OpenSCAD > Preferences > Update checks"}
+      SUSendProfileInfo: {type: bool, ui: "OpenSCAD > Preferences > Send system profile with update checks"}
+      design.autoReload: {type: bool, ui: "Design > Automatic reload"}
+      view.hide3DViewToolbar: {type: bool, ui: "View > Hide 3D view toolbar"}
+      view.hideConsole: {type: bool, ui: "View > Hide console"}
+      view.hideCustomizer: {type: bool, ui: "View > Hide customizer"}
+      view.hideEditor: {type: bool, ui: "View > Hide editor"}
+      view.hideEditorToolbar: {type: bool, ui: "View > Hide editor toolbar"}
+      view.hideErrorLog: {type: bool, ui: "View > Hide error log"}
+      view.orthogonalProjection: {type: bool, ui: "View > Orthogonal projection"}
+      view.showAxes: {type: bool, ui: "View > Show axes"}
+      view.showScaleProportional: {type: bool, ui: "View > Show proportional scale"}
+    unknown_keys: reject
+    confirm: none
+  - kind: manual
+    step: Review editor appearance, rendering, and library paths manually; the typed allowlist is evidenced on OpenSCAD 2021.01. Recent files, personal paths, window geometry, and opaque window state are intentionally excluded.
+    confirm: full_manual
+apply:
+  poke: restart_app
+  unsafe_to_kill: true
+verified: null

@@ -1,0 +1,22 @@
+schema_version: 1
+id: claude-code
+name: Claude Code
+bundle_id: com.anthropic.claude-code
+install:
+  cask: claude-code
+detect:
+  command: command -v claude >/dev/null 2>&1
+sandboxed: false
+requires: []
+config:
+  - kind: file
+    binds: settings
+    path: ~/.claude/settings.json
+    format: json
+    merge: deep_merge
+    mode: "0600"
+    confirm: none
+apply:
+  poke: none
+  unsafe_to_kill: false
+verified: null

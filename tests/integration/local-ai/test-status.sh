@@ -59,21 +59,23 @@ home="$temp_dir/home"
 ds4="$home/src/ai/ds4"
 pi_ds4="$home/src/ai/pi-ds4"
 agent="$home/.pi/agent"
-mkdir -p "$ds4" "$pi_ds4" "$agent/extensions" "$home/.pi/ds4"
-touch "$ds4/Makefile" "$ds4/download_model.sh" "$ds4/ds4flash.gguf"
-touch "$pi_ds4/install-pi-extension-local.sh"
+mkdir -p "$ds4" "$pi_ds4" "$agent" "$home/.pi/ds4"
+touch "$ds4/Makefile" "$ds4/download_model.sh" "$ds4/ds4_server.c" "$ds4/ds4flash.gguf"
+touch "$pi_ds4/package.json" "$pi_ds4/index.ts"
 printf '#!/bin/sh\n' >"$ds4/ds4-server"
 chmod +x "$ds4/ds4-server"
-ln -s "$pi_ds4" "$agent/extensions/pi-ds4"
-ln -s "$ds4" "$home/.pi/ds4/support"
-cat >"$agent/settings.json" <<'JSON'
-{"defaultProvider":"ds4","defaultModel":"dsv4-flash-q2"}
+cat >"$agent/settings.json" <<JSON
+{
+  "\$schema": "https://pi.dev/schemas/settings.schema.json",
+  "defaultProvider": "ds4",
+  "defaultModel": "dsv4-flash-q2",
+  "packages": ["$pi_ds4"]
+}
 JSON
 cat >"$home/.pi/ds4/settings.json" <<JSON
 {
   "\$schema": "https://raw.githubusercontent.com/mitsuhiko/pi-ds4/main/settings.schema.json",
   "protocol": "openai-responses",
-  "runtimeDir": "$ds4",
   "autoUpdate": false,
   "contextTokens": 32768,
   "power": 70,

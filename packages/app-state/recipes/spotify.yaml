@@ -1,0 +1,49 @@
+schema_version: 1
+id: spotify
+name: Spotify
+bundle_id: com.spotify.client
+install:
+  cask: spotify
+detect:
+  app_path: /Applications/Spotify.app
+sandboxed: false
+requires: []
+app_version:
+  command: /usr/bin/plutil -extract CFBundleShortVersionString raw -o - '/Applications/Spotify.app/Contents/Info.plist'
+  supported_majors: [1]
+config:
+  - kind: file
+    binds: settings
+    path: ~/Library/Application Support/Spotify/prefs
+    format: key_value
+    paths:
+      allow:
+        - /values/app.autostart-configured
+      sensitive:
+        - /values/autologin.blob
+        - /values/autologin.canonical_username
+        - /values/autologin.saved_credentials
+        - /values/autologin.username
+        - /values/core.clock_delta
+        - /values/es.send-on-startup
+        - /values/storage.last-location
+    checks:
+      preflight: >-
+        /usr/bin/grep -Eq '^app\.autostart-configured=(true|false)$' {file}
+      verify: >-
+        /usr/bin/grep -Eq '^app\.autostart-configured=(true|false)$' {path}
+    mode: "0600"
+    confirm: one_click
+  - kind: manual
+    step: Configure Spotify playback and account preferences locally. Version 1.3.3 exposes no other proven portable preference on this Mac; the user prefs contain only migration state and discovered peer devices.
+    doc: >-
+      The exported value is Spotify's boolean autostart integration marker; it
+      is type-checked before and after atomic replacement. Accounts, usernames,
+      credential and OAuth blobs, DRM state, peer devices, storage paths,
+      offline media, cache, listening history, window state, version history,
+      telemetry and migration flags are never exported.
+    confirm: full_manual
+apply:
+  poke: restart_app
+  unsafe_to_kill: true
+verified: null

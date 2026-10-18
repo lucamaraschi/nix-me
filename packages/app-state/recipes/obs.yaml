@@ -1,0 +1,105 @@
+schema_version: 1
+id: obs
+name: OBS Studio
+bundle_id: com.obsproject.obs-studio
+install:
+  cask: obs
+detect:
+  app_path: /Applications/OBS.app
+sandboxed: false
+requires:
+  - screen_recording
+app_version:
+  command: /usr/bin/plutil -extract CFBundleShortVersionString raw -o - '/Applications/OBS.app/Contents/Info.plist'
+  supported_majors: [32]
+config:
+  - kind: file
+    binds: global
+    path: ~/Library/Application Support/obs-studio/global.ini
+    format: ini
+    paths:
+      allow:
+        - /sections/General/MaxLogs
+        - /sections/General/ProcessPriority
+        - /sections/General/EnableAutoUpdates
+        - /sections/General/BrowserHWAccel
+        - /sections/Video/DisableOSXVSync
+        - /sections/Video/ResetOSXVSyncOnExit
+      sensitive:
+        - /sections/General/InstallGUID
+        - /sections/General/MacOSPermissionsDialogLastShown
+        - /sections/Locations/Configuration
+        - /sections/Locations/SceneCollections
+        - /sections/Locations/Profiles
+        - /sections/Locations/PluginManagerSettings
+        - /sections/PropertiesWindow/cx
+        - /sections/PropertiesWindow/cy
+    mode: "0600"
+    confirm: none
+  - kind: file
+    binds: user
+    path: ~/Library/Application Support/obs-studio/user.ini
+    format: ini
+    paths:
+      allow:
+        - /sections/General/ConfirmOnExit
+        - /sections/General/HotkeyFocusType
+        - /sections/BasicWindow/PreviewEnabled
+        - /sections/BasicWindow/PreviewProgramMode
+        - /sections/BasicWindow/SceneDuplicationMode
+        - /sections/BasicWindow/SwapScenesMode
+        - /sections/BasicWindow/SnappingEnabled
+        - /sections/BasicWindow/ScreenSnapping
+        - /sections/BasicWindow/SourceSnapping
+        - /sections/BasicWindow/CenterSnapping
+        - /sections/BasicWindow/SnapDistance
+        - /sections/BasicWindow/SpacingHelpersEnabled
+        - /sections/BasicWindow/RecordWhenStreaming
+        - /sections/BasicWindow/KeepRecordingWhenStreamStops
+        - /sections/BasicWindow/SysTrayEnabled
+        - /sections/BasicWindow/SysTrayWhenStarted
+        - /sections/BasicWindow/SaveProjectors
+        - /sections/BasicWindow/ShowTransitions
+        - /sections/BasicWindow/ShowListboxToolbars
+        - /sections/BasicWindow/ShowStatusBar
+        - /sections/BasicWindow/ShowSourceIcons
+        - /sections/BasicWindow/ShowContextToolbars
+        - /sections/BasicWindow/StudioModeLabels
+        - /sections/BasicWindow/VerticalVolControl
+        - /sections/BasicWindow/MultiviewMouseSwitch
+        - /sections/BasicWindow/MultiviewDrawNames
+        - /sections/BasicWindow/MultiviewDrawAreas
+        - /sections/BasicWindow/MediaControlsCountdownTimer
+        - /sections/BasicWindow/AlwaysOnTop
+        - /sections/BasicWindow/EditPropertiesMode
+        - /sections/BasicWindow/DocksLocked
+        - /sections/BasicWindow/SideDocks
+        - /sections/Appearance/FontScale
+        - /sections/Appearance/Density
+        - /sections/Accessibility/SelectRed
+        - /sections/Accessibility/SelectGreen
+        - /sections/Accessibility/SelectBlue
+        - /sections/Accessibility/MixerGreen
+        - /sections/Accessibility/MixerYellow
+        - /sections/Accessibility/MixerRed
+        - /sections/Accessibility/MixerGreenActive
+        - /sections/Accessibility/MixerYellowActive
+        - /sections/Accessibility/MixerRedActive
+      sensitive:
+        - /sections/Basic/Profile
+        - /sections/Basic/ProfileDir
+        - /sections/Basic/SceneCollection
+        - /sections/Basic/SceneCollectionFile
+        - /sections/BasicWindow/geometry
+        - /sections/BasicWindow/DockState
+        - /sections/BasicWindow/ExtraBrowserDocks
+        - /sections/ScriptLogWindow/geometry
+    mode: "0600"
+    confirm: none
+  - kind: manual
+    step: Configure profiles, output and recording locations, scene collections, browser docks, plugins, sources, and services locally. Stream keys, service credentials, recording paths, browser cookies, capture devices, scene data, profile names, and machine-specific state are never exported.
+    confirm: full_manual
+apply:
+  poke: restart_app
+  unsafe_to_kill: true
+verified: null

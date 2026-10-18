@@ -36,3 +36,23 @@ nix-me apps capture --sniff backups/latest.rayconfig --watch \
 Watch mode emits JSON Lines with `--json`. Add `--commit` only in a dedicated
 capture worktree; each changed decoded output is staged and committed locally as
 `capture: update <path>`. The watcher never pushes commits.
+
+The native app uses a separate current-values snapshot intended for known recipes:
+
+```sh
+nix-me apps snapshot \
+  --recipe packages/app-state/recipes \
+  --only rectangle --json
+```
+
+Snapshot reads only state declared by the recipe. Typed defaults, structured
+files, and command-managed lists are supported. Unstructured text, generated
+imports, and manual steps are reported as skipped. Secret-like keys and
+high-entropy values are removed before the management API can preview or save
+the result.
+
+The native Harness screen presents this capability as an application catalog,
+not a picker. It includes installed applications without recipes so coverage is
+visible, but enables Review and Save only for installed applications with a
+capturable recipe. The detail pane identifies every active values file before a
+new shared, profile, or machine-scoped configuration is saved.

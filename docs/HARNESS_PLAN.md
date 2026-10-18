@@ -4,7 +4,7 @@ This document is the delivery plan and backlog for the declarative
 application-state harness. Keep it separate from the repository-wide monorepo
 plan and update it whenever scope, priority, or verification status changes.
 
-Last updated: 2026-10-05
+Last updated: 2026-10-14
 
 ## Product outcome
 
@@ -79,7 +79,7 @@ last-apply state.
 
 ### Phase 3: Make capture reviewable
 
-Complete H-020 through H-022. Users can discover candidate state, review a
+Complete H-020 through H-023. Users can discover candidate state, review a
 redacted diff, and generate recipe/value fragments without directly editing
 engine data.
 
@@ -107,6 +107,8 @@ persisted-state format.
 | H-020 | P1 | Done | H-012 | Add guided application/domain discovery. Output names each source, confidence level, unsupported container, and next safe action. |
 | H-021 | P1 | Done | H-020 | Add a reviewable capture diff that separates additions, changes, deletions, ignored keys, and uncertain values before writing files. |
 | H-022 | P1 | Done | H-021 | Add default secret redaction and explicit inclusion controls. Fixtures cover tokens, credentials, encrypted containers, and false positives. |
+| H-023 | P1 | Done | H-022 | Let the native app snapshot known recipe state, preview redactions and skipped sources, and atomically save to tracked shared, profile, or machine settings files. Git operations remain outside the app. |
+| H-024 | P1 | Done | H-023 | Detect installed recipe applications for capture and provide a native per-machine enable/apply setup path. Local apply includes newly created settings and marker files; Git publishing remains external. |
 | H-030 | P2 | Done | H-012 | Score recipe candidates by installed-profile frequency, configurability, impact, implementation confidence, and T3 cost. Publish the ranked queue. |
 | H-031 | P2 | Done | H-030 | Deliver the first scored recipe batch with values, catalog mapping, tests, metrics, documentation, and either T3 evidence or `verified: null`. |
 | H-040 | P2 | Done | H-012 | Create forward/backward migration fixtures for recipes, plans, and persisted state before any version-2 implementation starts. |
@@ -122,7 +124,7 @@ weights remain outside the Nix store and require an explicit download.
 | ID | Priority | Status | Depends on | Deliverable and acceptance criteria |
 |---|---|---|---|---|
 | LAI-001 | P0 | Done | - | Add a composable `local-ai` profile that installs Pi and syncs the public DS4 and pi-ds4 repositories under `~/src/ai`. It is not assigned to an existing host implicitly. |
-| LAI-002 | P0 | Done | LAI-001 | Provide `local-ai-doctor` and `local-ai-setup`. Setup builds DS4, links Pi, and downloads DeepSeek V4 Flash Q2 only with `--download-model`; doctor reports prerequisites, memory, disk, runtime, extension, and model state. |
+| LAI-002 | P0 | Done | LAI-001 | Provide `local-ai-doctor` and `local-ai-setup`. The profile declares pi-ds4 through Pi's native package configuration; setup optionally builds DS4 eagerly and downloads DeepSeek V4 Flash Q2 only with `--download-model`. Doctor reports prerequisites, memory, disk, runtime, package, and model state. |
 | LAI-003 | P1 | Done | H-020, LAI-002 | Model Pi/DS4 settings as a harness recipe. Capture excludes model binaries and secrets; plan/apply converges settings without disrupting a running server. |
 | LAI-004 | P1 | Done | H-011, LAI-003 | Add local-AI status to the management API and macOS app: checkout health, runtime build, model presence, server state, configuration drift, and actionable remediation. |
 | LAI-005 | P2 | Done | LAI-004 | Add explicit model lifecycle actions with progress, disk preflight, checksum/error reporting, cancellation, and cleanup of partial downloads. |

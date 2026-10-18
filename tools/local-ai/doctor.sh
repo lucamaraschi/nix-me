@@ -46,13 +46,12 @@ emit_json_status() {
     return 69
   fi
 
-  local extension_path support_path runtime_path pi_settings_file ds4_settings_file
+  local extension_path runtime_path pi_settings_file ds4_settings_file
   local ds4_state pi_ds4_state extension_state runtime_state model_state server_state
   local configuration_state configuration_drift_count probe_fixture probe_malformed
   local expected_provider expected_model remediation health summary has_unavailable has_degradation
 
-  extension_path="${LOCAL_AI_EXTENSION_PATH:-$pi_agent_dir/extensions/pi-ds4}"
-  support_path="${LOCAL_AI_SUPPORT_PATH:-$HOME/.pi/ds4/support}"
+  extension_path="${LOCAL_AI_EXTENSION_PATH:-$pi_ds4_dir}"
   runtime_path="$ds4_dir/ds4-server"
   pi_settings_file="${LOCAL_AI_PI_SETTINGS_FILE:-$pi_agent_dir/settings.json}"
   ds4_settings_file="${LOCAL_AI_DS4_SETTINGS_FILE:-$HOME/.pi/ds4/settings.json}"
@@ -107,7 +106,7 @@ emit_json_status() {
       ds4_state="missing"
     fi
 
-    if [[ -d "$pi_ds4_dir" && -r "$pi_ds4_dir/install-pi-extension-local.sh" ]]; then
+    if [[ -d "$pi_ds4_dir" && -r "$pi_ds4_dir/package.json" && -r "$pi_ds4_dir/index.ts" ]]; then
       pi_ds4_state="ready"
     elif [[ -e "$pi_ds4_dir" ]]; then
       pi_ds4_state="invalid"
@@ -115,17 +114,19 @@ emit_json_status() {
       pi_ds4_state="missing"
     fi
 
-    if [[ -L "$extension_path" && -e "$extension_path" && -L "$support_path" && -e "$support_path" ]]; then
-      if [[ "$(cd "$extension_path" 2>/dev/null && pwd -P)" == "$(cd "$pi_ds4_dir" 2>/dev/null && pwd -P)" ]] &&
-        [[ "$(cd "$support_path" 2>/dev/null && pwd -P)" == "$(cd "$ds4_dir" 2>/dev/null && pwd -P)" ]]; then
+    if [[ -r "$pi_settings_file" ]] && jq -e \
+      --arg package "$pi_ds4_dir" '
+        .packages | arrays | any(.[];
+          . == $package or . == "~/src/ai/pi-ds4" or
+          ((type == "object") and (.source == $package or .source == "~/src/ai/pi-ds4")))
+      ' "$pi_settings_file" >/dev/null 2>&1; then
+      if [[ "$pi_ds4_state" == "ready" ]]; then
         extension_state="linked"
       else
         extension_state="mislinked"
       fi
-    elif [[ ! -e "$extension_path" && ! -L "$extension_path" && ! -e "$support_path" && ! -L "$support_path" ]]; then
-      extension_state="missing"
     else
-      extension_state="mislinked"
+      extension_state="missing"
     fi
 
     if [[ "$ds4_state" == "unavailable" ]]; then
@@ -176,16 +177,22 @@ emit_json_status() {
     if [[ ! -r "$pi_settings_file" ]] || ! jq -e \
       --arg provider "$expected_provider" \
       --arg model "$expected_model" \
-      '.defaultProvider == $provider and .defaultModel == $model' \
+      --arg package "$pi_ds4_dir" \
+      '
+        ."$schema" == "https://pi.dev/schemas/settings.schema.json" and
+        .defaultProvider == $provider and
+        .defaultModel == $model and
+        (.packages | arrays | any(.[];
+          . == $package or . == "~/src/ai/pi-ds4" or
+          ((type == "object") and (.source == $package or .source == "~/src/ai/pi-ds4"))))
+      ' \
       "$pi_settings_file" >/dev/null 2>&1; then
       configuration_drift_count=$((configuration_drift_count + 1))
     fi
     if [[ ! -r "$ds4_settings_file" ]] || ! jq -e \
-      --arg runtime "$ds4_dir" \
       '
         ."$schema" == "https://raw.githubusercontent.com/mitsuhiko/pi-ds4/main/settings.schema.json" and
         .protocol == "openai-responses" and
-        .runtimeDir == $runtime and
         .autoUpdate == false and
         .contextTokens == 32768 and
         .power == 70 and
@@ -216,7 +223,7 @@ emit_json_status() {
     notBuilt) add_remediation "Run local-ai-setup to build the DS4 runtime." ;;
   esac
   case "$extension_state" in
-    missing | mislinked) add_remediation "Run local-ai-setup to relink the pi-ds4 extension and runtime support." ;;
+    missing | mislinked) add_remediation "Run make switch to restore the Pi pi-ds4 package declaration." ;;
   esac
   case "$model_state" in
     missing) add_remediation "Run local-ai-model start to install $model_name." ;;
@@ -338,7 +345,7 @@ else
   fail "DS4 checkout is missing at $ds4_dir"
 fi
 
-if [[ -f "$pi_ds4_dir/install-pi-extension-local.sh" ]]; then
+if [[ -f "$pi_ds4_dir/package.json" && -f "$pi_ds4_dir/index.ts" ]]; then
   pass "pi-ds4 checkout exists at $pi_ds4_dir"
 else
   fail "pi-ds4 checkout is missing at $pi_ds4_dir"
@@ -350,27 +357,24 @@ else
   warn "DS4 server is not built; run: local-ai-setup"
 fi
 
-if [[ -L "$pi_agent_dir/extensions/pi-ds4" && -e "$pi_agent_dir/extensions/pi-ds4" ]]; then
-  pass "Pi DS4 extension is linked"
+if [[ -r "$pi_agent_dir/settings.json" ]] && jq -e \
+  --arg package "$pi_ds4_dir" '
+    .packages | arrays | any(.[];
+      . == $package or . == "~/src/ai/pi-ds4" or
+      ((type == "object") and (.source == $package or .source == "~/src/ai/pi-ds4")))
+  ' "$pi_agent_dir/settings.json" >/dev/null 2>&1; then
+  pass "Pi is configured to load the pi-ds4 package"
 else
-  warn "Pi DS4 extension is not linked; run: local-ai-setup"
-fi
-
-support_link="$HOME/.pi/ds4/support"
-if [[ -L "$support_link" && -e "$support_link" ]] &&
-  [[ "$(cd "$support_link" && pwd -P)" == "$(cd "$ds4_dir" 2>/dev/null && pwd -P)" ]]; then
-  pass "Pi DS4 runtime points to $ds4_dir"
-else
-  warn "Pi DS4 runtime does not point to $ds4_dir; run: local-ai-setup"
+  warn "Pi is not configured for pi-ds4; run: make switch"
 fi
 
 settings_file="$HOME/.pi/ds4/settings.json"
-if [[ -f "$settings_file" ]] && jq -e --arg runtime "$ds4_dir" '
-  .protocol == "openai-responses" and .runtimeDir == $runtime
+if [[ -f "$settings_file" ]] && jq -e '
+  .protocol == "openai-responses"
 ' "$settings_file" >/dev/null 2>&1; then
   pass "Pi DS4 settings are valid"
 else
-  warn "Pi DS4 settings are missing or do not match the configured runtime"
+  warn "Pi DS4 settings are missing or invalid; run: make switch"
 fi
 
 shopt -s nullglob

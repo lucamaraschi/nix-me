@@ -618,6 +618,7 @@ name = "nix-me-codec"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "quick-xml",
  "serde_json",
 ]
 

@@ -1,0 +1,87 @@
+schema_version: 1
+id: tailscale
+name: Tailscale
+bundle_id: io.tailscale.ipn.macos
+install:
+  mas: 1475387142
+detect:
+  app_path: /Applications/Tailscale.app
+sandboxed: true
+requires: []
+app_version:
+  source: bundle_short_version
+  supported_majors: [1]
+config:
+  - kind: command_value
+    name: accept_dns
+    type: bool
+    get:
+      executable: /Applications/Tailscale.app/Contents/MacOS/Tailscale
+      arguments: [get, accept-dns]
+    set:
+      executable: /Applications/Tailscale.app/Contents/MacOS/Tailscale
+      arguments: [set, "--accept-dns={value}"]
+    confirm: one_click
+  - kind: command_value
+    name: accept_routes
+    type: bool
+    get:
+      executable: /Applications/Tailscale.app/Contents/MacOS/Tailscale
+      arguments: [get, accept-routes]
+    set:
+      executable: /Applications/Tailscale.app/Contents/MacOS/Tailscale
+      arguments: [set, "--accept-routes={value}"]
+    confirm: one_click
+  - kind: command_value
+    name: shields_up
+    type: bool
+    get:
+      executable: /Applications/Tailscale.app/Contents/MacOS/Tailscale
+      arguments: [get, shields-up]
+    set:
+      executable: /Applications/Tailscale.app/Contents/MacOS/Tailscale
+      arguments: [set, "--shields-up={value}"]
+    confirm: one_click
+  - kind: command_value
+    name: exit_node_allow_lan_access
+    type: bool
+    get:
+      executable: /Applications/Tailscale.app/Contents/MacOS/Tailscale
+      arguments: [get, exit-node-allow-lan-access]
+    set:
+      executable: /Applications/Tailscale.app/Contents/MacOS/Tailscale
+      arguments: [set, "--exit-node-allow-lan-access={value}"]
+    confirm: one_click
+  - kind: command_value
+    name: update_check
+    type: bool
+    get:
+      executable: /Applications/Tailscale.app/Contents/MacOS/Tailscale
+      arguments: [get, update-check]
+    set:
+      executable: /Applications/Tailscale.app/Contents/MacOS/Tailscale
+      arguments: [set, "--update-check={value}"]
+    confirm: one_click
+  - kind: command_value
+    name: auto_update
+    type: bool
+    get:
+      executable: /Applications/Tailscale.app/Contents/MacOS/Tailscale
+      arguments: [get, auto-update]
+    set:
+      executable: /Applications/Tailscale.app/Contents/MacOS/Tailscale
+      arguments: [set, "--auto-update={value}"]
+    confirm: one_click
+  - kind: manual
+    step: Authenticate Tailscale, approve its VPN extension, and configure identity- or network-specific settings manually.
+    doc: >-
+      The embedded 1.102 CLI positively exposes the six boolean preferences
+      above through typed get/set operations. Node and auth keys, accounts,
+      tailnet identity, device authorization, peers, exit-node identity,
+      advertised routes, DNS data, hostnames, operators, relay endpoints,
+      cloud policy, status output and server/account data are never exported.
+    confirm: full_manual
+apply:
+  poke: none
+  unsafe_to_kill: false
+verified: null

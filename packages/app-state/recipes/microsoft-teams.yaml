@@ -1,0 +1,19 @@
+schema_version: 1
+id: microsoft-teams
+name: Microsoft Teams
+bundle_id: com.microsoft.teams2
+install:
+  cask: microsoft-teams
+detect:
+  app_path: /Applications/Microsoft Teams.app
+sandboxed: false
+requires: []
+config:
+  - kind: manual
+    step: Configure portable appearance, launch, notification, and meeting-device defaults in Microsoft Teams, then sign in and grant device permissions manually.
+    doc: No Accessibility action runs. A future adapter must be pinned to a verified Teams UI version and must not inspect tokens, tenant or account identity, chats, meetings, organizational policy, or device authorization.
+    confirm: full_manual
+apply:
+  poke: none
+  unsafe_to_kill: false
+verified: null

@@ -51,5 +51,72 @@
     "verification": {"verifiedRecipeCount": 1, "unverifiedRecipeCount": 3},
     "warnings": ["One recipe needs review"]
   },
+  "appStateSettings": {
+    "schemaVersion": 1,
+    "root": "config/app-state",
+    "enabled": true,
+    "activeProfiles": ["dev", "work"],
+    "applications": [
+      {
+        "id": "rectangle",
+        "name": "Rectangle",
+        "bundleId": "com.knollsoft.Rectangle",
+        "installed": true,
+        "capturable": true,
+        "captureKinds": ["defaults"],
+        "exportableSettings": [
+          {
+            "kind": "preference",
+            "label": "Settings > General > Launch on login",
+            "source": "com.knollsoft.Rectangle/launchOnLogin",
+            "requiresConfirmation": false
+          }
+        ],
+        "recipeAvailable": true,
+        "recipePath": "packages/app-state/recipes/rectangle.yaml",
+        "appPath": "/Applications/Rectangle.app",
+        "configured": true,
+        "configurationSources": [
+          {
+            "scope": "builtIn",
+            "label": "Built-in defaults",
+            "path": "packages/app-state/values/rectangle.yaml"
+          },
+          {
+            "scope": "profile",
+            "label": "Profile: work",
+            "path": "config/app-state/profiles/work/settings.json"
+          }
+        ]
+      },
+      {
+        "id": "ghostty",
+        "name": "Ghostty",
+        "bundleId": "com.mitchellh.ghostty",
+        "installed": false,
+        "capturable": false,
+        "captureKinds": [],
+        "managedPaths": ["~/.config/ghostty/config"],
+        "recipeAvailable": true,
+        "recipePath": "packages/app-state/recipes/ghostty.yaml",
+        "appPath": null,
+        "configured": false,
+        "configurationSources": []
+      },
+      {
+        "id": "installed-com-example-notes",
+        "name": "Notes Plus",
+        "bundleId": "com.example.notes",
+        "installed": true,
+        "capturable": false,
+        "captureKinds": [],
+        "recipeAvailable": false,
+        "recipePath": null,
+        "appPath": "/Applications/Notes Plus.app",
+        "configured": false,
+        "configurationSources": []
+      }
+    ]
+  },
   "warnings": []
 }

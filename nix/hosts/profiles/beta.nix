@@ -2,5 +2,10 @@
 { ... }:
 
 {
-  apps.state.enable = true;
+  projects.settingsProfiles = [ "beta" ];
+
+  apps.state = {
+    enable = true;
+    settingsProfiles = [ "beta" ];
+  };
 }

@@ -1,0 +1,28 @@
+schema_version: 1
+id: protonvpn
+name: Proton VPN
+bundle_id: ch.protonvpn.mac
+install:
+  cask: protonvpn
+detect:
+  app_path: /Applications/ProtonVPN.app
+sandboxed: true
+requires: []
+config:
+  - kind: defaults
+    domain: ch.protonvpn.mac
+    keys:
+      SecureCoreToggle: {type: bool, ui: "Connection > Secure Core", doc: "Observed in Proton VPN 6.1.0."}
+      StartMinimized: {type: bool, ui: "General > Start minimized", doc: "Observed in Proton VPN 6.1.0."}
+      StartOnBoot: {type: bool, ui: "General > Start on boot", doc: "Observed in Proton VPN 6.1.0."}
+      SystemNotifications: {type: bool, ui: "General > System notifications", doc: "Observed in Proton VPN 6.1.0."}
+      smartProtocol: {type: bool, ui: "Connection > Smart protocol", doc: "Observed in Proton VPN 6.1.0."}
+    unknown_keys: reject
+    confirm: none
+  - kind: manual
+    step: Sign in and approve the network extension manually. Protocol payloads, per-user keys, connection requests and intents, server/account/location/cache data, credentials, sessions, authorization, and VPN identity are excluded.
+    confirm: full_manual
+apply:
+  poke: restart_app
+  unsafe_to_kill: true
+verified: null

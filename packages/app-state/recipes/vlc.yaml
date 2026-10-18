@@ -1,0 +1,85 @@
+schema_version: 1
+id: vlc
+name: VLC
+bundle_id: org.videolan.vlc
+install:
+  cask: vlc
+detect:
+  app_path: /Applications/VLC.app
+sandboxed: false
+requires: []
+app_version:
+  command: /usr/bin/plutil -extract CFBundleShortVersionString raw -o - '/Applications/VLC.app/Contents/Info.plist'
+  supported_majors: [3]
+config:
+  - kind: defaults
+    domain: org.videolan.vlc
+    keys:
+      SUEnableAutomaticChecks: {type: bool, ui: "VLC > Settings > General > Automatically check for updates"}
+      SUSendProfileInfo: {type: bool, ui: "VLC > Settings > General > Send system profile with update checks"}
+    unknown_keys: reject
+    confirm: none
+  - kind: file
+    binds: preferences
+    path: ~/Library/Preferences/org.videolan.vlc/vlcrc
+    format: key_value
+    paths:
+      allow:
+        - /values/metadata-network-access
+        - /values/macosx-interfacestyle
+        - /values/macosx-nativefullscreenmode
+        - /values/macosx-statusicon
+        - /values/macosx-icon-change
+        - /values/macosx-show-playback-buttons
+        - /values/macosx-show-playmode-buttons
+        - /values/macosx-show-effects-button
+        - /values/macosx-max-volume
+        - /values/macosx-large-text
+        - /values/macosx-autoplay
+        - /values/macosx-fspanel
+        - /values/macosx-video-autoresize
+        - /values/macosx-pause-minimized
+        - /values/macosx-lock-aspect-ratio
+        - /values/macosx-dim-keyboard
+        - /values/macosx-control-itunes
+        - /values/macosx-continue-playback
+        - /values/fullscreen
+        - /values/embedded-video
+        - /values/video-on-top
+        - /values/disable-screensaver
+        - /values/video-title-show
+        - /values/sub-autodetect-file
+        - /values/sub-autodetect-fuzzy
+        - /values/sub-margin
+        - /values/sub-text-scale
+        - /values/audio-language
+        - /values/sub-language
+        - /values/menu-language
+        - /values/preferred-resolution
+        - /values/input-fast-seek
+        - /values/auto-preparse
+        - /values/preparse-timeout
+        - /values/recursive
+        - /values/show-hiddenfiles
+      sensitive:
+        - /values/http-password
+        - /values/http-user
+        - /values/http-pwd
+        - /values/socks-user
+        - /values/socks-pwd
+        - /values/snapshot-path
+        - /values/sub-file
+        - /values/sub-autodetect-path
+        - /values/open
+        - /values/auhal-audio-device
+        - /values/macosx-vdev
+        - /values/macosx-recentitems
+    mode: "0600"
+    confirm: none
+  - kind: manual
+    step: Configure remaining VLC settings locally. Recent media, resume positions, credentials, URLs, snapshot and subtitle paths, audio or video device identifiers, media-library contents, and private network settings are never exported.
+    confirm: full_manual
+apply:
+  poke: restart_app
+  unsafe_to_kill: true
+verified: null

@@ -189,10 +189,9 @@ pub fn metric(catalog_path: &Path, recipe_inputs: &[PathBuf]) -> Result<CatalogM
     })
 }
 
-fn validate_loaded(
-    catalog: &AppCatalog,
-    recipes: &[Recipe],
-) -> Result<(BTreeMap<String, usize>, BTreeMap<String, usize>, usize)> {
+type CatalogValidation = (BTreeMap<String, usize>, BTreeMap<String, usize>, usize);
+
+fn validate_loaded(catalog: &AppCatalog, recipes: &[Recipe]) -> Result<CatalogValidation> {
     if catalog.version != 1 {
         bail!(
             "unsupported application catalog version {}",

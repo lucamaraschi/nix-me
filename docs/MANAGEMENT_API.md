@@ -43,6 +43,10 @@ not imply that the system needs activation.
 - `NIX_ME_HOSTNAME` evaluates another configured host.
 - `NIX_ME_APPLIED_MANIFEST` overrides the active manifest path for testing.
 - `NIX_ME_SKIP_UPDATES=1` skips all network-backed update queries.
+- `NIX_ME_APPLICATION_DIRS` overrides the colon-separated application roots
+  scanned by the settings catalog.
+- `NIX_ME_APPLICATION_CATALOG` supplies a deterministic installed-application
+  JSON fixture for contract tests.
 
 Nix updates are detected by resolving inputs into a temporary candidate lock
 file and comparing revisions. The repository's real `flake.lock` is never
@@ -82,3 +86,15 @@ authoritative and conflicting caller input is rejected before download.
 native macOS administrator prompt. The app passes the evaluated hostname and
 username explicitly, skips duplicate Homebrew update checks, waits for
 activation to finish, and then refreshes desired-versus-applied state.
+
+Project configuration uses a two-step mutation boundary:
+
+```bash
+nix-me action project-preview  # Validate and return the proposed JSON change
+nix-me action project-save     # Atomically write the reviewed declaration
+```
+
+Both actions accept a project declaration on stdin with a shared, profile, or
+machine scope. Saving writes under `config/projects`; it never clones a Git
+repository or applies the Nix configuration. `sync-projects` remains the
+explicit network operation that clones and updates configured repositories.

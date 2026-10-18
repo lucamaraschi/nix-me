@@ -125,14 +125,17 @@ Provides private DeepSeek inference on Apple Silicon through DS4 and Pi.
 **Adds:**
 - Pi coding agent through Homebrew
 - DS4 and pi-ds4 project declarations under `~/src/ai`
-- Declarative Pi DS4 baseline settings
+- Declarative Pi settings with `pi-ds4` as a native Pi package
+- DS4 as Pi's default local provider and selected model
 - `local-ai-preflight` checks before activation
 - `local-ai-doctor` prerequisite and capacity checks
-- `local-ai-setup` runtime build, Pi integration, and explicit model download
+- `local-ai-setup` optional eager runtime build and explicit model download
 
-The profile never downloads model weights during activation. Run
-`local-ai-setup --download-model` after checking the machine with
-`local-ai-doctor`. Capacity shortfalls warn by default; set
+The profile never downloads model weights during activation. `make switch`
+installs Pi, syncs both repositories, and writes the complete integration
+configuration. Run `local-ai-model start` after checking the machine with
+`local-ai-doctor`; Pi also exposes the model manager through `/ds4`.
+Capacity shortfalls warn by default; set
 `localAi.requirements.enforcement = "fail"` in a host configuration to stop
 activation when the model's recommendation is not met.
 
