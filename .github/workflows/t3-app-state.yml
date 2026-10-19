@@ -64,7 +64,7 @@ jobs:
         run: packages/app-state/evidence/tools/t3-session wait "$T3_REQUEST" 7200
       - name: Retain T3 draft and session diagnostics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: t3-${{ inputs.procedure }}-${{ github.run_id }}
           path: |
