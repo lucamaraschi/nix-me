@@ -12,7 +12,7 @@ let package = Package(
         .executable(name: "NixMeApp", targets: ["NixMeApp"])
     ],
     dependencies: localNixBuild ? [] : [
-        .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.9.6")
+        .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.10.0")
     ],
     targets: [
         .executableTarget(
