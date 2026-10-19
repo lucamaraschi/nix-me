@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Text, useStdout } from 'ink';
+import { Box, Text, useWindowSize } from 'ink';
 import type { SystemInfo } from '../types.js';
 
 // Simple top/bottom border box (Ink's borderStyle has rendering bugs with side borders)
@@ -22,8 +22,7 @@ interface DashboardProps {
 }
 
 export function Dashboard({ systemInfo }: DashboardProps) {
-  const { stdout } = useStdout();
-  const terminalWidth = stdout?.columns || 80;
+  const { columns: terminalWidth } = useWindowSize();
   // Account for padding (2 on each side from App.tsx paddingX={2})
   const boxWidth = terminalWidth - 4;
 
@@ -114,7 +113,7 @@ export function Dashboard({ systemInfo }: DashboardProps) {
                 <Box flexDirection="column">
                   <Text bold color="cyan">📱 GUI Applications</Text>
                   <Box marginTop={1}>
-                    <Text bold color="cyan" fontSize={18}>{packages.guiApps} </Text>
+                    <Text bold color="cyan">{packages.guiApps} </Text>
                     <Text dimColor>installed apps</Text>
                   </Box>
                 </Box>
@@ -123,7 +122,7 @@ export function Dashboard({ systemInfo }: DashboardProps) {
                 <Box flexDirection="column">
                   <Text bold color="magenta">🔧 Brew CLI Tools</Text>
                   <Box marginTop={1}>
-                    <Text bold color="magenta" fontSize={18}>{packages.brewCLI} </Text>
+                    <Text bold color="magenta">{packages.brewCLI} </Text>
                     <Text dimColor>command-line tools</Text>
                   </Box>
                 </Box>
@@ -132,7 +131,7 @@ export function Dashboard({ systemInfo }: DashboardProps) {
                 <Box flexDirection="column">
                   <Text bold color="blue">📦 Nix Packages</Text>
                   <Box marginTop={1}>
-                    <Text bold color="blue" fontSize={18}>{packages.nixCLI} </Text>
+                    <Text bold color="blue">{packages.nixCLI} </Text>
                     <Text dimColor>system packages</Text>
                   </Box>
                 </Box>

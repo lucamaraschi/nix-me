@@ -14,7 +14,7 @@
       in name != "node_modules" && name != "dist" && name != ".git";
   };
 
-  npmDepsHash = "sha256-yTyeGaeqAAGUA82eUJiRM7pop6FfyhPzmGWBIIOLHUw=";
+  npmDepsHash = "sha256-4FAxSilbCStcfPx6nOuf7kDBe8q0nZTi5XGOc3SnY5E=";
   npmBuildScript = "build";
 
   installPhase = ''
@@ -22,7 +22,6 @@
     substituteInPlace dist/index.js \
       --replace-fail '#!/usr/bin/env node' '#!${nodejsCurrent}/bin/node'
     install -Dm755 dist/index.js "$out/bin/nix-me-tui"
-    install -Dm644 dist/yoga.wasm "$out/bin/yoga.wasm"
     runHook postInstall
   '';
 

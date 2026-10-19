@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 import { build } from 'esbuild';
-import { chmod, copyFile } from 'fs/promises';
+import { chmod } from 'fs/promises';
 
 async function bundle() {
   console.log('Building nix-me TUI...');
@@ -18,9 +18,6 @@ async function bundle() {
     external: ['fsevents'], // macOS only, optional
     minify: true,
   });
-
-  // Ink resolves Yoga's WebAssembly module relative to the executable.
-  await copyFile('node_modules/yoga-wasm-web/dist/yoga.wasm', 'dist/yoga.wasm');
 
   await chmod('dist/index.js', 0o755);
 
