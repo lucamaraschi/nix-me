@@ -2126,7 +2126,12 @@ fn verify_file_rollback(path: &Path, expected: Option<&[u8]>, mode: Option<u32>)
     Ok(())
 }
 pub fn checksum(bytes: &[u8]) -> String {
-    format!("sha256:{:x}", Sha256::digest(bytes))
+    let digest = Sha256::digest(bytes);
+    let hex = digest
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    format!("sha256:{hex}")
 }
 
 pub fn parse_command_value(output: &str, value_type: ValueType) -> Result<Value> {

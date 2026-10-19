@@ -109,13 +109,11 @@ pub fn sniff_with_allowlist(path: &Path, include: &BTreeSet<String>) -> Result<V
                     }
                 }
             }
-            if let Ok(parsed) = text.parse::<toml::Value>() {
-                if parsed.is_table() {
-                    pipeline.push(serde_json::json!({"toml":{}}));
-                    verdict = "toml";
-                    model = Some(serde_json::to_value(parsed)?);
-                    break;
-                }
+            if let Ok(parsed) = text.parse::<toml::Table>() {
+                pipeline.push(serde_json::json!({"toml":{}}));
+                verdict = "toml";
+                model = Some(serde_json::to_value(parsed)?);
+                break;
             }
             if let Ok(parsed) = serde_yaml::from_str::<serde_yaml::Value>(text) {
                 if matches!(

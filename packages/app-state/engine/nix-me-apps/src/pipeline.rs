@@ -5,7 +5,7 @@ use crate::state::ArtifactState;
 use aes::{Aes128, Aes256};
 use anyhow::{anyhow, bail, Context, Result};
 use base64::Engine as _;
-use cbc::cipher::{block_padding::Pkcs7, BlockDecryptMut, BlockEncryptMut, KeyIvInit};
+use cbc::cipher::{block_padding::Pkcs7, BlockModeDecrypt, BlockModeEncrypt, KeyIvInit};
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 use serde_json::Value;
 use sha2::{Digest as _, Sha256};
@@ -372,7 +372,8 @@ fn encode_zip(payload: Payload, opts: &serde_yaml::Mapping) -> Result<Payload> {
     for (name, data) in files {
         zip.start_file(
             name,
-            zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Deflated),
+            zip::write::SimpleFileOptions::default()
+                .compression_method(zip::CompressionMethod::Deflated),
         )?;
         zip.write_all(&data)?;
     }
@@ -442,8 +443,7 @@ pub(crate) fn openssl_aes_bytes(
     let (payload, salt) = if encode {
         if salted {
             let mut salt = [0u8; 8];
-            getrandom::getrandom(&mut salt)
-                .map_err(|error| anyhow!("generate AES salt: {error}"))?;
+            getrandom::fill(&mut salt).map_err(|error| anyhow!("generate AES salt: {error}"))?;
             (input, Some(salt))
         } else {
             (input, None)
@@ -465,14 +465,14 @@ pub(crate) fn openssl_aes_bytes(
     let (key, iv) = evp_bytes_to_key(password, salt.as_ref().map(|v| v.as_slice()), key_len);
     let transformed = match (algo, encode) {
         ("aes-256-cbc", true) => cbc::Encryptor::<Aes256>::new_from_slices(&key, &iv)?
-            .encrypt_padded_vec_mut::<Pkcs7>(payload),
+            .encrypt_padded_vec::<Pkcs7>(payload),
         ("aes-256-cbc", false) => cbc::Decryptor::<Aes256>::new_from_slices(&key, &iv)?
-            .decrypt_padded_vec_mut::<Pkcs7>(payload)
+            .decrypt_padded_vec::<Pkcs7>(payload)
             .map_err(|_| anyhow!("AES-256-CBC padding or password is invalid"))?,
         ("aes-128-cbc", true) => cbc::Encryptor::<Aes128>::new_from_slices(&key, &iv)?
-            .encrypt_padded_vec_mut::<Pkcs7>(payload),
+            .encrypt_padded_vec::<Pkcs7>(payload),
         ("aes-128-cbc", false) => cbc::Decryptor::<Aes128>::new_from_slices(&key, &iv)?
-            .decrypt_padded_vec_mut::<Pkcs7>(payload)
+            .decrypt_padded_vec::<Pkcs7>(payload)
             .map_err(|_| anyhow!("AES-128-CBC padding or password is invalid"))?,
         _ => unreachable!(),
     };
