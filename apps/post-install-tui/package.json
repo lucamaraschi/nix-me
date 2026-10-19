@@ -12,7 +12,7 @@
   },
   "scripts": {
     "dev": "tsx src/index.tsx",
-    "build": "tsx build.ts",
+    "build": "tsc --noEmit && tsx build.ts",
     "bundle": "npm run build",
     "watch": "tsx watch src/index.tsx"
   },
