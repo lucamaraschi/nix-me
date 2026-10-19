@@ -93,7 +93,7 @@ jobs:
       - name: Check weekly Homebrew snapshot freshness
         if: github.event_name == 'schedule'
         run: tools/update-homebrew-app-catalog.sh --check
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: local-app-state-catalog
           path: |
