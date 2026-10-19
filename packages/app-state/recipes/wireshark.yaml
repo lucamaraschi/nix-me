@@ -1,0 +1,74 @@
+schema_version: 1
+id: wireshark
+name: Wireshark
+bundle_id: org.wireshark.Wireshark
+install:
+  cask: wireshark-app
+detect:
+  app_path: /Applications/Wireshark.app
+sandboxed: false
+requires: []
+app_version:
+  command: /usr/bin/plutil -extract CFBundleShortVersionString raw -o - '/Applications/Wireshark.app/Contents/Info.plist'
+  supported_majors: [4]
+config:
+  - kind: file
+    binds: preferences
+    path: ~/.config/wireshark/preferences
+    format: key_value
+    paths:
+      allow:
+        - /values/gui.ask_unsaved
+        - /values/gui.autocomplete_filter
+        - /values/gui.find_wrap
+        - /values/gui.geometry.save.position
+        - /values/gui.geometry.save.size
+        - /values/gui.geometry.save.maximized
+        - /values/gui.toolbar_main_style
+        - /values/gui.update.enabled
+        - /values/gui.update.channel
+        - /values/gui.update.interval
+        - /values/gui.color_scheme
+        - /values/gui.layout_type
+        - /values/gui.layout_content_1
+        - /values/gui.layout_content_2
+        - /values/gui.layout_content_3
+        - /values/gui.packet_list_separator.enabled
+        - /values/gui.packet_list_hover_style.enabled
+        - /values/gui.show_selected_packet.enabled
+        - /values/gui.show_file_load_time.enabled
+        - /values/gui.packet_list_show_related
+        - /values/gui.packet_list_show_minimap
+        - /values/capture.prom_mode
+        - /values/capture.monitor_mode
+        - /values/capture.pcap_ng
+        - /values/capture.real_time_update
+        - /values/capture.update_interval
+        - /values/capture.no_interface_load
+        - /values/capture.no_extcap
+        - /values/capture.show_info
+      sensitive:
+        - /values/gui.fileopen.dir
+        - /values/gui.tlskeylog_command
+        - /values/capture.device
+        - /values/capture.devices_linktypes
+        - /values/capture.devices_descr
+        - /values/capture.devices_hide
+        - /values/capture.devices_monitor_mode
+        - /values/capture.devices_buffersize
+        - /values/capture.devices_snaplen
+        - /values/capture.devices_pmode
+        - /values/capture.devices_filter
+        - /values/tls.keylog_file
+        - /values/tls.keys_list
+        - /values/uat:ssl_keys
+        - /values/uat:tls_keys
+    mode: "0600"
+    confirm: none
+  - kind: manual
+    step: Configure protocol-specific preferences locally until each key has an independent safe review. Recent captures, capture files and filters, TLS key logs, decryption keys, credentials, interface names and device settings, remote endpoints, and machine paths are never exported.
+    confirm: full_manual
+apply:
+  poke: restart_app
+  unsafe_to_kill: true
+verified: null

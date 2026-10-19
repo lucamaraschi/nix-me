@@ -29,6 +29,7 @@
 
       # Check if we're running in VM mode (skip Mac App Store apps)
       skipMasApps = builtins.getEnv "SKIP_MAS_APPS" == "1";
+      skipHomebrew = builtins.getEnv "SKIP_BREW_ON_VM" == "1";
 
       mkUnstablePkgs =
         system:
@@ -98,12 +99,19 @@
             {
               nixpkgs.overlays = [
                 (import ./nix/overlays/airjack.nix)
-                # Add other overlays here
+                (_final: _prev: {
+                  nodejs_latest = self.packages.${system}.nodejs-current;
+                })
               ];
             }
 
             # VM mode - skip Mac App Store apps (iCloud doesn't work in VMs)
             (if skipMasApps then ./nix/modules/darwin/vm-mode.nix else { })
+
+            # Minimal disposable VMs can validate Nix without bootstrapping Homebrew.
+            (if skipHomebrew then { lib, ... }: {
+              homebrew.enable = lib.mkForce false;
+            } else { })
           ] ++ extraModules;
           specialArgs = {
             inherit inputs hostname machineType machineName username;
@@ -119,23 +127,36 @@
         "x86_64-linux"
       ]
         (system:
-          let pkgs = import nixpkgs { inherit system; };
-          in {
+          let
+            pkgs = import nixpkgs { inherit system; };
+            unstablePkgs = import nixpkgs-unstable { inherit system; };
+            nodejsCurrent = pkgs.callPackage ./nix/packages/nodejs-current-bin.nix { };
+          in
+          {
+            nodejs-current = nodejsCurrent;
+            nix-me-tui = pkgs.callPackage ./nix/packages/post-install-tui.nix {
+              inherit nodejsCurrent;
+            };
             nix-me-apps = pkgs.rustPlatform.buildRustPackage {
               pname = "nix-me-apps";
               version = "0.1.0";
               src = pkgs.lib.cleanSourceWith {
-                src = ./packages/app-state/engine;
+                src = ./packages/app-state;
                 filter = path: type:
                   let base = baseNameOf path;
                   in base != "target" && base != ".git";
               };
+              sourceRoot = "source/engine";
               cargoLock.lockFile = ./packages/app-state/engine/Cargo.lock;
               cargoBuildFlags = [ "-p" "nix-me-apps" ];
               cargoTestFlags = [ "-p" "nix-me-apps" ];
               meta.mainProgram = "nix-me-apps";
             };
             default = self.packages.${system}.nix-me-apps;
+          } // nixpkgs.lib.optionalAttrs pkgs.stdenv.isDarwin {
+            nix-me-macos = unstablePkgs.callPackage ./nix/packages/nix-me-macos.nix {
+              nixMeApps = self.packages.${system}.nix-me-apps;
+            };
           });
 
       # Define specific machine configurations
@@ -184,6 +205,8 @@
             ./nix/hosts/profiles/hacking.nix # Hacking tools for on the go
             ./nix/hosts/profiles/maker.nix # 3D printing & CAD
             ./nix/hosts/profiles/ai.nix
+            ./nix/hosts/profiles/local-ai.nix # Pi with local DS4 inference
+            { apps.manager.enable = true; }
           ];
         };
 
@@ -216,14 +239,7 @@
           machineName = "VM";
           username = username; # Use USERNAME env var or default
           # Exercise the opt-in activation path in the disposable macOS VM.
-          extraModules = [{ apps.state.enable = true; }];
-        };
-
-        # Add a generic VM configuration for testing
-        "nixos-vm" = mkDarwinSystem {
-          hostname = "nixos-vm";
-          machineType = "vm";
-          machineName = "NixOS VM";
+          extraModules = [ ./nix/hosts/profiles/beta.nix ];
         };
 
         # ========================================

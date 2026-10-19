@@ -1,0 +1,22 @@
+schema_version: 1
+id: codex
+name: Codex
+bundle_id: com.openai.codex
+install:
+  cask: codex-app
+detect:
+  app_path: /Applications/Codex.app
+sandboxed: false
+requires: []
+config:
+  - kind: file
+    binds: config
+    path: ~/.codex/config.toml
+    format: toml
+    merge: deep_merge
+    mode: "0600"
+    confirm: none
+apply:
+  poke: none
+  unsafe_to_kill: false
+verified: null

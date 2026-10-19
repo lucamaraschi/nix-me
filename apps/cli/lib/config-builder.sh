@@ -15,11 +15,11 @@ generate_machine_config_multi_profile() {
     local repo_dir="$5"
     shift 5
     local profiles=("$@")  # Remaining args are profiles
-    local app_state_enable="${WIZARD_APP_STATE_ENABLE:-false}"
+    local app_state_enable="${WIZARD_APP_STATE_ENABLE:-}"
+    local app_state_config="  # apps.state.enable inherits its module/profile default."
 
     case "$app_state_enable" in
-        true|false) ;;
-        *) app_state_enable="false" ;;
+        true|false) app_state_config="  apps.state.enable = $app_state_enable;" ;;
     esac
 
     print_info "Generating configuration for $hostname"
@@ -37,7 +37,7 @@ generate_machine_config_multi_profile() {
         if ! ask_yes_no "Overwrite existing configuration?" "n"; then
             print_info "Keeping existing configuration"
             # Still update flake.nix entry
-            update_flake_multi_profile "$repo_dir" "$hostname" "$machine_type" "$machine_name" "$username" "${profiles[@]}"
+            update_flake_multi_profile "$repo_dir" "$hostname" "$machine_type" "$machine_name" "$username" ${profiles[@]+"${profiles[@]}"}
             return 0
         fi
     fi
@@ -63,7 +63,7 @@ generate_machine_config_multi_profile() {
 
   # Declarative application preferences are opt-in. The setup wizard records
   # this explicitly so existing machines retain their prior activation behavior.
-  apps.state.enable = $app_state_enable;
+$app_state_config
 
   # Add any machine-specific overrides here:
   # apps = {
@@ -88,7 +88,7 @@ EOF
     print_success "Created host config: $host_dir/default.nix"
 
     # Update flake.nix
-    update_flake_multi_profile "$repo_dir" "$hostname" "$machine_type" "$machine_name" "$username" "${profiles[@]}"
+    update_flake_multi_profile "$repo_dir" "$hostname" "$machine_type" "$machine_name" "$username" ${profiles[@]+"${profiles[@]}"}
 }
 
 # Update flake.nix with multi-profile support
@@ -232,7 +232,7 @@ generate_machine_config_with_profile() {
         "$machine_name" \
         "$username" \
         "$repo_dir" \
-        "${profiles[@]}"
+        ${profiles[@]+"${profiles[@]}"}
 }
 
 # Original function for backward compatibility

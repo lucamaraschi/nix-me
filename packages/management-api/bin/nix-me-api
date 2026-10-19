@@ -9,14 +9,26 @@ CONFIG_DIR="${NIX_ME_CONFIG_DIR:-$REPO_DIR}"
 HOST_NAME="${NIX_ME_HOSTNAME:-$(hostname -s | tr '[:upper:]' '[:lower:]')}"
 APPLIED_MANIFEST="${NIX_ME_APPLIED_MANIFEST:-/etc/nix-me/manifest.json}"
 API_VERSION=1
+REQUESTED_ENDPOINT="${1:-snapshot}"
 
 # GUI apps do not inherit the interactive shell PATH.
 export PATH="/run/current-system/sw/bin:/etc/profiles/per-user/${USER:-$(id -un)}/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/usr/local/bin:${PATH:-/usr/bin:/bin:/usr/sbin:/sbin}"
+export USERNAME="${USERNAME:-${USER:-$(id -un)}}"
 
 if ! command -v jq >/dev/null 2>&1; then
   printf '{"schemaVersion":1,"error":{"code":"missing_dependency","message":"jq is required by the nix-me API"}}\n'
   exit 69
 fi
+
+case "$REQUESTED_ENDPOINT" in
+  snapshot | status | inventory | updates | projects | app-state | app-state-settings | local-ai | manifest)
+    ;;
+  *)
+    jq -n --arg command "$REQUESTED_ENDPOINT" \
+      '{schemaVersion: 1, error: {code: "unknown_endpoint", message: ("Unknown API endpoint: " + $command)}}'
+    exit 64
+    ;;
+esac
 
 TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/nix-me-api.XXXXXX")"
 trap 'rm -rf "$TEMP_DIR"' EXIT
@@ -31,6 +43,1287 @@ add_warning() {
 command_exists() {
   command -v "$1" >/dev/null 2>&1
 }
+
+read_bundle_value() {
+  local plist="$1"
+  local key="$2"
+
+  if [[ -x /usr/libexec/PlistBuddy ]]; then
+    /usr/libexec/PlistBuddy -c "Print :$key" "$plist" 2>/dev/null || true
+  elif command_exists plutil; then
+    plutil -extract "$key" raw -o - "$plist" 2>/dev/null || true
+  fi
+}
+
+discover_installed_applications() {
+  local catalog_file app_directories application_directory application_path plist
+  local bundle_id application_name catalog_lines
+  local -a application_directories
+
+  catalog_file="${NIX_ME_APPLICATION_CATALOG:-}"
+  if [[ -n "$catalog_file" ]]; then
+    if [[ -r "$catalog_file" ]] && jq -ce '
+      (if type == "object" then .applications else . end) |
+      select(type == "array") |
+      map(select(
+        (.name | type == "string" and length > 0) and
+        (.bundleId | type == "string" and length > 0) and
+        (.appPath | type == "string" and length > 0)
+      ))
+    ' "$catalog_file" 2>/dev/null; then
+      return 0
+    fi
+    return 1
+  fi
+
+  catalog_lines="$TEMP_DIR/installed-applications.ndjson"
+  : >"$catalog_lines"
+  app_directories="${NIX_ME_APPLICATION_DIRS:-/Applications:$HOME/Applications}"
+  IFS=':' read -r -a application_directories <<<"$app_directories"
+  for application_directory in "${application_directories[@]}"; do
+    [[ -d "$application_directory" ]] || continue
+    while IFS= read -r -d '' application_path; do
+      plist="$application_path/Contents/Info.plist"
+      [[ -r "$plist" ]] || continue
+      bundle_id="$(read_bundle_value "$plist" CFBundleIdentifier)"
+      [[ -n "$bundle_id" ]] || continue
+      application_name="$(read_bundle_value "$plist" CFBundleDisplayName)"
+      [[ -n "$application_name" ]] || application_name="$(read_bundle_value "$plist" CFBundleName)"
+      [[ -n "$application_name" ]] || application_name="$(basename "${application_path%.app}")"
+      jq -cn \
+        --arg name "$application_name" \
+        --arg bundleId "$bundle_id" \
+        --arg appPath "$application_path" \
+        '{name: $name, bundleId: $bundleId, appPath: $appPath}' >>"$catalog_lines"
+    done < <(find -L "$application_directory" -maxdepth 2 -type d -name '*.app' -prune -print0 2>/dev/null)
+  done
+
+  if [[ -s "$catalog_lines" ]]; then
+    jq -sc 'unique_by(.bundleId) | sort_by(.name | ascii_downcase)' "$catalog_lines"
+  else
+    printf '[]\n'
+  fi
+}
+
+configuration_relative_path() {
+  local path="$1"
+  if [[ "$path" == "$CONFIG_DIR/"* ]]; then
+    printf '%s\n' "${path#"$CONFIG_DIR/"}"
+  elif [[ "$path" == */packages/app-state/* ]]; then
+    printf 'packages/app-state/%s\n' "${path#*"/packages/app-state/"}"
+  elif [[ "$path" == */config/app-state/* ]]; then
+    printf 'config/app-state/%s\n' "${path#*"/config/app-state/"}"
+  else
+    printf '%s\n' "$path"
+  fi
+}
+
+values_file_has_application() {
+  local file="$1"
+  local app_id="$2"
+  case "$file" in
+    *.json) jq -e --arg appId "$app_id" 'type == "object" and has($appId)' "$file" >/dev/null 2>&1 ;;
+    *.yaml | *.yml) grep -Eq "^${app_id}:[[:space:]]*($|#)" "$file" 2>/dev/null ;;
+    *) return 1 ;;
+  esac
+}
+
+append_configuration_source() {
+  local sources="$1"
+  local scope="$2"
+  local label="$3"
+  local file="$4"
+  local relative_path
+  relative_path="$(configuration_relative_path "$file")"
+  jq -c \
+    --arg scope "$scope" \
+    --arg label "$label" \
+    --arg path "$relative_path" \
+    '. + [{scope: $scope, label: $label, path: $path}]' <<<"$sources"
+}
+
+application_configuration_sources() {
+  local app_id="$1"
+  local sources='[]'
+  local values_path file relative_path scope label profile
+
+  for values_path in "${app_state_values_paths[@]}"; do
+    [[ -n "$values_path" ]] || continue
+    if [[ -d "$values_path" ]]; then
+      while IFS= read -r file; do
+        if values_file_has_application "$file" "$app_id"; then
+          relative_path="$(configuration_relative_path "$file")"
+          case "$relative_path" in
+            packages/app-state/values/*) scope=builtIn; label="Built-in defaults" ;;
+            config/app-state/shared/*) scope=shared; label="All machines" ;;
+            config/app-state/profiles/*)
+              scope=profile
+              profile="${relative_path#config/app-state/profiles/}"
+              label="Profile: ${profile%%/*}"
+              ;;
+            config/app-state/machines/*) scope=machine; label="This machine" ;;
+            *) scope=external; label="Additional values" ;;
+          esac
+          sources="$(append_configuration_source "$sources" "$scope" "$label" "$file")"
+        fi
+      done < <(find "$values_path" -type f \( -name '*.json' -o -name '*.yaml' -o -name '*.yml' \) -print 2>/dev/null | sort)
+    elif [[ -f "$values_path" ]] && values_file_has_application "$values_path" "$app_id"; then
+      relative_path="$(configuration_relative_path "$values_path")"
+      case "$relative_path" in
+        packages/app-state/values/*) scope=builtIn; label="Built-in defaults" ;;
+        config/app-state/shared/*) scope=shared; label="All machines" ;;
+        config/app-state/profiles/*)
+          scope=profile
+          profile="${relative_path#config/app-state/profiles/}"
+          label="Profile: ${profile%%/*}"
+          ;;
+        config/app-state/machines/*) scope=machine; label="This machine" ;;
+        *) scope=external; label="Additional values" ;;
+      esac
+      sources="$(append_configuration_source "$sources" "$scope" "$label" "$values_path")"
+    fi
+  done
+
+  printf '%s\n' "$sources"
+}
+
+application_recipe_path() {
+  local app_id="$1"
+  local recipe_root recipe_path
+  for recipe_root in "${app_state_recipe_paths[@]}"; do
+    if [[ -d "$recipe_root" ]]; then
+      recipe_path="$(find "$recipe_root" -type f \( -name "$app_id.yaml" -o -name "$app_id.yml" \) -print -quit 2>/dev/null)"
+    elif [[ "$(basename "$recipe_root")" == "$app_id.yaml" || "$(basename "$recipe_root")" == "$app_id.yml" ]]; then
+      recipe_path="$recipe_root"
+    else
+      recipe_path=''
+    fi
+    if [[ -n "$recipe_path" ]]; then
+      configuration_relative_path "$recipe_path"
+      return 0
+    fi
+  done
+  return 1
+}
+
+recipe_scalar() {
+  local key="$1"
+  local recipe="$2"
+  awk -v key="$key" '
+    $0 ~ ("^" key ":[[:space:]]*") {
+      value = $0
+      sub("^" key ":[[:space:]]*", "", value)
+      sub(/[[:space:]]+#.*/, "", value)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+      if ((substr(value, 1, 1) == "\"" && substr(value, length(value), 1) == "\"") ||
+          (substr(value, 1, 1) == "\047" && substr(value, length(value), 1) == "\047")) {
+        value = substr(value, 2, length(value) - 2)
+      }
+      print value
+      exit
+    }
+  ' "$recipe"
+}
+
+recipe_capture_kinds() {
+  local recipe="$1"
+  awk '
+    function flush_entry() {
+      if (kind == "defaults" || kind == "command" ||
+          (kind == "file" && format != "" && format != "text") ||
+          (kind == "file" && format == "text" && export == "reviewed_text")) {
+        kinds[kind] = 1
+      }
+      kind = ""
+      format = ""
+      export = ""
+    }
+
+    /^config:[[:space:]]*$/ {
+      in_config = 1
+      next
+    }
+
+    in_config && /^[^[:space:]#]/ {
+      flush_entry()
+      in_config = 0
+    }
+
+    in_config && /^[[:space:]]*-[[:space:]]+kind:[[:space:]]*/ {
+      flush_entry()
+      kind = $0
+      sub(/^[[:space:]]*-[[:space:]]+kind:[[:space:]]*/, "", kind)
+      sub(/[[:space:]]+#.*/, "", kind)
+      gsub(/[[:space:]]/, "", kind)
+      next
+    }
+
+    in_config && kind == "file" && /^[[:space:]]+format:[[:space:]]*/ {
+      format = $0
+      sub(/^[[:space:]]+format:[[:space:]]*/, "", format)
+      sub(/[[:space:]]+#.*/, "", format)
+      gsub(/[[:space:]]/, "", format)
+    }
+
+    in_config && kind == "file" && /^[[:space:]]+export:[[:space:]]*/ {
+      export = $0
+      sub(/^[[:space:]]+export:[[:space:]]*/, "", export)
+      sub(/[[:space:]]+#.*/, "", export)
+      gsub(/[[:space:]]/, "", export)
+    }
+
+    END {
+      if (in_config) {
+        flush_entry()
+      }
+      for (kind_name in kinds) {
+        print kind_name
+      }
+    }
+  ' "$recipe" | sort
+}
+
+recipe_managed_paths() {
+  local recipe="$1"
+  awk '
+    function clean(value) {
+      sub(/[[:space:]]+#.*/, "", value)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+      if ((substr(value, 1, 1) == "\"" && substr(value, length(value), 1) == "\"") ||
+          (substr(value, 1, 1) == "\047" && substr(value, length(value), 1) == "\047")) {
+        value = substr(value, 2, length(value) - 2)
+      }
+      return value
+    }
+
+    /^config:[[:space:]]*$/ {
+      in_config = 1
+      next
+    }
+
+    in_config && /^[^[:space:]#]/ {
+      in_config = 0
+    }
+
+    in_config && /^[[:space:]]*-[[:space:]]+kind:[[:space:]]*/ {
+      kind = $0
+      sub(/^[[:space:]]*-[[:space:]]+kind:[[:space:]]*/, "", kind)
+      kind = clean(kind)
+      next
+    }
+
+    in_config && kind == "file" && /^[[:space:]]+path:[[:space:]]*/ {
+      value = $0
+      sub(/^[[:space:]]+path:[[:space:]]*/, "", value)
+      print clean(value)
+    }
+
+    in_config && kind == "generated_import" && /^[[:space:]]+deliver:[[:space:]]*/ {
+      value = $0
+      sub(/^[[:space:]]+deliver:[[:space:]]*/, "", value)
+      print clean(value)
+    }
+  ' "$recipe" | sort -u
+}
+
+recipe_manual_steps() {
+  local recipe="$1"
+  awk '
+    function clean(value) {
+      sub(/[[:space:]]+#.*/, "", value)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+      if ((substr(value, 1, 1) == "\"" && substr(value, length(value), 1) == "\"") ||
+          (substr(value, 1, 1) == "\047" && substr(value, length(value), 1) == "\047")) {
+        value = substr(value, 2, length(value) - 2)
+      }
+      return value
+    }
+
+    /^config:[[:space:]]*$/ { in_config = 1; next }
+    in_config && /^[^[:space:]#]/ { in_config = 0 }
+    in_config && /^[[:space:]]*-[[:space:]]+kind:[[:space:]]*/ {
+      kind = $0
+      sub(/^[[:space:]]*-[[:space:]]+kind:[[:space:]]*/, "", kind)
+      kind = clean(kind)
+      next
+    }
+    in_config && kind == "manual" && /^[[:space:]]+step:[[:space:]]*/ {
+      value = $0
+      sub(/^[[:space:]]+step:[[:space:]]*/, "", value)
+      print clean(value)
+    }
+  ' "$recipe"
+}
+
+recipe_detect_command() {
+  local recipe="$1"
+  awk '
+    function clean(value) {
+      sub(/[[:space:]]+#.*/, "", value)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+      if ((substr(value, 1, 1) == "\"" && substr(value, length(value), 1) == "\"") ||
+          (substr(value, 1, 1) == "\047" && substr(value, length(value), 1) == "\047")) {
+        value = substr(value, 2, length(value) - 2)
+      }
+      return value
+    }
+
+    /^detect:[[:space:]]*$/ { in_detect = 1; next }
+    in_detect && /^[^[:space:]#]/ { in_detect = 0 }
+    in_detect && /^[[:space:]]+command:[[:space:]]*/ {
+      value = $0
+      sub(/^[[:space:]]+command:[[:space:]]*/, "", value)
+      print clean(value)
+      exit
+    }
+  ' "$recipe"
+}
+
+recipe_manual_marker_command() {
+  local recipe="$1"
+  awk '
+    function clean(value) {
+      sub(/[[:space:]]+#.*/, "", value)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+      if ((substr(value, 1, 1) == "\"" && substr(value, length(value), 1) == "\"") ||
+          (substr(value, 1, 1) == "\047" && substr(value, length(value), 1) == "\047")) {
+        value = substr(value, 2, length(value) - 2)
+      }
+      return value
+    }
+
+    /^config:[[:space:]]*$/ { in_config = 1; next }
+    in_config && /^[^[:space:]#]/ { in_config = 0 }
+    in_config && /^[[:space:]]*-[[:space:]]+kind:[[:space:]]*/ {
+      kind = $0
+      sub(/^[[:space:]]*-[[:space:]]+kind:[[:space:]]*/, "", kind)
+      kind = clean(kind)
+      in_marker = 0
+      next
+    }
+    in_config && kind == "manual" && /^[[:space:]]+marker:[[:space:]]*$/ {
+      in_marker = 1
+      next
+    }
+    in_config && kind == "manual" && in_marker && /^[[:space:]]+command:[[:space:]]*/ {
+      value = $0
+      sub(/^[[:space:]]+command:[[:space:]]*/, "", value)
+      print clean(value)
+      exit
+    }
+  ' "$recipe"
+}
+
+private_state_exclusion_reason() {
+  case "$1" in
+    onepassword-cli)
+      printf '%s\n' 'Account identity, email addresses, vaults, credentials, session tokens, and device trust remain on this Mac and are never exported.'
+      ;;
+    codex-cli)
+      printf '%s\n' 'OAuth and API credentials, account identity, sessions, and conversation data remain on this Mac and are never exported.'
+      ;;
+    *) return 1 ;;
+  esac
+}
+
+private_state_expected_detect() {
+  case "$1" in
+    onepassword-cli) printf '%s\n' 'command -v op >/dev/null 2>&1' ;;
+    codex-cli) printf '%s\n' 'command -v codex >/dev/null 2>&1' ;;
+    *) return 1 ;;
+  esac
+}
+
+private_state_expected_marker() {
+  case "$1" in
+    onepassword-cli)
+      printf '%s\n' "command -v op >/dev/null 2>&1 && op --version 2>/dev/null | grep -Eq '^2\\.' && op whoami --help >/dev/null 2>&1 && op whoami --format=json >/dev/null 2>&1"
+      ;;
+    codex-cli)
+      printf '%s\n' 'command -v codex >/dev/null 2>&1 && codex login status --help >/dev/null 2>&1 && codex login status >/dev/null 2>&1'
+      ;;
+    *) return 1 ;;
+  esac
+}
+
+run_bounded_private_state_plan() {
+  local output_file="$1"
+  shift
+  local timeout_seconds="${NIX_ME_PRIVATE_STATE_TIMEOUT_SECONDS:-5}"
+  local max_ticks ticks pid status
+
+  if [[ ! "$timeout_seconds" =~ ^[1-9][0-9]*$ ]] || ((timeout_seconds > 15)); then
+    timeout_seconds=5
+  fi
+  max_ticks=$((timeout_seconds * 10))
+  ticks=0
+
+  "$@" >"$output_file" 2>/dev/null &
+  pid=$!
+  while kill -0 "$pid" >/dev/null 2>&1; do
+    if ((ticks >= max_ticks)); then
+      kill "$pid" >/dev/null 2>&1 || true
+      sleep 0.1
+      kill -9 "$pid" >/dev/null 2>&1 || true
+      wait "$pid" >/dev/null 2>&1 || true
+      return 124
+    fi
+    sleep 0.1
+    ticks=$((ticks + 1))
+  done
+
+  wait "$pid"
+  status=$?
+  return "$status"
+}
+
+private_state_metadata() {
+  local app_id="$1"
+  local recipe_file="$2"
+  local exclusion_reason expected_detect expected_marker actual_detect actual_marker
+  local readiness='unknown'
+  local values_file plan_file
+
+  exclusion_reason="$(private_state_exclusion_reason "$app_id")" || return 1
+  expected_detect="$(private_state_expected_detect "$app_id")" || return 1
+  expected_marker="$(private_state_expected_marker "$app_id")" || return 1
+
+  if [[ "$REQUESTED_ENDPOINT" =~ ^(snapshot|app-state-settings)$ ]] &&
+    [[ -n "$app_state_engine" && -x "$app_state_engine" && -f "$recipe_file" ]]; then
+    actual_detect="$(recipe_detect_command "$recipe_file")"
+    actual_marker="$(recipe_manual_marker_command "$recipe_file")"
+    if [[ "$actual_detect" == "$expected_detect" && "$actual_marker" == "$expected_marker" ]]; then
+      values_file="$TEMP_DIR/private-state-$app_id-values.json"
+      plan_file="$TEMP_DIR/private-state-$app_id-plan.json"
+      jq -cn --arg appId "$app_id" '{($appId): {}}' >"$values_file"
+      run_bounded_private_state_plan "$plan_file" \
+        "$app_state_engine" diff \
+        --json \
+        --no-exec \
+        --skip-missing \
+        --recipe "$recipe_file" \
+        --values "$values_file" \
+        --only "$app_id" || true
+
+      if jq -e --arg appId "$app_id" '
+        type == "object" and
+        (.checklist | type == "array") and
+        ([.checklist[] | select(.app == $appId and (.satisfied | type == "boolean"))] | length) == 1
+      ' "$plan_file" >/dev/null 2>&1; then
+        if jq -e --arg appId "$app_id" '
+          any(.checklist[]; .app == $appId and .satisfied == true)
+        ' "$plan_file" >/dev/null 2>&1; then
+          readiness='ready'
+        else
+          readiness='notReady'
+        fi
+      elif jq -e '
+        type == "object" and (.apps | type == "array") and (.checklist | type == "array")
+      ' "$plan_file" >/dev/null 2>&1; then
+        readiness='notReady'
+      fi
+    fi
+  fi
+
+  jq -cn \
+    --arg readiness "$readiness" \
+    --arg exclusionReason "$exclusion_reason" \
+    '{readiness: $readiness, exclusionReason: $exclusionReason}'
+}
+
+recipe_exportable_settings() {
+  local recipe="$1"
+  awk '
+    function clean(value) {
+      sub(/[[:space:]]+#.*/, "", value)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+      if ((substr(value, 1, 1) == "\"" && substr(value, length(value), 1) == "\"") ||
+          (substr(value, 1, 1) == "\047" && substr(value, length(value), 1) == "\047")) {
+        value = substr(value, 2, length(value) - 2)
+      }
+      return value
+    }
+
+    function flush_entry() {
+      if (kind == "file" && format != "" && format != "text" && path != "") {
+        print "file\tStructured settings file\t" path "\tfalse"
+      } else if (kind == "file" && format == "text" && export == "reviewed_text" && path != "") {
+        print "file\tReviewed text settings file\t" path "\ttrue"
+      } else if (kind == "command" && name != "") {
+        print "command\tApplication-managed list\t" name "\tfalse"
+      }
+      kind = ""
+      domain = ""
+      path = ""
+      format = ""
+      export = ""
+      name = ""
+      in_keys = 0
+    }
+
+    /^config:[[:space:]]*$/ { in_config = 1; next }
+    in_config && /^[^[:space:]#]/ {
+      flush_entry()
+      in_config = 0
+    }
+    in_config && /^[[:space:]]*-[[:space:]]+kind:[[:space:]]*/ {
+      flush_entry()
+      kind = $0
+      sub(/^[[:space:]]*-[[:space:]]+kind:[[:space:]]*/, "", kind)
+      kind = clean(kind)
+      next
+    }
+    in_config && kind == "defaults" && /^[[:space:]]+domain:[[:space:]]*/ {
+      domain = $0
+      sub(/^[[:space:]]+domain:[[:space:]]*/, "", domain)
+      domain = clean(domain)
+      next
+    }
+    in_config && kind == "defaults" && /^[[:space:]]+keys:[[:space:]]*$/ {
+      in_keys = 1
+      next
+    }
+    in_config && kind == "defaults" && in_keys && /^      [^#].*:[[:space:]]*\{/ {
+      line = substr($0, 7)
+      key = line
+      sub(/:[[:space:]]*\{.*/, "", key)
+      key = clean(key)
+      label = key
+      if (line ~ /ui:[[:space:]]*"/) {
+        label = line
+        sub(/^.*ui:[[:space:]]*"/, "", label)
+        sub(/".*$/, "", label)
+      }
+      print "preference\t" label "\t" domain "/" key "\tfalse"
+      next
+    }
+    in_config && in_keys && !/^      / { in_keys = 0 }
+    in_config && kind == "file" && /^[[:space:]]+path:[[:space:]]*/ {
+      path = $0
+      sub(/^[[:space:]]+path:[[:space:]]*/, "", path)
+      path = clean(path)
+      next
+    }
+    in_config && kind == "file" && /^[[:space:]]+format:[[:space:]]*/ {
+      format = $0
+      sub(/^[[:space:]]+format:[[:space:]]*/, "", format)
+      format = clean(format)
+      next
+    }
+    in_config && kind == "file" && /^[[:space:]]+export:[[:space:]]*/ {
+      export = $0
+      sub(/^[[:space:]]+export:[[:space:]]*/, "", export)
+      export = clean(export)
+      next
+    }
+    in_config && kind == "command" && /^[[:space:]]+name:[[:space:]]*/ {
+      name = $0
+      sub(/^[[:space:]]+name:[[:space:]]*/, "", name)
+      name = clean(name)
+      next
+    }
+    END { if (in_config) flush_entry() }
+  ' "$recipe"
+}
+
+fallback_recipe_catalog() {
+  local recipe_root recipe id name bundle_id capture_kinds
+  local recipe_paths="$TEMP_DIR/app-state-recipe-paths"
+  local catalog_lines="$TEMP_DIR/app-state-fallback-catalog.ndjson"
+
+  : >"$recipe_paths"
+  : >"$catalog_lines"
+  for recipe_root in "${app_state_recipe_paths[@]}"; do
+    if [[ -d "$recipe_root" ]]; then
+      find "$recipe_root" -type f \( -name '*.yaml' -o -name '*.yml' \) -print 2>/dev/null
+    elif [[ -f "$recipe_root" ]]; then
+      printf '%s\n' "$recipe_root"
+    fi
+  done | sort -u >"$recipe_paths"
+
+  while IFS= read -r recipe; do
+    [[ -n "$recipe" ]] || continue
+    id="$(recipe_scalar id "$recipe")"
+    name="$(recipe_scalar name "$recipe")"
+    bundle_id="$(recipe_scalar bundle_id "$recipe")"
+    if [[ -z "$id" || -z "$name" || -z "$bundle_id" ]]; then
+      continue
+    fi
+    capture_kinds="$(recipe_capture_kinds "$recipe" | jq -Rsc 'split("\n") | map(select(length > 0)) | unique')"
+    jq -cn \
+      --arg id "$id" \
+      --arg name "$name" \
+      --arg bundleId "$bundle_id" \
+      --argjson captureKinds "$capture_kinds" \
+      '{
+        id: $id,
+        name: $name,
+        bundleId: $bundleId,
+        installed: false,
+        capturable: ($captureKinds | length > 0),
+        captureKinds: $captureKinds,
+        exportableSettings: [],
+        managedPaths: [],
+        manualSteps: []
+      }' >>"$catalog_lines"
+  done <"$recipe_paths"
+
+  if [[ -s "$catalog_lines" ]]; then
+    jq -sc '{version: 1, applications: (sort_by(.name | ascii_downcase))}' "$catalog_lines"
+  else
+    printf '{"version":1,"applications":[]}\n'
+  fi
+}
+
+valid_local_ai_status() {
+  jq -e '
+    type == "object" and
+    .schemaVersion == 1 and
+    (.health | IN("healthy", "degraded", "unavailable")) and
+    (.summary | type == "string" and length > 0) and
+    (.ds4Checkout | type == "object") and
+    (.ds4Checkout.state | IN("ready", "missing", "invalid", "unavailable")) and
+    (.ds4Checkout.path | type == "string" and length > 0) and
+    (.piDs4Checkout | type == "object") and
+    (.piDs4Checkout.state | IN("ready", "missing", "invalid", "unavailable")) and
+    (.piDs4Checkout.path | type == "string" and length > 0) and
+    (.extension | type == "object") and
+    (.extension.state | IN("linked", "missing", "mislinked", "unavailable")) and
+    (.extension.path | type == "string" and length > 0) and
+    (.runtime | type == "object") and
+    (.runtime.state | IN("built", "notBuilt", "unavailable")) and
+    (.runtime.path | type == "string" and length > 0) and
+    (.model | type == "object") and
+    (.model.state | IN("present", "missing", "unavailable")) and
+    (.model.name | type == "string" and length > 0) and
+    (.model.path | type == "string" and length > 0) and
+    (.server | type == "object") and
+    (.server.state | IN("running", "stopped", "unavailable")) and
+    (.configuration | type == "object") and
+    (.configuration.state | IN("current", "drifted", "unavailable")) and
+    (
+      (.configuration.state == "current" and .configuration.driftCount == 0) or
+      (.configuration.state == "drifted" and
+        (.configuration.driftCount | type == "number" and . > 0 and floor == .)) or
+      (.configuration.state == "unavailable" and .configuration.driftCount == null)
+    ) and
+    (.remediation | type == "array") and
+    all(.remediation[]; type == "string" and length > 0) and
+    (if .health == "healthy" then (.remediation | length) == 0 else (.remediation | length) > 0 end) and
+    (
+      if .health == "healthy" then
+        .ds4Checkout.state == "ready" and
+        .piDs4Checkout.state == "ready" and
+        .extension.state == "linked" and
+        .runtime.state == "built" and
+        .model.state == "present" and
+        (.server.state | IN("running", "stopped")) and
+        .configuration.state == "current"
+      elif .health == "unavailable" then
+        any([
+          .ds4Checkout.state,
+          .piDs4Checkout.state,
+          .extension.state,
+          .runtime.state,
+          .model.state,
+          .server.state,
+          .configuration.state
+        ][]; . == "unavailable")
+      else
+        all([
+          .ds4Checkout.state,
+          .piDs4Checkout.state,
+          .extension.state,
+          .runtime.state,
+          .model.state,
+          .server.state,
+          .configuration.state
+        ][]; . != "unavailable")
+      end
+    )
+  ' >/dev/null 2>&1 <<<"$1"
+}
+
+unavailable_local_ai() {
+  local remediation="$1"
+  local ds4_dir pi_ds4_dir pi_agent_dir model_name model_path
+  ds4_dir="${DS4_RUNTIME_DIR:-$HOME/src/ai/ds4}"
+  pi_ds4_dir="${PI_DS4_DIR:-$HOME/src/ai/pi-ds4}"
+  pi_agent_dir="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
+  model_name="${LOCAL_AI_MODEL_NAME:-DeepSeek V4 Flash Q2}"
+  model_path="${LOCAL_AI_MODEL_PATH:-$ds4_dir/ds4flash.gguf}"
+
+  jq -n \
+    --arg remediation "$remediation" \
+    --arg ds4Path "$ds4_dir" \
+    --arg piDs4Path "$pi_ds4_dir" \
+    --arg extensionPath "${LOCAL_AI_EXTENSION_PATH:-$pi_agent_dir/extensions/pi-ds4}" \
+    --arg runtimePath "$ds4_dir/ds4-server" \
+    --arg modelName "$model_name" \
+    --arg modelPath "$model_path" \
+    '{
+      schemaVersion: 1,
+      health: "unavailable",
+      summary: "Local AI status is unavailable",
+      ds4Checkout: {state: "unavailable", path: $ds4Path},
+      piDs4Checkout: {state: "unavailable", path: $piDs4Path},
+      extension: {state: "unavailable", path: $extensionPath},
+      runtime: {state: "unavailable", path: $runtimePath},
+      model: {state: "unavailable", name: $modelName, path: $modelPath},
+      server: {state: "unavailable"},
+      configuration: {state: "unavailable", driftCount: null},
+      remediation: [$remediation]
+    }'
+}
+
+run_bounded_local_ai_status() {
+  local output_file="$1"
+  local error_file="$2"
+  shift 2
+  local timeout_seconds="${NIX_ME_LOCAL_AI_TIMEOUT_SECONDS:-5}"
+  local max_ticks ticks pid status
+
+  if [[ ! "$timeout_seconds" =~ ^[1-9][0-9]*$ ]] || ((timeout_seconds > 30)); then
+    timeout_seconds=5
+  fi
+  max_ticks=$((timeout_seconds * 10))
+  ticks=0
+
+  "$@" >"$output_file" 2>"$error_file" &
+  pid=$!
+  while kill -0 "$pid" >/dev/null 2>&1; do
+    if ((ticks >= max_ticks)); then
+      kill "$pid" >/dev/null 2>&1 || true
+      sleep 0.1
+      kill -9 "$pid" >/dev/null 2>&1 || true
+      wait "$pid" >/dev/null 2>&1 || true
+      return 124
+    fi
+    sleep 0.1
+    ticks=$((ticks + 1))
+  done
+
+  wait "$pid"
+  status=$?
+  return "$status"
+}
+
+if [[ "$REQUESTED_ENDPOINT" != "local-ai" ]]; then
+app_state_warnings='[]'
+
+add_app_state_warning() {
+  local message="$1"
+  app_state_warnings="$(jq -c --arg message "$message" '. + [$message]' <<<"$app_state_warnings")"
+}
+
+valid_app_state_status() {
+  jq -e '
+    type == "object" and
+    has("schemaVersion") and
+    has("engine") and
+    has("configuredRecipeCount") and
+    has("driftCount") and
+    has("manualResidueCount") and
+    has("lastApply") and
+    has("verification") and
+    has("warnings") and
+    .schemaVersion == 1 and
+    (.engine | type == "object" and has("available") and has("version")) and
+    (.engine.available | type == "boolean") and
+    (.engine.version == null or (.engine.version | type == "string" and length > 0)) and
+    (.configuredRecipeCount == null or (.configuredRecipeCount | type == "number" and . >= 0 and floor == .)) and
+    (.driftCount == null or (.driftCount | type == "number" and . >= 0 and floor == .)) and
+    (.manualResidueCount == null or (.manualResidueCount | type == "number" and . >= 0 and floor == .)) and
+    (.lastApply | type == "object" and has("status") and has("time") and has("message")) and
+    (.lastApply.status == null or (.lastApply.status | IN("succeeded", "partial", "declined", "failed"))) and
+    (.lastApply.time == null or (.lastApply.time |
+      type == "string" and
+      test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"))) and
+    (.lastApply.message == null or (.lastApply.message | type == "string")) and
+    (.verification | type == "object" and has("verifiedRecipeCount") and has("unverifiedRecipeCount")) and
+    (.verification.verifiedRecipeCount == null or (.verification.verifiedRecipeCount | type == "number" and . >= 0 and floor == .)) and
+    (.verification.unverifiedRecipeCount == null or (.verification.unverifiedRecipeCount | type == "number" and . >= 0 and floor == .)) and
+    (.warnings | type == "array") and
+    all(.warnings[]; type == "string" and length > 0)
+  ' >/dev/null 2>&1 <<<"$1"
+}
+
+unknown_app_state() {
+  jq -cn \
+    --argjson engineAvailable "$app_state_engine_available" \
+    --argjson engineVersion "$app_state_engine_version" \
+    --argjson warnings "$app_state_warnings" \
+    '{
+      schemaVersion: 1,
+      engine: {available: $engineAvailable, version: $engineVersion},
+      configuredRecipeCount: null,
+      driftCount: null,
+      manualResidueCount: null,
+      lastApply: {status: null, time: null, message: null},
+      verification: {verifiedRecipeCount: null, unverifiedRecipeCount: null},
+      warnings: $warnings
+    }'
+}
+
+app_state_engine=''
+app_state_engine_available=false
+app_state_engine_version='null'
+
+if [[ -n "${NIX_ME_APP_STATE_ENGINE_VERSION:-}" ]]; then
+  app_state_engine_available=true
+  app_state_engine_version="$(jq -cn --arg version "$NIX_ME_APP_STATE_ENGINE_VERSION" '$version')"
+fi
+
+if [[ -n "${NIX_ME_APP_STATE_ENGINE+x}" ]]; then
+  engine_candidate="$NIX_ME_APP_STATE_ENGINE"
+  if [[ "$engine_candidate" == */* ]]; then
+    [[ -x "$engine_candidate" ]] && app_state_engine="$engine_candidate"
+  elif command_exists "$engine_candidate"; then
+    app_state_engine="$(command -v "$engine_candidate")"
+  fi
+elif command_exists nix-me-apps; then
+  app_state_engine="$(command -v nix-me-apps)"
+elif [[ -x "$CONFIG_DIR/packages/app-state/engine/target/debug/nix-me-apps" ]]; then
+  app_state_engine="$CONFIG_DIR/packages/app-state/engine/target/debug/nix-me-apps"
+fi
+
+if [[ -n "$app_state_engine" ]]; then
+  app_state_engine_available=true
+  if [[ "$app_state_engine_version" == "null" ]]; then
+    engine_version_text="$("$app_state_engine" --version 2>/dev/null | head -1 || true)"
+    engine_version_text="${engine_version_text#nix-me-apps }"
+    if [[ -n "$engine_version_text" ]]; then
+      app_state_engine_version="$(jq -cn --arg version "$engine_version_text" '$version')"
+    else
+      add_app_state_warning "The app-state engine version could not be discovered"
+    fi
+  fi
+elif [[ "$app_state_engine_available" != "true" ]]; then
+  add_app_state_warning "The app-state engine is unavailable"
+fi
+
+desired_manifest='null'
+if [[ -n "${NIX_ME_DESIRED_MANIFEST:-}" ]]; then
+  if desired_manifest="$(jq -c . "$NIX_ME_DESIRED_MANIFEST" 2>/dev/null)"; then
+    :
+  else
+    desired_manifest='null'
+    add_warning "The desired manifest fixture is not valid JSON"
+  fi
+elif [[ -f "$CONFIG_DIR/flake.nix" ]] && command_exists nix; then
+  source_revision=''
+  if command_exists git && source_revision="$(git -C "$CONFIG_DIR" rev-parse --verify HEAD 2>/dev/null)"; then
+    if [[ -n "$(git -C "$CONFIG_DIR" status --porcelain --untracked-files=normal 2>/dev/null)" ]]; then
+      source_revision="${source_revision}-dirty"
+    fi
+  else
+    source_revision=''
+  fi
+  # Host selection and disposable-VM overrides are intentionally environment-driven.
+  if ! desired_manifest="$(NIX_ME_SOURCE_REVISION="$source_revision" nix eval --impure --json "path:$CONFIG_DIR#darwinConfigurations.$HOST_NAME.config.nixMe.manifest" 2>"$TEMP_DIR/nix-eval.err")"; then
+    desired_manifest='null'
+    nix_error="$(tail -1 "$TEMP_DIR/nix-eval.err" 2>/dev/null || true)"
+    add_warning "Could not evaluate the desired configuration${nix_error:+: $nix_error}"
+  elif ! jq -e . >/dev/null 2>&1 <<<"$desired_manifest"; then
+    desired_manifest='null'
+    add_warning "Nix returned an invalid desired manifest"
+  fi
+else
+  add_warning "The desired configuration is unavailable"
+fi
+
+recipe_path_list="${NIX_ME_APP_STATE_RECIPES:-$CONFIG_DIR/packages/app-state/recipes}"
+IFS=':' read -r -a app_state_recipe_paths <<<"$recipe_path_list"
+app_state_values_paths=()
+if [[ -n "${NIX_ME_APP_STATE_VALUES:-}" ]]; then
+  IFS=':' read -r -a app_state_values_paths <<<"$NIX_ME_APP_STATE_VALUES"
+elif [[ "$desired_manifest" != "null" ]] && jq -e '.appState.valueFiles | type == "array"' >/dev/null 2>&1 <<<"$desired_manifest"; then
+  while IFS= read -r values_path; do
+    [[ -n "$values_path" ]] && app_state_values_paths+=("$values_path")
+  done < <(jq -r '.appState.valueFiles[]' <<<"$desired_manifest")
+else
+  app_state_values_paths+=("$CONFIG_DIR/packages/app-state/values/rectangle.yaml")
+  app_state_values_paths+=("$CONFIG_DIR/config/app-state/shared")
+  app_state_values_paths+=("$CONFIG_DIR/config/app-state/machines/$HOST_NAME")
+fi
+
+app_state='null'
+app_state_source='legacy'
+legacy_app_state_fixture=false
+for fixture_name in \
+  NIX_ME_APP_STATE_REGISTRY \
+  NIX_ME_APP_STATE_PLAN \
+  NIX_ME_APP_STATE_STATE \
+  NIX_ME_APP_STATE_LAST_APPLY; do
+  if [[ -n "${!fixture_name:-}" ]]; then
+    legacy_app_state_fixture=true
+  fi
+done
+
+if [[ -n "${NIX_ME_APP_STATE_STATUS:-}" ]]; then
+  app_state_source='status'
+  if [[ -r "$NIX_ME_APP_STATE_STATUS" ]] &&
+    app_state="$(jq -c . "$NIX_ME_APP_STATE_STATUS" 2>/dev/null)" &&
+    valid_app_state_status "$app_state"; then
+    :
+  else
+    app_state='null'
+    add_app_state_warning "The app-state status fixture is malformed or unreadable"
+  fi
+elif [[ "$legacy_app_state_fixture" != "true" && -n "$app_state_engine" ]]; then
+  app_state_source='status'
+  status_args=(status --json)
+  for recipe_path in "${app_state_recipe_paths[@]}"; do
+    [[ -n "$recipe_path" ]] && status_args+=(--recipe "$recipe_path")
+  done
+  value_file_count=0
+  for values_path in "${app_state_values_paths[@]}"; do
+    [[ -z "$values_path" ]] && continue
+    if [[ -d "$values_path" ]]; then
+      while IFS= read -r values_file; do
+        status_args+=(--values "$values_file")
+        value_file_count=$((value_file_count + 1))
+      done < <(find "$values_path" -type f \( -name '*.json' -o -name '*.yaml' -o -name '*.yml' \) -print 2>/dev/null | sort)
+    elif [[ -f "$values_path" ]]; then
+      status_args+=(--values "$values_path")
+      value_file_count=$((value_file_count + 1))
+    fi
+  done
+
+  if ((value_file_count == 0)); then
+    add_app_state_warning "The app-state status is unavailable because no values files are configured"
+    app_state_source='legacy'
+  elif "$app_state_engine" "${status_args[@]}" >"$TEMP_DIR/app-state-status.json" 2>"$TEMP_DIR/app-state-status.err"; then
+    app_state="$(jq -c . "$TEMP_DIR/app-state-status.json" 2>/dev/null || printf null)"
+    if valid_app_state_status "$app_state"; then
+      app_state="$(jq -c --argjson extraWarnings "$app_state_warnings" '
+        .warnings = ((.warnings + $extraWarnings) | unique)
+      ' <<<"$app_state")"
+    else
+      app_state='null'
+      app_state_source='legacy'
+      add_app_state_warning "The app-state engine status does not match version 1; using compatibility status"
+    fi
+  else
+    app_state_source='legacy'
+    add_app_state_warning "The app-state status command is unavailable; using compatibility status"
+  fi
+fi
+
+if [[ "$app_state_source" == "legacy" ]]; then
+
+app_state_registry='null'
+if [[ -n "${NIX_ME_APP_STATE_REGISTRY:-}" ]]; then
+  if [[ -r "$NIX_ME_APP_STATE_REGISTRY" ]] && app_state_registry="$(jq -c . "$NIX_ME_APP_STATE_REGISTRY" 2>/dev/null)"; then
+    :
+  else
+    app_state_registry='null'
+    add_app_state_warning "The app-state registry status is malformed or unreadable"
+  fi
+elif [[ -n "$app_state_engine" ]]; then
+  registry_args=(registry validate --json)
+  for recipe_path in "${app_state_recipe_paths[@]}"; do
+    [[ -n "$recipe_path" ]] && registry_args+=(--recipe "$recipe_path")
+  done
+  if "$app_state_engine" "${registry_args[@]}" >"$TEMP_DIR/app-state-registry.json" 2>"$TEMP_DIR/app-state-registry.err"; then
+    app_state_registry="$(jq -c . "$TEMP_DIR/app-state-registry.json" 2>/dev/null || printf null)"
+  else
+    registry_error="$(tail -1 "$TEMP_DIR/app-state-registry.err" 2>/dev/null || true)"
+    add_app_state_warning "The app-state recipe registry is unavailable${registry_error:+: $registry_error}"
+  fi
+else
+  add_app_state_warning "The app-state recipe registry is unavailable"
+fi
+
+configured_recipe_count='null'
+verified_recipe_count='null'
+unverified_recipe_count='null'
+registry_unverified_ids='null'
+if [[ "$app_state_registry" != "null" ]]; then
+  if jq -e '
+    type == "object" and
+    .version == 1 and
+    .valid == true and
+    (.recipes | type == "number" and . >= 0 and floor == .) and
+    (.ids | type == "array") and
+    (all(.ids[]; type == "string")) and
+    (.unverified | type == "array") and
+    (all(.unverified[]; type == "string")) and
+    (.recipes as $recipes |
+      (.ids | length) == $recipes and
+      (.unverified | length) <= $recipes)
+  ' >/dev/null 2>&1 <<<"$app_state_registry"; then
+    registry_unverified_ids="$(jq -c '.unverified' <<<"$app_state_registry")"
+  else
+    add_app_state_warning "The app-state registry status does not match version 1"
+  fi
+fi
+
+app_state_plan='null'
+if [[ -n "${NIX_ME_APP_STATE_PLAN:-}" ]]; then
+  if [[ -r "$NIX_ME_APP_STATE_PLAN" ]] && app_state_plan="$(jq -c . "$NIX_ME_APP_STATE_PLAN" 2>/dev/null)"; then
+    :
+  else
+    app_state_plan='null'
+    add_app_state_warning "The app-state plan status is malformed or unreadable"
+  fi
+elif [[ -n "$app_state_engine" ]]; then
+  plan_args=(diff --json --no-exec --skip-missing)
+  for recipe_path in "${app_state_recipe_paths[@]}"; do
+    [[ -n "$recipe_path" ]] && plan_args+=(--recipe "$recipe_path")
+  done
+  value_file_count=0
+  for values_path in "${app_state_values_paths[@]}"; do
+    [[ -z "$values_path" ]] && continue
+    if [[ -d "$values_path" ]]; then
+      while IFS= read -r values_file; do
+        plan_args+=(--values "$values_file")
+        value_file_count=$((value_file_count + 1))
+      done < <(find "$values_path" -type f \( -name '*.json' -o -name '*.yaml' -o -name '*.yml' \) -print 2>/dev/null | sort)
+    elif [[ -f "$values_path" ]]; then
+      plan_args+=(--values "$values_path")
+      value_file_count=$((value_file_count + 1))
+    fi
+  done
+
+  if (( value_file_count == 0 )); then
+    add_app_state_warning "The app-state plan is unavailable because no values files are configured"
+  else
+    "$app_state_engine" "${plan_args[@]}" >"$TEMP_DIR/app-state-plan.json" 2>"$TEMP_DIR/app-state-plan.err" || true
+    if app_state_plan="$(jq -c . "$TEMP_DIR/app-state-plan.json" 2>/dev/null)"; then
+      :
+    else
+      app_state_plan='null'
+      plan_error="$(tail -1 "$TEMP_DIR/app-state-plan.err" 2>/dev/null || true)"
+      add_app_state_warning "The app-state plan is unavailable${plan_error:+: $plan_error}"
+    fi
+  fi
+else
+  add_app_state_warning "The app-state plan is unavailable"
+fi
+
+drift_count='null'
+manual_residue_count='null'
+if [[ "$app_state_plan" != "null" ]]; then
+  if jq -e '
+    type == "object" and
+    .version == 1 and
+    (.summary | type == "object") and
+    (.summary.drift | type == "number" and . >= 0 and floor == .) and
+    (.summary.manual | type == "number" and . >= 0 and floor == .)
+  ' >/dev/null 2>&1 <<<"$app_state_plan"; then
+    drift_count="$(jq -c '.summary.drift' <<<"$app_state_plan")"
+    manual_residue_count="$(jq -c '.summary.manual' <<<"$app_state_plan")"
+    if jq -e '
+      (.apps | type == "array") and
+      all(.apps[]; (.id | type == "string" and length > 0)) and
+      (
+        (.apps | length) > 0 or
+        ([.summary.writes, .summary.adds, .summary.dels, .summary.files, .summary.materialize, .summary.drift, .summary.manual] | all(. == 0))
+      )
+    ' >/dev/null 2>&1 <<<"$app_state_plan"; then
+      configured_recipe_count="$(jq -c '.apps | length' <<<"$app_state_plan")"
+      if [[ "$registry_unverified_ids" != "null" ]]; then
+        unverified_recipe_count="$(jq -c --argjson unverified "$registry_unverified_ids" '
+          [.apps[].id | select(. as $id | $unverified | index($id))] | length
+        ' <<<"$app_state_plan")"
+        verified_recipe_count=$((configured_recipe_count - unverified_recipe_count))
+      fi
+    fi
+  else
+    add_app_state_warning "The app-state plan status does not match version 1"
+  fi
+fi
+
+if [[ "$app_state_registry" != "null" && "$configured_recipe_count" == "null" ]]; then
+  add_app_state_warning "Configured app-state recipes are unknown without engine status"
+fi
+
+if [[ -n "${NIX_ME_APP_STATE_STATE:-}" ]]; then
+  app_state_file="$NIX_ME_APP_STATE_STATE"
+elif [[ -n "${NIX_ME_STATE_DIR:-}" ]]; then
+  app_state_file="$NIX_ME_STATE_DIR/apps.json"
+elif [[ -n "${XDG_STATE_HOME:-}" ]]; then
+  app_state_file="$XDG_STATE_HOME/nix-me/apps.json"
+else
+  app_state_file="$HOME/.local/state/nix-me/apps.json"
+fi
+
+persisted_app_state='null'
+persisted_state_time='null'
+if [[ -r "$app_state_file" ]]; then
+  if persisted_app_state="$(jq -c . "$app_state_file" 2>/dev/null)" && jq -e '
+    type == "object" and
+    .version == 1 and
+    (.updated_at | type == "string") and
+    (.updated_at == "" or (.updated_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"))) and
+    (.apps | type == "object")
+  ' >/dev/null 2>&1 <<<"$persisted_app_state"; then
+    if [[ -n "$(jq -r '.updated_at' <<<"$persisted_app_state")" ]]; then
+      persisted_state_time="$(jq -c '.updated_at' <<<"$persisted_app_state")"
+    fi
+  else
+    persisted_app_state='null'
+    add_app_state_warning "The persisted app-state status is malformed"
+  fi
+else
+  add_app_state_warning "The persisted app-state status is unavailable"
+fi
+
+last_apply_status='null'
+last_apply_time="$persisted_state_time"
+last_apply_message='null'
+if [[ -n "${NIX_ME_APP_STATE_LAST_APPLY:-}" ]]; then
+  last_apply_file="$NIX_ME_APP_STATE_LAST_APPLY"
+else
+  last_apply_file="$(dirname "$app_state_file")/last-apply.json"
+fi
+
+last_apply='null'
+if [[ -r "$last_apply_file" ]]; then
+  if last_apply="$(jq -c . "$last_apply_file" 2>/dev/null)" && jq -e '
+    type == "object" and
+    (.status | IN("succeeded", "partial", "declined", "failed")) and
+    (.time == null or (.time |
+      type == "string" and
+      test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"))) and
+    (.message == null or (.message | type == "string"))
+  ' >/dev/null 2>&1 <<<"$last_apply"; then
+    last_apply_status="$(jq -c '.status' <<<"$last_apply")"
+    last_apply_time="$(jq -c '.time' <<<"$last_apply")"
+    last_apply_message="$(jq -c '.message' <<<"$last_apply")"
+  else
+    last_apply='null'
+    add_app_state_warning "The last app-state apply status is malformed"
+  fi
+else
+  add_app_state_warning "The last app-state apply status is unavailable"
+fi
+
+app_state="$(jq -n \
+  --argjson engineAvailable "$app_state_engine_available" \
+  --argjson engineVersion "$app_state_engine_version" \
+  --argjson configuredRecipeCount "$configured_recipe_count" \
+  --argjson driftCount "$drift_count" \
+  --argjson manualResidueCount "$manual_residue_count" \
+  --argjson lastApplyStatus "$last_apply_status" \
+  --argjson lastApplyTime "$last_apply_time" \
+  --argjson lastApplyMessage "$last_apply_message" \
+  --argjson verifiedRecipeCount "$verified_recipe_count" \
+  --argjson unverifiedRecipeCount "$unverified_recipe_count" \
+  --argjson warnings "$app_state_warnings" \
+  '{
+    schemaVersion: 1,
+    engine: {available: $engineAvailable, version: $engineVersion},
+    configuredRecipeCount: $configuredRecipeCount,
+    driftCount: $driftCount,
+    manualResidueCount: $manualResidueCount,
+    lastApply: {
+      status: $lastApplyStatus,
+      time: $lastApplyTime,
+      message: $lastApplyMessage
+    },
+    verification: {
+      verifiedRecipeCount: $verifiedRecipeCount,
+      unverifiedRecipeCount: $unverifiedRecipeCount
+    },
+    warnings: $warnings
+  }')"
+else
+  if [[ "$app_state" == "null" ]]; then
+    app_state="$(unknown_app_state)"
+  fi
+fi
+
+if [[ "$REQUESTED_ENDPOINT" == "app-state" ]]; then
+  generated_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+  jq -n \
+    --argjson schemaVersion "$API_VERSION" \
+    --arg generatedAt "$generated_at" \
+    --arg hostname "$HOST_NAME" \
+    --arg username "${USER:-$(id -un)}" \
+    --argjson appState "$app_state" \
+    --argjson warnings "$warnings" \
+    '{
+      schemaVersion: $schemaVersion,
+      generatedAt: $generatedAt,
+      host: {hostname: $hostname, machineName: $hostname, machineType: null, username: $username},
+      appState: $appState,
+      warnings: ($warnings + $appState.warnings)
+    }'
+  exit 0
+fi
+fi
+
+local_ai='null'
+if [[ -n "${NIX_ME_LOCAL_AI_STATUS:-}" ]]; then
+  if [[ -r "$NIX_ME_LOCAL_AI_STATUS" ]] &&
+    local_ai="$(jq -c . "$NIX_ME_LOCAL_AI_STATUS" 2>/dev/null)" &&
+    valid_local_ai_status "$local_ai"; then
+    :
+  else
+    add_warning "The local-AI status fixture is malformed or unreadable"
+    local_ai="$(unavailable_local_ai "Repair the local-AI status source, then refresh.")"
+  fi
+else
+  local_ai_command=()
+  if [[ -n "${NIX_ME_LOCAL_AI_DOCTOR+x}" ]]; then
+    local_ai_candidate="$NIX_ME_LOCAL_AI_DOCTOR"
+    if [[ -n "$local_ai_candidate" && "$local_ai_candidate" == */* && -x "$local_ai_candidate" ]]; then
+      local_ai_command=("$local_ai_candidate")
+    elif [[ -n "$local_ai_candidate" && "$local_ai_candidate" == */* && -r "$local_ai_candidate" ]]; then
+      local_ai_command=(bash "$local_ai_candidate")
+    elif [[ -n "$local_ai_candidate" ]] && command_exists "$local_ai_candidate"; then
+      local_ai_command=("$(command -v "$local_ai_candidate")")
+    fi
+  elif command_exists local-ai-doctor; then
+    local_ai_command=("$(command -v local-ai-doctor)")
+  elif [[ -r "$CONFIG_DIR/tools/local-ai/doctor.sh" ]]; then
+    local_ai_command=(bash "$CONFIG_DIR/tools/local-ai/doctor.sh")
+  fi
+
+  if ((${#local_ai_command[@]} == 0)); then
+    add_warning "The local-AI status tool is unavailable"
+    local_ai="$(unavailable_local_ai "Install or repair local-ai-doctor, then refresh.")"
+  elif run_bounded_local_ai_status \
+    "$TEMP_DIR/local-ai-status.json" \
+    "$TEMP_DIR/local-ai-status.err" \
+    "${local_ai_command[@]}" --json 2>/dev/null; then
+    local_ai="$(jq -c . "$TEMP_DIR/local-ai-status.json" 2>/dev/null || printf null)"
+    if ! valid_local_ai_status "$local_ai"; then
+      add_warning "The local-AI status does not match version 1"
+      local_ai="$(unavailable_local_ai "Repair local-ai-doctor, then refresh.")"
+    fi
+  else
+    local_ai_status_code=$?
+    local_ai_error="$(tail -1 "$TEMP_DIR/local-ai-status.err" 2>/dev/null || true)"
+    if [[ "$local_ai_status_code" == "124" ]]; then
+      add_warning "The local-AI status check timed out"
+    else
+      add_warning "The local-AI status is unavailable${local_ai_error:+: $local_ai_error}"
+    fi
+    local_ai="$(unavailable_local_ai "Run local-ai-doctor --json, resolve the reported error, then refresh.")"
+  fi
+fi
+
+if [[ "$REQUESTED_ENDPOINT" == "local-ai" ]]; then
+  generated_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+  jq -n \
+    --argjson schemaVersion "$API_VERSION" \
+    --arg generatedAt "$generated_at" \
+    --arg hostname "$HOST_NAME" \
+    --arg username "${USER:-$(id -un)}" \
+    --argjson localAI "$local_ai" \
+    --argjson warnings "$warnings" \
+    '{
+      schemaVersion: $schemaVersion,
+      generatedAt: $generatedAt,
+      host: {hostname: $hostname, machineName: $hostname, machineType: null, username: $username},
+      localAI: $localAI,
+      warnings: $warnings
+    }'
+  exit 0
+fi
 
 git_state() {
   local directory="$1"
@@ -92,27 +1385,6 @@ git_state() {
     }'
 }
 
-desired_manifest='null'
-if [[ -n "${NIX_ME_DESIRED_MANIFEST:-}" ]]; then
-  if desired_manifest="$(jq -c . "$NIX_ME_DESIRED_MANIFEST" 2>/dev/null)"; then
-    :
-  else
-    desired_manifest='null'
-    add_warning "The desired manifest fixture is not valid JSON"
-  fi
-elif [[ -f "$CONFIG_DIR/flake.nix" ]] && command_exists nix; then
-  if ! desired_manifest="$(nix eval --json "$CONFIG_DIR#darwinConfigurations.$HOST_NAME.config.nixMe.manifest" 2>"$TEMP_DIR/nix-eval.err")"; then
-    desired_manifest='null'
-    nix_error="$(tail -1 "$TEMP_DIR/nix-eval.err" 2>/dev/null || true)"
-    add_warning "Could not evaluate the desired configuration${nix_error:+: $nix_error}"
-  elif ! jq -e . >/dev/null 2>&1 <<<"$desired_manifest"; then
-    desired_manifest='null'
-    add_warning "Nix returned an invalid desired manifest"
-  fi
-else
-  add_warning "The desired configuration is unavailable"
-fi
-
 applied_manifest='null'
 if [[ -r "$APPLIED_MANIFEST" ]]; then
   if applied_manifest="$(jq -c . "$APPLIED_MANIFEST" 2>/dev/null)"; then
@@ -121,6 +1393,135 @@ if [[ -r "$APPLIED_MANIFEST" ]]; then
     applied_manifest='null'
     add_warning "The applied manifest is not valid JSON"
   fi
+fi
+
+app_state_settings='null'
+settings_catalog_available=false
+if [[ -n "$app_state_engine" ]]; then
+  settings_catalog_args=(registry list --json)
+  for recipe_path in "${app_state_recipe_paths[@]}"; do
+    [[ -n "$recipe_path" ]] && settings_catalog_args+=(--recipe "$recipe_path")
+  done
+  if "$app_state_engine" "${settings_catalog_args[@]}" >"$TEMP_DIR/app-state-settings.json" 2>"$TEMP_DIR/app-state-settings.err" &&
+    jq -e '.version == 1 and (.applications | type == "array")' "$TEMP_DIR/app-state-settings.json" >/dev/null 2>&1; then
+    settings_catalog_available=true
+  fi
+fi
+
+if [[ "$settings_catalog_available" != "true" ]]; then
+  if fallback_recipe_catalog >"$TEMP_DIR/app-state-settings.json" &&
+    jq -e '.version == 1 and (.applications | type == "array")' "$TEMP_DIR/app-state-settings.json" >/dev/null 2>&1; then
+    settings_catalog_available=true
+  else
+    add_warning "Application settings catalog is unavailable"
+  fi
+fi
+
+if [[ "$settings_catalog_available" == "true" ]]; then
+    if ! installed_applications="$(discover_installed_applications)"; then
+      installed_applications='[]'
+      add_warning "The installed application catalog fixture is malformed or unreadable"
+    fi
+    settings_metadata='{}'
+    while IFS= read -r application; do
+      application_id="$(jq -r '.id' <<<"$application")"
+      configuration_sources="$(application_configuration_sources "$application_id")"
+      recipe_path="$(application_recipe_path "$application_id" || true)"
+      recipe_file="$recipe_path"
+      if [[ -n "$recipe_file" && "$recipe_file" != /* ]]; then
+        recipe_file="$CONFIG_DIR/$recipe_file"
+      fi
+      managed_paths='[]'
+      manual_steps='[]'
+      exportable_settings='[]'
+      private_state='null'
+      if [[ -f "$recipe_file" ]]; then
+        managed_paths="$(recipe_managed_paths "$recipe_file" | jq -Rsc 'split("\n") | map(select(length > 0))')"
+        manual_steps="$(recipe_manual_steps "$recipe_file" | jq -Rsc 'split("\n") | map(select(length > 0))')"
+        exportable_settings="$(recipe_exportable_settings "$recipe_file" | jq -Rsc '
+          split("\n") |
+          map(select(length > 0) | split("\t") | {
+            kind: .[0],
+            label: .[1],
+            source: .[2],
+            requiresConfirmation: (.[3] == "true")
+          })
+        ')"
+        private_state="$(private_state_metadata "$application_id" "$recipe_file" || printf null)"
+      fi
+      settings_metadata="$(jq -c \
+        --arg appId "$application_id" \
+        --arg recipePath "$recipe_path" \
+        --argjson managedPaths "$managed_paths" \
+        --argjson manualSteps "$manual_steps" \
+        --argjson exportableSettings "$exportable_settings" \
+        --argjson privateState "$private_state" \
+        --argjson configurationSources "$configuration_sources" \
+        '.[$appId] = {
+          recipePath: (if $recipePath == "" then null else $recipePath end),
+          managedPaths: $managedPaths,
+          manualSteps: $manualSteps,
+          exportableSettings: $exportableSettings,
+          privateState: $privateState,
+          configurationSources: $configurationSources
+        }' <<<"$settings_metadata")"
+    done < <(jq -c '.applications[]' "$TEMP_DIR/app-state-settings.json")
+
+    app_state_settings="$(jq -c \
+      --arg root "config/app-state" \
+      --argjson enabled "$(jq -c '.appState.enabled // false' <<<"$desired_manifest")" \
+      --argjson activeProfiles "$(jq -c '.appState.settingsProfiles // []' <<<"$desired_manifest")" \
+      --argjson installedApplications "$installed_applications" \
+      --argjson metadata "$settings_metadata" \
+      '{
+        schemaVersion: 1,
+        root: $root,
+        enabled: $enabled,
+        activeProfiles: $activeProfiles,
+        applications: (
+          .applications as $recipes |
+          ([
+            $recipes[] |
+            . as $recipe |
+            ($installedApplications | map(select(.bundleId == $recipe.bundleId)) | first) as $installedApp |
+            ($metadata[$recipe.id] // {recipePath: null, managedPaths: [], manualSteps: [], exportableSettings: [], privateState: null, configurationSources: []}) as $applicationMetadata |
+            . + {
+              installed: (.installed or ($installedApp != null)),
+              recipeAvailable: true,
+              recipePath: $applicationMetadata.recipePath,
+              managedPaths: $applicationMetadata.managedPaths,
+              manualSteps: $applicationMetadata.manualSteps,
+              exportableSettings: $applicationMetadata.exportableSettings,
+              privateState: $applicationMetadata.privateState,
+              appPath: ($installedApp.appPath // null),
+              configured: (($applicationMetadata.configurationSources | length) > 0),
+              configurationSources: $applicationMetadata.configurationSources
+            }
+          ] + [
+            $installedApplications[] |
+            . as $installedApp |
+            select(($recipes | map(.bundleId) | index($installedApp.bundleId)) == null) |
+            {
+              id: ("installed-" + ($installedApp.bundleId | ascii_downcase | gsub("[^a-z0-9]+"; "-") | sub("^-"; "") | sub("-$"; ""))),
+              name: $installedApp.name,
+              bundleId: $installedApp.bundleId,
+              installed: true,
+              capturable: false,
+              captureKinds: [],
+              managedPaths: [],
+              manualSteps: [],
+              exportableSettings: [],
+              privateState: null,
+              recipeAvailable: false,
+              recipePath: null,
+              appPath: $installedApp.appPath,
+              configured: false,
+              configurationSources: []
+            }
+          ]) |
+          sort_by((if .installed then 0 else 1 end), (.name | ascii_downcase))
+        )
+      }' "$TEMP_DIR/app-state-settings.json")"
 fi
 
 apply_state="unknown"
@@ -137,6 +1538,68 @@ fi
 config_git='null'
 if [[ -d "$CONFIG_DIR" ]] && command_exists git; then
   config_git="$(git_state "$CONFIG_DIR")"
+fi
+
+configuration_changes='null'
+if [[ "$desired_manifest" != "null" && "$applied_manifest" != "null" ]]; then
+  changed_files='[]'
+  changed_files_complete=false
+  applied_revision="$(jq -r '.source.revision // ""' <<<"$applied_manifest")"
+  applied_source_dirty="$(jq -r '.source.dirty // false' <<<"$applied_manifest")"
+  applied_revision="${applied_revision%-dirty}"
+
+  if [[ "$(jq -r '.repository // false' <<<"$config_git")" == "true" ]] &&
+    [[ -n "$applied_revision" ]] &&
+    git -C "$CONFIG_DIR" cat-file -e "$applied_revision^{commit}" 2>/dev/null; then
+    changed_files_source="$TEMP_DIR/configuration-changed-files.tsv"
+    git -C "$CONFIG_DIR" diff --name-status --find-renames "$applied_revision" -- \
+      >"$changed_files_source" 2>/dev/null || true
+    while IFS= read -r untracked_path; do
+      [[ -n "$untracked_path" ]] && printf 'A\t%s\n' "$untracked_path"
+    done < <(git -C "$CONFIG_DIR" ls-files --others --exclude-standard 2>/dev/null) \
+      >>"$changed_files_source"
+    changed_files="$(jq -Rsc '
+      split("\n")
+      | map(
+          select(length > 0)
+          | split("\t") as $fields
+          | {
+              status: $fields[0],
+              path: $fields[-1]
+            }
+        )
+      | unique_by(.path)
+      | sort_by(.path)
+    ' "$changed_files_source")"
+    [[ "$applied_source_dirty" == "false" ]] && changed_files_complete=true
+  fi
+
+  configuration_changes="$(jq -cn \
+    --argjson desired "$desired_manifest" \
+    --argjson applied "$applied_manifest" \
+    --argjson files "$changed_files" \
+    --argjson filesComplete "$changed_files_complete" '
+      def normalizedAppState:
+        if . == null then null
+        else {
+          enabled: (.enabled // false),
+          settingsProfiles: ((.settingsProfiles // []) | sort),
+          valueFiles: [
+            (.valueFiles // [])[]
+            | sub("^/nix/store/[a-z0-9]+-source/"; "")
+          ] | sort
+        }
+        end;
+      {
+        softwareChanged: (($desired.software // null) != ($applied.software // null)),
+        projectsChanged: (($desired.projects // null) != ($applied.projects // null)),
+        appSettingsChanged: (($desired.appState | normalizedAppState) != ($applied.appState | normalizedAppState)),
+        flakeInputsChanged: (($desired.source.lockHash // null) != ($applied.source.lockHash // null)),
+        repositoryChanged: (($desired.source.contentHash // null) != ($applied.source.contentHash // null)),
+        filesComplete: $filesComplete,
+        files: $files
+      }
+    ')"
 fi
 
 brew_formulae='[]'
@@ -307,6 +1770,7 @@ snapshot="$(jq -n \
   --argjson desired "$desired_manifest" \
   --argjson applied "$applied_manifest" \
   --argjson configGit "$config_git" \
+  --argjson configurationChanges "$configuration_changes" \
   --argjson nixAvailable "$(command_exists nix && printf true || printf false)" \
   --argjson darwinAvailable "$(command_exists darwin-rebuild && printf true || printf false)" \
   --argjson homebrewAvailable "$(command_exists brew && printf true || printf false)" \
@@ -317,6 +1781,9 @@ snapshot="$(jq -n \
   --argjson masUpdates "$mas_updates" \
   --argjson nixUpdates "$nix_updates" \
   --argjson projects "$projects" \
+  --argjson appState "$app_state" \
+  --argjson appStateSettings "$app_state_settings" \
+  --argjson localAI "$local_ai" \
   --argjson warnings "$warnings" \
   '{
     schemaVersion: $schemaVersion,
@@ -330,7 +1797,8 @@ snapshot="$(jq -n \
       generation: $generation,
       git: $configGit,
       desiredSource: ($desired.source // null),
-      appliedSource: ($applied.source // null)
+      appliedSource: ($applied.source // null),
+      changes: $configurationChanges
     },
     health: {
       nix: {available: $nixAvailable, version: $nixVersion},
@@ -344,10 +1812,13 @@ snapshot="$(jq -n \
     },
     updates: {homebrew: $brewUpdates, macAppStore: $masUpdates, nixFlake: $nixUpdates},
     projects: $projects,
+    appState: $appState,
+    appStateSettings: $appStateSettings,
+    localAI: $localAI,
     warnings: $warnings
   }')"
 
-case "${1:-snapshot}" in
+case "$REQUESTED_ENDPOINT" in
   snapshot)
     jq . <<<"$snapshot"
     ;;
@@ -362,6 +1833,15 @@ case "${1:-snapshot}" in
     ;;
   projects)
     jq '{schemaVersion, generatedAt, host, projects, warnings}' <<<"$snapshot"
+    ;;
+  app-state)
+    jq '{schemaVersion, generatedAt, host, appState, warnings: (.warnings + .appState.warnings)}' <<<"$snapshot"
+    ;;
+  app-state-settings)
+    jq '{schemaVersion, generatedAt, host, appStateSettings, warnings}' <<<"$snapshot"
+    ;;
+  local-ai)
+    jq '{schemaVersion, generatedAt, host, localAI, warnings}' <<<"$snapshot"
     ;;
   manifest)
     if [[ "$desired_manifest" == "null" ]]; then

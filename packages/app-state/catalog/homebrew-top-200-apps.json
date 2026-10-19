@@ -223,11 +223,11 @@
       },
       "behavior": {
         "mechanism": "hybrid",
-        "confidence": "medium",
-        "evidence": "homebrew_zap_paths",
-        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+        "confidence": "high",
+        "evidence": "curated",
+        "note": "A dedicated JSON dynamic-profile file is safe to own; the global preference domains remain outside the recipe."
       },
-      "local_recipe": null,
+      "local_recipe": "iterm2",
       "rank": 6
     },
     {
@@ -710,11 +710,11 @@
       },
       "behavior": {
         "mechanism": "defaults_dominant",
-        "confidence": "medium",
-        "evidence": "homebrew_zap_paths",
-        "note": "Candidate mechanism inferred from paths in the current Homebrew cask zap stanza; capture must confirm which state is user-owned."
+        "confidence": "high",
+        "evidence": "curated",
+        "note": "A typed allowlist in org.p0deje.Maccy owns UI preferences while clipboard content and privacy lists remain unowned."
       },
-      "local_recipe": null,
+      "local_recipe": "maccy",
       "rank": 21
     },
     {
@@ -1227,7 +1227,7 @@
         "evidence": "curated",
         "note": "Preferences, keymaps, and packages are files under Application Support/Sublime Text."
       },
-      "local_recipe": null,
+      "local_recipe": "sublime-text",
       "rank": 37
     },
     {

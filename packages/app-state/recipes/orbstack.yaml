@@ -1,0 +1,22 @@
+schema_version: 1
+id: orbstack
+name: OrbStack
+bundle_id: dev.kdrag0n.MacVirt
+install:
+  cask: orbstack
+detect:
+  app_path: /Applications/OrbStack.app
+sandboxed: false
+requires: []
+config:
+  - kind: file
+    binds: docker_settings
+    path: ~/.orbstack/config/docker.json
+    format: json
+    merge: deep_merge
+    mode: "0600"
+    confirm: none
+apply:
+  poke: restart_app
+  unsafe_to_kill: true
+verified: null

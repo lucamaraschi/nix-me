@@ -9,7 +9,45 @@ struct ManagementSnapshot: Codable {
     let inventory: Inventory
     let updates: Updates
     let projects: [Project]
+    let appState: AppStateStatus?
+    let appStateSettings: AppStateSettingsCatalog?
+    let localAI: LocalAIStatus?
     let warnings: [String]
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
+        generatedAt = try container.decode(String.self, forKey: .generatedAt)
+        host = try container.decode(Host.self, forKey: .host)
+        configuration = try container.decode(ConfigurationState.self, forKey: .configuration)
+        health = try container.decode(SystemHealth.self, forKey: .health)
+        inventory = try container.decode(Inventory.self, forKey: .inventory)
+        updates = try container.decode(Updates.self, forKey: .updates)
+        projects = try container.decode([Project].self, forKey: .projects)
+        appState = try container.decodeIfPresent(AppStateStatus.self, forKey: .appState)
+        appStateSettings = try? container.decodeIfPresent(AppStateSettingsCatalog.self, forKey: .appStateSettings)
+        do {
+            localAI = try container.decodeIfPresent(LocalAIStatus.self, forKey: .localAI)
+        } catch {
+            localAI = nil
+        }
+        warnings = try container.decode([String].self, forKey: .warnings)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion
+        case generatedAt
+        case host
+        case configuration
+        case health
+        case inventory
+        case updates
+        case projects
+        case appState
+        case appStateSettings
+        case localAI
+        case warnings
+    }
 
     var desiredSoftwareCount: Int {
         inventory.desired.nixPackages.count
@@ -48,6 +86,7 @@ struct ConfigurationState: Codable {
     let git: GitState?
     let desiredSource: SourceInfo?
     let appliedSource: SourceInfo?
+    let changes: ConfigurationChangeSummary?
 }
 
 struct SourceInfo: Codable, Equatable {
@@ -55,6 +94,39 @@ struct SourceInfo: Codable, Equatable {
     let dirty: Bool
     let contentHash: String
     let lockHash: String
+}
+
+struct ConfigurationChangeSummary: Codable, Equatable {
+    let softwareChanged: Bool
+    let projectsChanged: Bool
+    let appSettingsChanged: Bool
+    let flakeInputsChanged: Bool
+    let repositoryChanged: Bool
+    let filesComplete: Bool
+    let files: [ConfigurationChangedFile]
+
+    var affectedAreaCount: Int {
+        [softwareChanged, projectsChanged, appSettingsChanged, flakeInputsChanged, repositoryChanged]
+            .filter { $0 }
+            .count
+    }
+}
+
+struct ConfigurationChangedFile: Codable, Equatable, Identifiable {
+    let status: String
+    let path: String
+
+    var id: String { path }
+
+    var statusLabel: String {
+        switch status.first {
+        case "A": "Added"
+        case "D": "Removed"
+        case "R": "Renamed"
+        case "C": "Copied"
+        default: "Modified"
+        }
+    }
 }
 
 struct GitState: Codable {
@@ -88,6 +160,278 @@ struct ToolHealth: Codable {
         case available
         case version
     }
+}
+
+struct AppStateStatus: Codable {
+    let schemaVersion: Int
+    let engine: AppStateEngine
+    let configuredRecipeCount: Int?
+    let driftCount: Int?
+    let manualResidueCount: Int?
+    let lastApply: AppStateLastApply
+    let verification: AppStateVerification
+    let warnings: [String]
+
+    var differenceCount: Int? {
+        guard let driftCount, let manualResidueCount else { return nil }
+        return driftCount + manualResidueCount
+    }
+
+    var hasDifferences: Bool {
+        driftCount.map { $0 > 0 } == true || manualResidueCount.map { $0 > 0 } == true
+    }
+
+    var hasUnavailableCounts: Bool {
+        configuredRecipeCount == nil
+            || driftCount == nil
+            || manualResidueCount == nil
+            || verification.verifiedRecipeCount == nil
+            || verification.unverifiedRecipeCount == nil
+    }
+
+    var needsAttention: Bool {
+        !engine.available
+            || hasUnavailableCounts
+            || hasDifferences
+            || verification.unverifiedRecipeCount.map { $0 > 0 } == true
+            || lastApply.status == "partial"
+            || lastApply.status == "failed"
+            || !warnings.isEmpty
+    }
+}
+
+struct AppStateEngine: Codable {
+    let available: Bool
+    let version: String?
+}
+
+struct AppStateLastApply: Codable {
+    let status: String?
+    let time: String?
+    let message: String?
+}
+
+struct AppStateVerification: Codable {
+    let verifiedRecipeCount: Int?
+    let unverifiedRecipeCount: Int?
+}
+
+struct AppStateSettingsCatalog: Codable {
+    let schemaVersion: Int
+    let root: String
+    let enabled: Bool
+    let activeProfiles: [String]
+    let applications: [AppStateSettingsApplication]
+}
+
+struct AppStateSettingsApplication: Codable, Identifiable {
+    let id: String
+    let name: String
+    let bundleId: String
+    let installed: Bool
+    let capturable: Bool
+    let captureKinds: [String]
+    let exportableSettings: [AppStateExportableSetting]
+    let managedPaths: [String]
+    let manualSteps: [String]
+    let privateState: AppStatePrivateState?
+    let recipeAvailable: Bool
+    let recipePath: String?
+    let appPath: String?
+    let configured: Bool
+    let configurationSources: [AppStateConfigurationSource]
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case bundleId
+        case installed
+        case capturable
+        case captureKinds
+        case exportableSettings
+        case managedPaths
+        case manualSteps
+        case privateState
+        case recipeAvailable
+        case recipePath
+        case appPath
+        case configured
+        case configurationSources
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        bundleId = try container.decode(String.self, forKey: .bundleId)
+        installed = try container.decode(Bool.self, forKey: .installed)
+        capturable = try container.decode(Bool.self, forKey: .capturable)
+        captureKinds = try container.decode([String].self, forKey: .captureKinds)
+        exportableSettings = try container.decodeIfPresent(
+            [AppStateExportableSetting].self,
+            forKey: .exportableSettings
+        ) ?? []
+        managedPaths = try container.decodeIfPresent([String].self, forKey: .managedPaths) ?? []
+        manualSteps = try container.decodeIfPresent([String].self, forKey: .manualSteps) ?? []
+        privateState = try container.decodeIfPresent(AppStatePrivateState.self, forKey: .privateState)
+        recipeAvailable = try container.decodeIfPresent(Bool.self, forKey: .recipeAvailable) ?? true
+        recipePath = try container.decodeIfPresent(String.self, forKey: .recipePath)
+        appPath = try container.decodeIfPresent(String.self, forKey: .appPath)
+        configured = try container.decodeIfPresent(Bool.self, forKey: .configured) ?? false
+        configurationSources = try container.decodeIfPresent(
+            [AppStateConfigurationSource].self,
+            forKey: .configurationSources
+        ) ?? []
+    }
+}
+
+enum AppStatePrivateReadiness: String, Codable {
+    case ready
+    case notReady
+    case unknown
+}
+
+struct AppStatePrivateState: Codable, Equatable {
+    let readiness: AppStatePrivateReadiness
+    let exclusionReason: String
+}
+
+enum AppStateSettingsCategory: Equatable {
+    case exportable
+    case privateState
+    case manual
+    case unsupported
+}
+
+struct AppStateExportableSetting: Codable, Identifiable {
+    let kind: String
+    let label: String
+    let source: String
+    let requiresConfirmation: Bool?
+
+    var id: String { "\(kind):\(source)" }
+}
+
+extension AppStateSettingsApplication {
+    var settingsCategory: AppStateSettingsCategory {
+        if capturable { return .exportable }
+        if privateState != nil { return .privateState }
+        if recipeAvailable { return .manual }
+        return .unsupported
+    }
+
+    var requiresExportConfirmation: Bool {
+        exportableSettings.contains { $0.requiresConfirmation == true }
+    }
+
+    var privateReadinessLabel: String? {
+        switch privateState?.readiness {
+        case .ready: "Ready"
+        case .notReady: "Not ready"
+        case .unknown: "Unknown"
+        case nil: nil
+        }
+    }
+}
+
+struct AppStateConfigurationSource: Codable, Identifiable {
+    let scope: String
+    let label: String
+    let path: String
+
+    var id: String { "\(scope):\(path)" }
+}
+
+struct LocalAIStatus: Codable {
+    let schemaVersion: Int
+    let health: LocalAIHealth
+    let summary: String
+    let ds4Checkout: LocalAICheckout
+    let piDs4Checkout: LocalAICheckout
+    let `extension`: LocalAIExtension
+    let runtime: LocalAIRuntime
+    let model: LocalAIModel
+    let server: LocalAIServer
+    let configuration: LocalAIConfigurationStatus
+    let remediation: [String]
+
+    var needsAttention: Bool {
+        health != .healthy
+    }
+}
+
+enum LocalAIHealth: String, Codable {
+    case healthy
+    case degraded
+    case unavailable
+}
+
+struct LocalAICheckout: Codable {
+    let state: LocalAICheckoutState
+    let path: String
+}
+
+enum LocalAICheckoutState: String, Codable {
+    case ready
+    case missing
+    case invalid
+    case unavailable
+}
+
+struct LocalAIExtension: Codable {
+    let state: LocalAIExtensionState
+    let path: String
+}
+
+enum LocalAIExtensionState: String, Codable {
+    case linked
+    case missing
+    case mislinked
+    case unavailable
+}
+
+struct LocalAIRuntime: Codable {
+    let state: LocalAIRuntimeState
+    let path: String
+}
+
+enum LocalAIRuntimeState: String, Codable {
+    case built
+    case notBuilt
+    case unavailable
+}
+
+struct LocalAIModel: Codable {
+    let state: LocalAIModelState
+    let name: String
+    let path: String
+}
+
+enum LocalAIModelState: String, Codable {
+    case present
+    case missing
+    case unavailable
+}
+
+struct LocalAIServer: Codable {
+    let state: LocalAIServerState
+}
+
+enum LocalAIServerState: String, Codable {
+    case running
+    case stopped
+    case unavailable
+}
+
+struct LocalAIConfigurationStatus: Codable {
+    let state: LocalAIConfigurationState
+    let driftCount: Int?
+}
+
+enum LocalAIConfigurationState: String, Codable {
+    case current
+    case drifted
+    case unavailable
 }
 
 struct Inventory: Codable {

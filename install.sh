@@ -6,8 +6,11 @@
 #   FORCE_NIX_REINSTALL=1    Force complete Nix reinstall
 #   NON_INTERACTIVE=1        Skip confirmation prompts
 #   SKIP_BREW_ON_VM=1        Skip Homebrew installation in VMs
+#   SKIP_XCODE_CLT=1         Skip Command Line Tools installation in VMs
 #   SKIP_MAS_APPS=1          Skip Mac App Store apps (for VMs without iCloud)
 #   SKIP_REPO_CLONE=1        Skip git clone/update (use existing files in ~/.config/nixpkgs)
+#   XCODE_INSTALL_TIMEOUT_SECONDS=1800
+#                            Maximum interactive wait for Command Line Tools
 #   USE_WIZARD=1             Enable interactive wizard (default)
 
 set -e
@@ -23,7 +26,7 @@ if [ ! -t 0 ] && [ -z "$NIX_ME_BOOTSTRAPPED" ]; then
     echo "Starting interactive installer..."
     # Export all env vars and re-run with stdin from terminal
     export NIX_ME_BOOTSTRAPPED=1
-    export REPO_BRANCH FORCE_NIX_REINSTALL NON_INTERACTIVE SKIP_BREW_ON_VM SKIP_MAS_APPS SKIP_REPO_CLONE USE_WIZARD
+    export REPO_BRANCH FORCE_NIX_REINSTALL NON_INTERACTIVE SKIP_BREW_ON_VM SKIP_XCODE_CLT SKIP_MAS_APPS SKIP_REPO_CLONE XCODE_INSTALL_TIMEOUT_SECONDS USE_WIZARD
     bash "$TEMP_SCRIPT" "$@" </dev/tty
     EXIT_CODE=$?
     rm -f "$TEMP_SCRIPT"
@@ -246,8 +249,88 @@ ensure_homebrew() {
     return 0
 }
 
+xcode_cli_tools_ready() {
+    xcode-select --print-path &>/dev/null
+}
+
+find_xcode_cli_tools_update() {
+    local marker="${XCODE_CLI_UPDATE_MARKER:-/tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress}"
+    local updates
+
+    sudo touch "$marker"
+    updates=$(softwareupdate --list 2>&1 || true)
+    sudo rm -f "$marker"
+
+    printf '%s\n' "$updates" \
+        | sed -n 's/^[[:space:]]*\* Label: \(Command Line Tools.*\)$/\1/p' \
+        | tail -n 1
+}
+
+ensure_xcode_command_line_tools() {
+    if xcode_cli_tools_ready; then
+        return 0
+    fi
+
+    if [ "$VM_TYPE" != "physical" ] && [ "$SKIP_XCODE_CLT" = "1" ]; then
+        warn "Skipping Xcode Command Line Tools in VM environment"
+        return 0
+    fi
+
+    local update_label
+    update_label=$(find_xcode_cli_tools_update)
+    if [ -n "$update_label" ]; then
+        log "Installing $update_label with softwareupdate..."
+        if ! sudo softwareupdate --install "$update_label" --verbose; then
+            error "Command Line Tools installation failed"
+            return 1
+        fi
+    elif [ "$NON_INTERACTIVE" = "1" ]; then
+        error "Command Line Tools are not installed and macOS Software Update does not offer them"
+        error "Update macOS or install Command Line Tools manually, then run the installer again"
+        error "Disposable VMs may use SKIP_XCODE_CLT=1 together with SKIP_BREW_ON_VM=1"
+        return 1
+    else
+        local timeout_seconds=${XCODE_INSTALL_TIMEOUT_SECONDS:-1800}
+        local elapsed=0
+
+        log "Opening the Command Line Tools installer..."
+        xcode-select --install 2>/dev/null || true
+
+        echo ""
+        echo "    ╔════════════════════════════════════════════════════════════╗"
+        echo "    ║  A dialog will appear to install Command Line Tools.       ║"
+        echo "    ║  Please click 'Install' and wait for it to complete.       ║"
+        echo "    ╚════════════════════════════════════════════════════════════╝"
+        echo ""
+
+        log "Waiting up to ${timeout_seconds}s for installation to complete..."
+        while ! xcode_cli_tools_ready; do
+            if [ "$elapsed" -ge "$timeout_seconds" ]; then
+                error "Timed out waiting for Command Line Tools after ${timeout_seconds}s"
+                error "Install them manually with 'xcode-select --install', then run the installer again"
+                return 1
+            fi
+            sleep 5
+            elapsed=$((elapsed + 5))
+        done
+    fi
+
+    if ! xcode_cli_tools_ready; then
+        error "Command Line Tools installation completed without an active developer directory"
+        return 1
+    fi
+
+    return 0
+}
+
 # Enhanced Nix installation function
 install_or_fix_nix() {
+    # Existing installations are not visible to every non-interactive shell.
+    if [ -e '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' ]; then
+        source '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
+    fi
+    export PATH=$HOME/.nix-profile/bin:/nix/var/nix/profiles/default/bin:$PATH
+
     # Check if we should force reinstall
     if [ "$FORCE_NIX_REINSTALL" = "1" ]; then
         log "Force reinstall requested, uninstalling existing Nix..."
@@ -447,6 +530,8 @@ main() {
     FORCE_NIX_REINSTALL=${FORCE_NIX_REINSTALL:-0}
     NON_INTERACTIVE=${NON_INTERACTIVE:-0}
     SKIP_BREW_ON_VM=${SKIP_BREW_ON_VM:-0}
+    SKIP_XCODE_CLT=${SKIP_XCODE_CLT:-0}
+    SKIP_MAS_APPS=${SKIP_MAS_APPS:-0}
     USE_WIZARD=${USE_WIZARD:-1}
 
     REPO_URL=${REPO_URL:-"https://github.com/lucamaraschi/nix-me.git"}
@@ -482,25 +567,7 @@ main() {
 
     # STEP 2: Install Xcode CLI tools (needed for git)
     print_step "2/7" "Installing Xcode Command Line Tools"
-    if ! xcode-select --print-path &>/dev/null; then
-        log "Installing Xcode Command Line Tools..."
-        # Start installation - this opens a GUI dialog
-        xcode-select --install 2>/dev/null &
-        XCODE_PID=$!
-
-        echo ""
-        echo "    ╔════════════════════════════════════════════════════════════╗"
-        echo "    ║  A dialog will appear to install Command Line Tools.       ║"
-        echo "    ║  Please click 'Install' and wait for it to complete.       ║"
-        echo "    ╚════════════════════════════════════════════════════════════╝"
-        echo ""
-
-        # Wait for installation to complete
-        log "Waiting for installation to complete..."
-        while ! xcode-select --print-path &>/dev/null; do
-            sleep 5
-        done
-    fi
+    ensure_xcode_command_line_tools || exit 1
     print_success "Xcode Command Line Tools ready"
 
     # Accept Xcode license only if full Xcode.app is installed
@@ -685,8 +752,13 @@ EOF
     for etc_file in /etc/shells /etc/zshenv /etc/zshrc /etc/bashrc; do
         if [ -f "$etc_file" ] && [ ! -L "$etc_file" ]; then
             if ! grep -q "nix-darwin" "$etc_file" 2>/dev/null; then
-                log "Backing up $etc_file to ${etc_file}.before-nix-darwin"
-                sudo mv "$etc_file" "${etc_file}.before-nix-darwin"
+                if [ -e "${etc_file}.before-nix-darwin" ]; then
+                    log "Removing regenerated $etc_file; preserving existing backup"
+                    sudo rm "$etc_file"
+                else
+                    log "Backing up $etc_file to ${etc_file}.before-nix-darwin"
+                    sudo mv "$etc_file" "${etc_file}.before-nix-darwin"
+                fi
             fi
         fi
     done
@@ -695,13 +767,24 @@ EOF
         log "Installing nix-darwin..."
         nix build --extra-experimental-features "nix-command flakes" --impure \
             ".#darwinConfigurations.$HOST_NAME.system"
-        sudo mkdir -p /etc/nix-darwin /etc/static
+        # nix-darwin creates /etc/static as a symlink during activation.
+        sudo mkdir -p /etc/nix-darwin
         # Use sudo env to preserve USERNAME through sudo
-        sudo env USERNAME="$NIXOS_USERNAME" PATH="$PATH" ./result/sw/bin/darwin-rebuild switch --flake ".#$HOST_NAME" --impure
+        sudo env \
+            USERNAME="$NIXOS_USERNAME" \
+            SKIP_BREW_ON_VM="$SKIP_BREW_ON_VM" \
+            SKIP_MAS_APPS="$SKIP_MAS_APPS" \
+            PATH="$PATH" \
+            ./result/sw/bin/darwin-rebuild switch --flake ".#$HOST_NAME" --impure
     else
         log "Activating configuration..."
         # Use sudo env to preserve USERNAME through sudo
-        sudo env USERNAME="$NIXOS_USERNAME" PATH="$PATH" darwin-rebuild switch --flake ".#$HOST_NAME" --impure
+        sudo env \
+            USERNAME="$NIXOS_USERNAME" \
+            SKIP_BREW_ON_VM="$SKIP_BREW_ON_VM" \
+            SKIP_MAS_APPS="$SKIP_MAS_APPS" \
+            PATH="$PATH" \
+            darwin-rebuild switch --flake ".#$HOST_NAME" --impure
     fi
 
     echo ""
@@ -727,10 +810,15 @@ EOF
     echo -e "  ${GREEN}Configuration:${NC} ${REPO_DIR}"
     echo ""
 
-    # Restart shell to pick up new environment
-    echo -e "  ${YELLOW}Restarting shell...${NC}"
-    exec $SHELL
+    if [ "$NON_INTERACTIVE" = "1" ]; then
+        echo -e "  ${YELLOW}Open a new shell to pick up the managed environment.${NC}"
+    else
+        echo -e "  ${YELLOW}Restarting shell...${NC}"
+        exec "$SHELL"
+    fi
 }
 
-# Run main function
-main "$@"
+# Run main function unless this file is sourced by a test or helper.
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main "$@"
+fi

@@ -43,6 +43,10 @@ not imply that the system needs activation.
 - `NIX_ME_HOSTNAME` evaluates another configured host.
 - `NIX_ME_APPLIED_MANIFEST` overrides the active manifest path for testing.
 - `NIX_ME_SKIP_UPDATES=1` skips all network-backed update queries.
+- `NIX_ME_APPLICATION_DIRS` overrides the colon-separated application roots
+  scanned by the settings catalog.
+- `NIX_ME_APPLICATION_CATALOG` supplies a deterministic installed-application
+  JSON fixture for contract tests.
 
 Nix updates are detected by resolving inputs into a temporary candidate lock
 file and comparing revisions. The repository's real `flake.lock` is never
@@ -61,7 +65,36 @@ unsafe package names, then maps accepted items to fixed operations:
 Actions return structured per-item results. `NIX_ME_ACTION_DRY_RUN=1` validates
 and reports intended operations without changing packages or `flake.lock`.
 
+Local model lifecycle actions use the same validated boundary:
+
+```bash
+nix-me action local-ai-model-start   # optional {"expectedSha256":"..."} on stdin
+nix-me action local-ai-model-status
+nix-me action local-ai-model-cancel
+```
+
+Start performs a disk-space preflight, downloads into a private staging path,
+and returns an inspectable operation record. Status is strictly read-only: a
+dead worker is shown as failed, but its state and partial data are retained.
+Explicit start or cancel finalizes and cleans that stale operation. Cancellation,
+downloader failure, and checksum mismatch never replace a valid installed model.
+A checksum is marked verified only when a profile or caller supplies an expected
+SHA-256 and the completed artifact matches it. A profile checksum is
+authoritative and conflicting caller input is rejected before download.
+
 `nix-me action apply` runs the existing `switch-fast` activation path after a
 native macOS administrator prompt. The app passes the evaluated hostname and
 username explicitly, skips duplicate Homebrew update checks, waits for
 activation to finish, and then refreshes desired-versus-applied state.
+
+Project configuration uses a two-step mutation boundary:
+
+```bash
+nix-me action project-preview  # Validate and return the proposed JSON change
+nix-me action project-save     # Atomically write the reviewed declaration
+```
+
+Both actions accept a project declaration on stdin with a shared, profile, or
+machine scope. Saving writes under `config/projects`; it never clones a Git
+repository or applies the Nix configuration. `sync-projects` remains the
+explicit network operation that clones and updates configured repositories.

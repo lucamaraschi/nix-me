@@ -1,0 +1,72 @@
+schema_version: 1
+id: freecad
+name: FreeCAD
+bundle_id: org.freecad.FreeCAD
+install:
+  cask: freecad
+detect:
+  app_path: /Applications/FreeCAD.app
+sandboxed: false
+requires: []
+app_version:
+  command: /usr/bin/plutil -extract CFBundleVersion raw -o - '/Applications/FreeCAD.app/Contents/Info.plist'
+  supported_majors: [1]
+config:
+  - kind: file
+    binds: preferences
+    path: ~/Library/Application Support/FreeCAD/user.cfg
+    format: qsettings_xml
+    paths:
+      allow:
+        - /groups/Root/BaseApp/Preferences/General/AutoloadModule
+        - /groups/Root/BaseApp/Preferences/General/ShowSplasher
+        - /groups/Root/BaseApp/Preferences/General/PythonWordWrap
+        - /groups/Root/BaseApp/Preferences/General/ToolbarIconSize
+        - /groups/Root/BaseApp/Preferences/Units/UserSchema
+        - /groups/Root/BaseApp/Preferences/Units/Decimals
+        - /groups/Root/BaseApp/Preferences/Units/FracInch
+        - /groups/Root/BaseApp/Preferences/View/NavigationStyle
+        - /groups/Root/BaseApp/Preferences/View/OrbitStyle
+        - /groups/Root/BaseApp/Preferences/View/AntiAliasing
+        - /groups/Root/BaseApp/Preferences/View/CornerNaviCube
+        - /groups/Root/BaseApp/Preferences/View/MarkerSize
+        - /groups/Root/BaseApp/Preferences/View/ZoomAtCursor
+        - /groups/Root/BaseApp/Preferences/View/InvertZoom
+        - /groups/Root/BaseApp/Preferences/View/DisableTouchTilt
+        - /groups/Root/BaseApp/Preferences/View/ZoomStep
+        - /groups/Root/BaseApp/Preferences/View/DragAtCursor
+        - /groups/Root/BaseApp/Preferences/View/CornerCoordSystem
+        - /groups/Root/BaseApp/Preferences/View/ShowFPS
+        - /groups/Root/BaseApp/Preferences/View/ShowNaviCube
+        - /groups/Root/BaseApp/Preferences/View/UseAutoRotation
+        - /groups/Root/BaseApp/Preferences/View/PickRadius
+        - /groups/Root/BaseApp/Preferences/OutputWindow/checkLogging
+        - /groups/Root/BaseApp/Preferences/OutputWindow/checkWarning
+        - /groups/Root/BaseApp/Preferences/OutputWindow/checkError
+        - /groups/Root/BaseApp/Preferences/OutputWindow/RedirectPythonOutput
+        - /groups/Root/BaseApp/Preferences/OutputWindow/RedirectPythonErrors
+        - /groups/Root/BaseApp/Preferences/Editor/EnableLineNumber
+        - /groups/Root/BaseApp/Preferences/Editor/EnableFolding
+        - /groups/Root/BaseApp/Preferences/Editor/TabSize
+        - /groups/Root/BaseApp/Preferences/Editor/IndentSize
+        - /groups/Root/BaseApp/Preferences/Editor/Tabs
+        - /groups/Root/BaseApp/Preferences/Editor/Spaces
+        - /groups/Root/BaseApp/Preferences/Editor/FontSize
+        - /groups/Root/BaseApp/Preferences/Editor/Font
+        - /groups/Root/BaseApp/Preferences/MainWindow/Theme
+      sensitive:
+        - /groups/Root/BaseApp/Preferences/General/FileOpenSavePath
+        - /groups/Root/BaseApp/Preferences/Macro/MacroPath
+        - /groups/Root/BaseApp/Preferences/Macro/ScriptFile
+        - /groups/Root/BaseApp/Preferences/RecentFiles
+        - /groups/Root/BaseApp/Preferences/Browser
+        - /groups/Root/BaseApp/Preferences/Document
+    mode: "0600"
+    confirm: none
+  - kind: manual
+    step: Configure workbench-specific preferences locally unless their typed parameters are reviewed and added to this allowlist. Recent files, document state, macros and scripts, credentials, external-tool locations, project paths, and window geometry are never exported.
+    confirm: full_manual
+apply:
+  poke: restart_app
+  unsafe_to_kill: true
+verified: null

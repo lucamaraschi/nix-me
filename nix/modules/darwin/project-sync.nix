@@ -1,6 +1,7 @@
-{ config, lib, pkgs, username, ... }:
+{ config, hostname, lib, pkgs, username, ... }:
 
 let
+  cfg = config.projects;
   projectType = lib.types.submodule {
     options = {
       name = lib.mkOption {
@@ -46,11 +47,27 @@ let
     };
   };
 
+  readProjectFile = path:
+    if builtins.pathExists path then
+      let
+        parsed = builtins.fromJSON (builtins.readFile path);
+      in
+      if builtins.isAttrs parsed then parsed
+      else throw "${toString path} must contain a JSON object"
+    else
+      { };
+
+  sharedProjects = readProjectFile (cfg.settingsRoot + "/shared.json");
+  profileProjects = map
+    (profile: readProjectFile (cfg.settingsRoot + "/profiles/${profile}.json"))
+    (lib.sort builtins.lessThan (lib.unique cfg.settingsProfiles));
+  machineProjects = readProjectFile (cfg.settingsRoot + "/machines/${hostname}.json");
+
   mergedProjects =
     lib.foldl'
       lib.recursiveUpdate
       { }
-      (config.projects.sets ++ [ config.projects.repos ]);
+      (cfg.sets ++ [ sharedProjects ] ++ profileProjects ++ [ machineProjects cfg.repos ]);
 
   finalRepos =
     lib.mapAttrsToList
@@ -90,6 +107,18 @@ in
       description = "Reusable imported project sets.";
     };
 
+    settingsRoot = lib.mkOption {
+      type = lib.types.path;
+      default = ../../../config/projects;
+      description = "User-owned shared, profile, and machine project declarations.";
+    };
+
+    settingsProfiles = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      description = "Active profile project scopes, merged after shared projects and before machine projects.";
+    };
+
     repos = lib.mkOption {
       type = lib.types.attrsOf projectType;
       default = { };
@@ -114,10 +143,12 @@ in
 
     system.activationScripts.postActivation.text = lib.mkIf config.projects.syncOnActivation (lib.mkAfter ''
       echo "Syncing configured projects..." >&2
-      sudo -u ${username} HOME=${userHome} USER=${username} \
+      if ! sudo -u ${username} HOME=${userHome} USER=${username} \
         ${projectSyncScript}/bin/sync-projects \
         --home ${userHome} \
-        --projects-json ${lib.escapeShellArg (builtins.toJSON finalRepos)}
+        --projects-json ${lib.escapeShellArg (builtins.toJSON finalRepos)}; then
+        echo "Warning: one or more projects need attention. Run 'make sync-projects' for details." >&2
+      fi
     '');
   };
 }

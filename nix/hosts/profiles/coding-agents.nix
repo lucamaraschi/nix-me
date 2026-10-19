@@ -3,25 +3,28 @@
 { config, pkgs, lib, ... }:
 
 {
+  projects.settingsProfiles = [ "coding-agents" ];
+
   apps = {
     useBaseLists = true;
+    state.settingsProfiles = [ "coding-agents" ];
 
     # Agent applications distributed as Homebrew casks
     casksToAdd = [
-      "claude-code"        # Claude Code CLI
-      "claude"             # Claude Desktop
-      "codex"              # OpenAI Codex CLI
-      "codex-app"          # OpenAI Codex Desktop
+      "claude-code" # Claude Code CLI
+      "claude" # Claude Desktop
+      "codex" # OpenAI Codex CLI
+      "codex-app" # OpenAI Codex Desktop
     ];
 
     # Agent CLIs distributed as Homebrew formulae
     brewsToAdd = [
-      "pi-coding-agent"    # Terminal AI coding agent (pi.dev)
+      "pi-coding-agent" # Terminal AI coding agent (pi.dev)
     ];
 
     # Agent CLIs distributed through nixpkgs
     systemPackagesToAdd = [
-      "opencode"           # Terminal AI coding assistant (opencode.ai)
+      "opencode" # Terminal AI coding assistant (opencode.ai)
     ];
   };
 

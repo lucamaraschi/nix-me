@@ -1,0 +1,21 @@
+schema_version: 1
+id: codex-cli
+name: Codex CLI
+bundle_id: com.openai.codex.cli
+install:
+  cask: codex
+detect:
+  command: command -v codex >/dev/null 2>&1
+sandboxed: false
+requires: []
+config:
+  - kind: manual
+    step: Authenticate Codex CLI; the harness reports ready only when this CLI version exposes login status and the existing session is authenticated.
+    doc: The ephemeral check uses only the exit status of codex login status and suppresses its output. It never starts login, while OAuth or API credentials, account identity, sessions, and conversation data remain local; portable preferences belong to the Codex app integration.
+    marker:
+      command: command -v codex >/dev/null 2>&1 && codex login status --help >/dev/null 2>&1 && codex login status >/dev/null 2>&1
+    confirm: full_manual
+apply:
+  poke: none
+  unsafe_to_kill: false
+verified: null

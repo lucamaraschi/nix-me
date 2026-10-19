@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "synthetic_target": true,
+  "cases": [
+    {
+      "kind": "recipe",
+      "source_version": 1,
+      "target_version": 2,
+      "source": "recipe/v1.yaml",
+      "expected": "recipe/v2.synthetic.yaml"
+    },
+    {
+      "kind": "recipe",
+      "source_version": 2,
+      "target_version": 1,
+      "source": "recipe/v2.synthetic.yaml",
+      "expected": "recipe/v1.yaml"
+    },
+    {
+      "kind": "plan",
+      "source_version": 1,
+      "target_version": 2,
+      "source": "plan/v1.json",
+      "expected": "plan/v2.synthetic.json"
+    },
+    {
+      "kind": "plan",
+      "source_version": 2,
+      "target_version": 1,
+      "source": "plan/v2.synthetic.json",
+      "expected": "plan/v1.json"
+    },
+    {
+      "kind": "state",
+      "source_version": 1,
+      "target_version": 2,
+      "source": "state/v1.json",
+      "expected": "state/v2.synthetic.json"
+    },
+    {
+      "kind": "state",
+      "source_version": 2,
+      "target_version": 1,
+      "source": "state/v2.synthetic.json",
+      "expected": "state/v1.json"
+    }
+  ]
+}

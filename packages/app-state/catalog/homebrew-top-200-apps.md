@@ -2,7 +2,7 @@
 
 Snapshot: **2025-09-08 through 2026-09-08** (365-day install window).
 
-This is the first 200 analytics-ranked official casks that install an `.app`; original Homebrew analytics rank is retained. Mechanisms: cloud_or_opaque=8, defaults_dominant=30, file_driven=29, hybrid=133; confidence: high=12, low=8, medium=180.
+This is the first 200 analytics-ranked official casks that install an `.app`; original Homebrew analytics rank is retained. Mechanisms: cloud_or_opaque=8, defaults_dominant=30, file_driven=29, hybrid=133; confidence: high=14, low=8, medium=178.
 
 | App rank | Analytics rank | Cask | Installs | Mechanism | Confidence | Local recipe |
 |---:|---:|---|---:|---|---|---|
@@ -11,7 +11,7 @@ This is the first 200 analytics-ranked official casks that install an `.app`; or
 | 3 | 6 | `google-chrome` | 450410 | hybrid | medium | — |
 | 4 | 10 | `ghostty` | 370796 | file_driven | high | ghostty |
 | 5 | 13 | `libreoffice` | 343209 | hybrid | medium | — |
-| 6 | 14 | `iterm2` | 325452 | hybrid | medium | — |
+| 6 | 14 | `iterm2` | 325452 | hybrid | high | iterm2 |
 | 7 | 19 | `claude` | 211785 | hybrid | medium | — |
 | 8 | 20 | `firefox` | 196871 | hybrid | medium | — |
 | 9 | 22 | `obsidian` | 191010 | file_driven | high | — |
@@ -26,7 +26,7 @@ This is the first 200 analytics-ranked official casks that install an `.app`; or
 | 18 | 37 | `android-studio` | 120078 | hybrid | medium | — |
 | 19 | 38 | `raycast` | 119083 | hybrid | high | raycast |
 | 20 | 41 | `rectangle` | 116192 | defaults_dominant | high | rectangle |
-| 21 | 42 | `maccy` | 114242 | defaults_dominant | medium | — |
+| 21 | 42 | `maccy` | 114242 | defaults_dominant | high | maccy |
 | 22 | 43 | `zed` | 113842 | hybrid | medium | — |
 | 23 | 45 | `cc-switch` | 108902 | hybrid | medium | — |
 | 24 | 49 | `spotify` | 98080 | hybrid | medium | — |
@@ -42,7 +42,7 @@ This is the first 200 analytics-ranked official casks that install an `.app`; or
 | 34 | 69 | `alt-tab` | 68058 | hybrid | medium | — |
 | 35 | 72 | `localsend` | 65621 | defaults_dominant | medium | — |
 | 36 | 73 | `utm` | 64973 | defaults_dominant | medium | — |
-| 37 | 74 | `sublime-text` | 63979 | file_driven | high | — |
+| 37 | 74 | `sublime-text` | 63979 | file_driven | high | sublime-text |
 | 38 | 76 | `whatsapp` | 63080 | cloud_or_opaque | low | — |
 | 39 | 77 | `notion` | 62661 | file_driven | medium | — |
 | 40 | 78 | `blender` | 62061 | file_driven | medium | — |

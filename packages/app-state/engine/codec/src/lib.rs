@@ -4,6 +4,11 @@ use std::sync::Arc;
 use anyhow::{anyhow, Result};
 use serde_json::Value;
 
+pub mod json;
+pub mod line;
+pub mod qsettings;
+pub mod version;
+
 /// Escape hatch for genuinely non-compositional app export formats.
 /// Declarative pipelines should be preferred for registry recipes.
 pub trait Codec: Send + Sync {

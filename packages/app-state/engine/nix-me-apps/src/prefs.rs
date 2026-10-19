@@ -19,6 +19,7 @@ pub trait PrefStore {
     ) -> Result<()> {
         self.write(domain, key, val, host)
     }
+    fn delete(&mut self, domain: &str, key: &str, host: Host) -> Result<()>;
     fn is_forced(&self, domain: &str, key: &str) -> Result<bool>;
     fn list_keys(&self, domain: &str, host: Host) -> Result<Vec<String>>;
     fn synchronize(&mut self, domain: &str) -> Result<()>;
@@ -43,6 +44,10 @@ impl PrefStore for FakePrefStore {
     }
     fn write(&mut self, domain: &str, key: &str, val: &Value, host: Host) -> Result<()> {
         self.set(domain, key, host, val.clone());
+        Ok(())
+    }
+    fn delete(&mut self, domain: &str, key: &str, host: Host) -> Result<()> {
+        self.values.remove(&(domain.into(), host, key.into()));
         Ok(())
     }
     fn is_forced(&self, domain: &str, key: &str) -> Result<bool> {
@@ -153,6 +158,21 @@ impl PrefStore for DefaultsCliStore {
             Err(anyhow!(
                 "defaults import failed: {}",
                 String::from_utf8_lossy(&output.stderr)
+            ))
+        }
+    }
+    fn delete(&mut self, domain: &str, key: &str, host: Host) -> Result<()> {
+        let mut command = Command::new("defaults");
+        if host == Host::Current {
+            command.arg("-currentHost");
+        }
+        let output = command.args(["delete", domain, key]).output()?;
+        if output.status.success() {
+            Ok(())
+        } else {
+            Err(anyhow!(
+                "defaults delete failed: {}",
+                String::from_utf8_lossy(&output.stderr).trim()
             ))
         }
     }
@@ -412,6 +432,20 @@ mod cf {
                     Self::host(host),
                 );
                 CFRelease(raw);
+                Ok(())
+            }
+        }
+        fn delete(&mut self, domain: &str, key_name: &str, host: Host) -> Result<()> {
+            unsafe {
+                let app = CFString::new(domain);
+                let key = CFString::new(key_name);
+                CFPreferencesSetValue(
+                    key.as_concrete_TypeRef() as _,
+                    ptr::null(),
+                    app.as_concrete_TypeRef() as _,
+                    kCFPreferencesCurrentUser,
+                    Self::host(host),
+                );
                 Ok(())
             }
         }

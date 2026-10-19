@@ -1,0 +1,72 @@
+schema_version: 1
+id: figma
+name: Figma
+bundle_id: com.figma.Desktop
+install:
+  cask: figma
+detect:
+  command: >-
+    test "$(/usr/bin/plutil -extract CFBundleShortVersionString raw -o - '/Applications/Figma.app/Contents/Info.plist' 2>/dev/null)" = '126.7.10'
+sandboxed: false
+requires: []
+app_version:
+  command: /usr/bin/plutil -extract CFBundleShortVersionString raw -o - '/Applications/Figma.app/Contents/Info.plist'
+  supported_majors: [126]
+config:
+  - kind: file
+    binds: settings
+    path: ~/Library/Application Support/Figma/settings.json
+    format: json
+    merge: deep_merge
+    paths:
+      allow:
+        - /disableHardwareAcceleration
+        - /enhancedContrast
+        - /locale
+        - /macHaptics
+        - /minUpdateStage
+        - /preferHighPerformanceGPU
+        - /showFigmaInMenuBar
+        - /showTabsInFullScreen
+        - /themePreference
+        - /underlineLinks
+        - /zoomStop
+      sensitive:
+        - /clientID
+        - /experiments
+        - /featureFlags
+        - /figmaID
+        - /installedMcpClients
+        - /localFileExtensions
+        - /makeLocalDev
+        - /makeLocalTrustedDirectoriesByUser
+        - /mcpAllowedDirectoriesByUser
+        - /navigationConfig
+        - /sharedTabHistory
+        - /windows
+    checks:
+      preflight: >-
+        test "$(/usr/bin/plutil -extract CFBundleShortVersionString raw -o - '/Applications/Figma.app/Contents/Info.plist' 2>/dev/null)" = '126.7.10' &&
+        command -v jq >/dev/null 2>&1 &&
+        jq -e '(.disableHardwareAcceleration | type == "boolean") and (.enhancedContrast | type == "boolean") and (.locale | type == "string") and (.macHaptics | type == "boolean") and (.minUpdateStage | type == "number") and (.preferHighPerformanceGPU | type == "boolean") and (.showFigmaInMenuBar | type == "boolean") and (.showTabsInFullScreen | type == "boolean") and (.themePreference | type == "string") and (.underlineLinks | type == "boolean") and (.zoomStop | type == "number")' {file} >/dev/null
+      verify: >-
+        test "$(/usr/bin/plutil -extract CFBundleShortVersionString raw -o - '/Applications/Figma.app/Contents/Info.plist' 2>/dev/null)" = '126.7.10' &&
+        command -v jq >/dev/null 2>&1 &&
+        jq -e '(.disableHardwareAcceleration | type == "boolean") and (.enhancedContrast | type == "boolean") and (.locale | type == "string") and (.macHaptics | type == "boolean") and (.minUpdateStage | type == "number") and (.preferHighPerformanceGPU | type == "boolean") and (.showFigmaInMenuBar | type == "boolean") and (.showTabsInFullScreen | type == "boolean") and (.themePreference | type == "string") and (.underlineLinks | type == "boolean") and (.zoomStop | type == "number")' {path} >/dev/null
+    mode: "0600"
+    confirm: none
+  - kind: manual
+    step: Configure Figma developer integrations, trusted directories, experiments, feature flags, tabs, windows, and document history locally. Only the eleven scalar settings above are portable and proven for Figma 126.7.10.
+    doc: >-
+      The adapter projects only reviewed RFC 6901 paths from settings.json,
+      refuses version or type mismatches, performs an atomic pointer-only deep
+      merge, and verifies the same paths after write-back. Client and Figma
+      identifiers, accounts, teams, files/content, installed integrations,
+      trusted paths, feature experiments, cookies, IndexedDB, cache, telemetry,
+      history, extensions, URLs, window geometry, and machine identity are
+      permanently excluded.
+    confirm: full_manual
+apply:
+  poke: restart_app
+  unsafe_to_kill: true
+verified: null

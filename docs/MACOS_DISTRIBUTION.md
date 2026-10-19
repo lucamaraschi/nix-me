@@ -4,6 +4,26 @@ Nix Me is distributed outside the Mac App Store. GitHub Releases is the source
 of truth, Sparkle handles in-app updates, and a Homebrew tap provides a second
 installation path.
 
+## Managed-host installation
+
+Machines controlled by this repository can build and install the app through
+Nix instead of downloading a release. Enable it for a host with:
+
+```nix
+apps.manager.enable = true;
+```
+
+The `nix-me-macos` package builds only from the native app and management API
+sources, bundles the matching `nix-me-apps` engine, and ad-hoc signs the final
+application after Nix fixups. Activation links the immutable bundle to
+`~/Applications/Nix Me.app`. Nix reuses the store result until one of those
+inputs changes and rolls the app back with the rest of the system generation.
+
+Sparkle is intentionally excluded from managed-host builds because updates are
+delivered by the Nix configuration. These local builds are suitable for trusted
+managed Macs and do not replace Developer ID signing and notarization for
+downloadable GitHub releases.
+
 ## Release artifacts
 
 Each stable release contains:
@@ -19,9 +39,20 @@ The in-app feed uses:
 https://github.com/lucamaraschi/nix-me/releases/latest/download/appcast.xml
 ```
 
-## Required GitHub secrets
+## Protected release environments
 
-Configure these in the `lucamaraschi/nix-me` repository:
+Prerelease jobs use the `macos-beta-release` GitHub environment. Its deployment
+policy accepts tags matching `v*-*`, so ordinary branches and stable tags cannot
+read its credentials. Stable jobs use the separate `macos-stable-release`
+environment; its approval policy is tracked as `AUT-007` in `PLAN.md`.
+
+Create or repair the beta environment with:
+
+```bash
+tools/release/configure-beta-environment.sh
+```
+
+Configure these as **environment secrets**, not repository secrets:
 
 | Secret | Content |
 | --- | --- |
@@ -33,6 +64,13 @@ Configure these in the `lucamaraschi/nix-me` repository:
 | `SPARKLE_PRIVATE_KEY` | Private Sparkle key exported by `generate_keys`. Preserve it permanently. |
 | `TAP_GITHUB_TOKEN` | Optional fine-grained token with write access to `lucamaraschi/homebrew-tap`. |
 
+`TAP_GITHUB_TOKEN` is only used for stable releases. Check beta readiness
+without exposing secret values:
+
+```bash
+tools/release/check-macos-release-readiness.sh macos-beta-release
+```
+
 The committed Sparkle public key belongs to the Keychain account
 `com.nix-me.manager`. Export its private key on this Mac without printing it:
 
@@ -40,15 +78,23 @@ The committed Sparkle public key belongs to the Keychain account
 apps/macos/NixMeApp/.build/artifacts/sparkle/Sparkle/bin/generate_keys \
   --account com.nix-me.manager \
   -x /tmp/nix-me-sparkle-private-key
-gh secret set SPARKLE_PRIVATE_KEY < /tmp/nix-me-sparkle-private-key
+gh secret set SPARKLE_PRIVATE_KEY \
+  --env macos-beta-release \
+  --repo lucamaraschi/nix-me \
+  < /tmp/nix-me-sparkle-private-key
 rm -f /tmp/nix-me-sparkle-private-key
 ```
 
 Encode Apple credentials before adding them:
 
 ```bash
-base64 < DeveloperIDApplication.p12 | gh secret set CERTIFICATE_P12_BASE64
-base64 < AuthKey_KEYID.p8 | gh secret set APPLE_API_PRIVATE_KEY_BASE64
+base64 < DeveloperIDApplication.p12 \
+  | gh secret set CERTIFICATE_P12_BASE64 --env macos-beta-release
+base64 < AuthKey_KEYID.p8 \
+  | gh secret set APPLE_API_PRIVATE_KEY_BASE64 --env macos-beta-release
+gh secret set CERTIFICATE_PASSWORD --env macos-beta-release
+gh secret set APPLE_API_KEY_ID --env macos-beta-release
+gh secret set APPLE_API_ISSUER_ID --env macos-beta-release
 ```
 
 ## Publishing
@@ -66,7 +112,9 @@ signs Sparkle from the inside out, creates and notarizes the DMG, generates the
 signed appcast and cask, then publishes a GitHub Release. It updates the
 Homebrew tap when `TAP_GITHUB_TOKEN` is configured.
 
-The workflow can also be run manually for an existing tag.
+The workflow can also be run manually for an existing tag. Select that tag as
+the workflow ref; dispatching from a branch is intentionally rejected by the
+environment deployment policy.
 
 ## Local validation
 

@@ -2,12 +2,12 @@
   "version": 1,
   "denominator": 200,
   "behavior_mapped_apps": 200,
-  "local_recipe_apps": 4,
-  "zero_click_apps": 3,
+  "local_recipe_apps": 7,
+  "zero_click_apps": 6,
   "one_click_apps": 1,
   "full_manual_apps": 0,
-  "uncovered_apps": 196,
-  "zero_click_percent": 1.5,
+  "uncovered_apps": 193,
+  "zero_click_percent": 3.0,
   "mechanisms": {
     "cloud_or_opaque": 8,
     "defaults_dominant": 30,
@@ -15,9 +15,9 @@
     "hybrid": 133
   },
   "confidence": {
-    "high": 12,
+    "high": 14,
     "low": 8,
-    "medium": 180
+    "medium": 178
   },
   "analytics_start_date": "2025-09-08",
   "analytics_end_date": "2026-09-08"

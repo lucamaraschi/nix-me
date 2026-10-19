@@ -4,20 +4,23 @@
 { config, pkgs, lib, ... }:
 
 {
+  projects.settingsProfiles = [ "hacking" ];
+
   apps = {
     useBaseLists = true;
+    state.settingsProfiles = [ "hacking" ];
 
     # Security/Hacking GUI applications
     casksToAdd = [
       # Network analysis
-      "wireshark-app"       # Network protocol analyzer
-      "zenmap"              # Nmap GUI
+      "wireshark-app" # Network protocol analyzer
+      "zenmap" # Nmap GUI
 
       # Reverse engineering
       "hopper-disassembler" # macOS/iOS disassembler
 
       # Virtualization for testing
-      "utm"                 # VMs for isolated testing
+      "utm" # VMs for isolated testing
 
       # Exploitation
       # "metasploit" - removed, see docs/REMOVED_APPS.md
@@ -26,27 +29,27 @@
     # Security CLI tools via Homebrew
     brewsToAdd = [
       # WiFi security (AirJack dependencies)
-      "hashcat"             # Password recovery
-      "hcxtools"            # Handshake capture tools
-      "libpcap"             # Packet capture library
-      "wget"                # HTTP retrieval
+      "hashcat" # Password recovery
+      "hcxtools" # Handshake capture tools
+      "libpcap" # Packet capture library
+      "wget" # HTTP retrieval
 
       # Network scanning & enumeration
-      "masscan"             # Fast port scanner
-      "nikto"               # Web server scanner
+      "masscan" # Fast port scanner
+      "nikto" # Web server scanner
 
       # Password & hash tools
-      "john"                # John the Ripper
-      "hydra"               # Brute force tool
+      "john" # John the Ripper
+      "hydra" # Brute force tool
 
       # Exploitation
-      "sqlmap"              # SQL injection tool
+      "sqlmap" # SQL injection tool
 
       # Wireless
-      "aircrack-ng"         # WiFi security auditing
+      "aircrack-ng" # WiFi security auditing
 
       # Reverse engineering
-      "ghidra"              # NSA reverse engineering tool
+      "ghidra" # NSA reverse engineering tool
     ];
 
     # Security packages via Nix
@@ -60,7 +63,7 @@
 
       # Reconnaissance
       "whois"
-      "dnsutils"            # dig, nslookup
+      "dnsutils" # dig, nslookup
 
       # Binary analysis
       "binutils"
@@ -74,8 +77,8 @@
       "python3"
 
       # Custom packages (from overlays)
-      "airjack"             # WiFi security testing tool
-      "airjack-update"      # Update AirJack to latest version
+      "airjack" # WiFi security testing tool
+      "airjack-update" # Update AirJack to latest version
     ];
   };
 
@@ -89,7 +92,7 @@
   system.defaults = {
     screensaver = {
       askForPassword = lib.mkDefault true;
-      askForPasswordDelay = lib.mkDefault 0;  # Immediate lock
+      askForPasswordDelay = lib.mkDefault 0; # Immediate lock
     };
   };
 }

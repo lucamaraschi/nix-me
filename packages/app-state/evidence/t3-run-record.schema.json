@@ -1,0 +1,193 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/lucamaraschi/nix-me/main/packages/app-state/evidence/t3-run-record.schema.json",
+  "title": "nix-me interactive T3 run record",
+  "description": "Collector input emitted by the interactive T3 runner. It is not stamp-eligible evidence.",
+  "type": "object",
+  "required": [
+    "$schema",
+    "record_version",
+    "origin",
+    "procedure",
+    "recipe",
+    "environment",
+    "application",
+    "engine",
+    "run",
+    "commands",
+    "operator"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "const": "https://raw.githubusercontent.com/lucamaraschi/nix-me/main/packages/app-state/evidence/t3-run-record.schema.json"
+    },
+    "record_version": { "const": 1 },
+    "origin": { "const": "interactive-t3-runner" },
+    "procedure": {
+      "type": "object",
+      "required": ["id", "version", "path", "sha256", "harness_revision", "runner_sha256"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/kebab" },
+        "version": { "type": "integer", "minimum": 1 },
+        "path": { "$ref": "#/$defs/repository_path" },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "harness_revision": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "runner_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "recipe": {
+      "type": "object",
+      "required": ["id", "path", "sha256"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/kebab" },
+        "path": { "$ref": "#/$defs/repository_path" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "required": ["kind", "identifier", "macos", "architecture"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "const": "disposable_vm" },
+        "identifier": { "$ref": "#/$defs/nonempty" },
+        "macos": {
+          "type": "object",
+          "required": ["version", "build"],
+          "additionalProperties": false,
+          "properties": {
+            "version": { "type": "string", "pattern": "^[0-9]+([.][0-9]+){1,2}$" },
+            "build": { "type": "string", "pattern": "^[A-Za-z0-9.-]+$" }
+          }
+        },
+        "architecture": { "enum": ["arm64", "x86_64"] }
+      }
+    },
+    "application": {
+      "type": "object",
+      "required": ["bundle_id", "version", "build"],
+      "additionalProperties": false,
+      "properties": {
+        "bundle_id": { "type": "string", "pattern": "^[A-Za-z0-9.-]+$" },
+        "version": { "$ref": "#/$defs/nonempty" },
+        "build": { "$ref": "#/$defs/nonempty" }
+      }
+    },
+    "engine": {
+      "type": "object",
+      "required": ["path", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "path": { "$ref": "#/$defs/nonempty" },
+        "version": { "$ref": "#/$defs/nonempty" }
+      }
+    },
+    "run": {
+      "type": "object",
+      "required": ["id", "started_at", "finished_at"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+        "started_at": { "$ref": "#/$defs/timestamp" },
+        "finished_at": { "$ref": "#/$defs/timestamp" }
+      }
+    },
+    "commands": {
+      "type": "object",
+      "required": ["apply", "idempotence"],
+      "additionalProperties": false,
+      "properties": {
+        "apply": { "$ref": "#/$defs/command" },
+        "idempotence": { "$ref": "#/$defs/command" }
+      }
+    },
+    "operator": {
+      "type": "object",
+      "required": [
+        "attested",
+        "identity",
+        "observed_at",
+        "challenge",
+        "confirmation",
+        "observation",
+        "report",
+        "report_sha256",
+        "report_bytes",
+        "artifact"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "attested": { "type": "boolean" },
+        "identity": { "type": "string" },
+        "observed_at": { "$ref": "#/$defs/timestamp" },
+        "challenge": { "$ref": "#/$defs/nonempty" },
+        "confirmation": { "type": "string" },
+        "observation": { "type": "string" },
+        "report": { "const": "operator-observation.txt" },
+        "report_sha256": { "$ref": "#/$defs/sha256" },
+        "report_bytes": { "type": "integer", "minimum": 1 },
+        "artifact": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "required": ["path", "media_type", "sha256", "bytes"],
+              "additionalProperties": false,
+              "properties": {
+                "path": { "type": "string", "pattern": "^visible-artifact[.](png|jpg|mov|mp4)$" },
+                "media_type": { "enum": ["image/png", "image/jpeg", "video/quicktime", "video/mp4"] },
+                "sha256": { "$ref": "#/$defs/sha256" },
+                "bytes": { "type": "integer", "minimum": 1 }
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "$defs": {
+    "nonempty": { "type": "string", "minLength": 1 },
+    "kebab": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+    },
+    "repository_path": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._/-]+$"
+    },
+    "command": {
+      "type": "object",
+      "required": [
+        "mode",
+        "output",
+        "output_sha256",
+        "output_bytes",
+        "stderr",
+        "stderr_sha256",
+        "stderr_bytes",
+        "exit_code",
+        "started_at",
+        "finished_at"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "mode": { "enum": ["apply", "diff"] },
+        "output": { "type": "string", "pattern": "^(apply|idempotence)[.]log$" },
+        "output_sha256": { "$ref": "#/$defs/sha256" },
+        "output_bytes": { "type": "integer", "minimum": 0 },
+        "stderr": { "type": "string", "pattern": "^(apply|idempotence)[.]stderr[.]log$" },
+        "stderr_sha256": { "$ref": "#/$defs/sha256" },
+        "stderr_bytes": { "type": "integer", "minimum": 0 },
+        "exit_code": { "type": "integer", "minimum": 0, "maximum": 255 },
+        "started_at": { "$ref": "#/$defs/timestamp" },
+        "finished_at": { "$ref": "#/$defs/timestamp" }
+      }
+    }
+  }
+}

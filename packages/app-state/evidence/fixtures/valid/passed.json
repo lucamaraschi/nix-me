@@ -1,0 +1,107 @@
+{
+  "$schema": "https://raw.githubusercontent.com/lucamaraschi/nix-me/main/packages/app-state/evidence/t3-evidence-manifest.schema.json",
+  "schema_version": 1,
+  "lifecycle": "final",
+  "recipe": {
+    "id": "sample-app",
+    "path": "packages/app-state/evidence/fixtures/recipes/sample-app.yaml",
+    "sha256": "b1efea169700f7210994f3ebb24e29df4895630055a398bed0cbf2716c7b356c"
+  },
+  "environment": {
+    "kind": "disposable_vm",
+    "identifier": "fixture-macos-base-1",
+    "macos": {
+      "version": "15.6",
+      "build": "24G84"
+    },
+    "architecture": "arm64"
+  },
+  "application": {
+    "bundle_id": "com.nix-me.fixture",
+    "version": "1.2.3",
+    "build": "123"
+  },
+  "procedure": {
+    "id": "sample-visible-behavior",
+    "version": 1,
+    "harness_revision": "599bf2ac65c041d2088f0b0c048810f34f6459a2"
+  },
+  "run": {
+    "id": "fixture-20261005T170000Z",
+    "started_at": "2026-10-05T17:00:00Z",
+    "finished_at": "2026-10-05T17:03:00Z"
+  },
+  "result": {
+    "status": "passed",
+    "summary": "All synthetic fixture checks passed.",
+    "checks": {
+      "apply": {
+        "status": "passed",
+        "note": "The fixture apply completed.",
+        "artifact_ids": ["apply-log"]
+      },
+      "visible_behavior": {
+        "status": "passed",
+        "note": "The fixture visible behavior was observed.",
+        "artifact_ids": ["operator-observation", "visible-artifact"]
+      },
+      "idempotence": {
+        "status": "passed",
+        "note": "The fixture second apply had no changes.",
+        "artifact_ids": ["idempotence-log"]
+      }
+    }
+  },
+  "artifacts": [
+    {
+      "id": "run-record",
+      "kind": "report",
+      "path": "packages/app-state/evidence/fixtures/runs/fixture-20261005T170000Z/run-record.json",
+      "media_type": "application/json",
+      "sha256": "7e6c6c854d02e7edee7998cf9b43b6161b1dd509a00e028c2b39aab5fad45c96",
+      "bytes": 2913,
+      "captured_at": "2026-10-05T17:03:00Z",
+      "description": "Synthetic interactive runner record."
+    },
+    {
+      "id": "apply-log",
+      "kind": "log",
+      "path": "packages/app-state/evidence/fixtures/runs/fixture-20261005T170000Z/apply.log",
+      "media_type": "application/json",
+      "sha256": "e938b49a0fb99aa6507b5a3f09a017043185aa608efa65730f38e8e37ee47ad3",
+      "bytes": 80,
+      "captured_at": "2026-10-05T17:01:00Z",
+      "description": "Synthetic apply output."
+    },
+    {
+      "id": "idempotence-log",
+      "kind": "log",
+      "path": "packages/app-state/evidence/fixtures/runs/fixture-20261005T170000Z/idempotence.log",
+      "media_type": "application/json",
+      "sha256": "d1cc525e8ace3e421b9b663c31d364128a1df53ac334ca92d016e48758773434",
+      "bytes": 79,
+      "captured_at": "2026-10-05T17:02:00Z",
+      "description": "Synthetic second-apply output."
+    },
+    {
+      "id": "operator-observation",
+      "kind": "report",
+      "path": "packages/app-state/evidence/fixtures/runs/fixture-20261005T170000Z/operator-observation.txt",
+      "media_type": "text/plain",
+      "sha256": "5c9f73bed834e4d098e88521d055749bb19a91039902189466cbf0ee3ceba996",
+      "bytes": 67,
+      "captured_at": "2026-10-05T17:02:30Z",
+      "description": "Synthetic operator observation."
+    },
+    {
+      "id": "visible-artifact",
+      "kind": "screenshot",
+      "path": "packages/app-state/evidence/fixtures/runs/fixture-20261005T170000Z/visible-artifact.png",
+      "media_type": "image/png",
+      "sha256": "1400da1030558d0997ffeaae98a88aa9f091550589822de864ff81bdf8e10893",
+      "bytes": 64,
+      "captured_at": "2026-10-05T17:02:30Z",
+      "description": "Synthetic visible artifact."
+    }
+  ]
+}

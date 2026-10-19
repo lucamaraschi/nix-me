@@ -84,6 +84,71 @@
       "default": [],
       "description": "TCC grants aggregated at preflight. The engine instructs; it never requests grants itself."
     },
+    "app_version": {
+      "type": "object",
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "required": [
+                "command"
+              ]
+            },
+            {
+              "required": [
+                "source"
+              ]
+            }
+          ]
+        },
+        {
+          "oneOf": [
+            {
+              "required": [
+                "supported_majors"
+              ]
+            },
+            {
+              "required": [
+                "supported_exact"
+              ]
+            }
+          ]
+        }
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "command": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Read-only command whose stdout contains the installed application version. Executed during preflight."
+        },
+        "source": {
+          "const": "bundle_short_version",
+          "description": "Reads CFBundleShortVersionString directly from a confined, non-symlinked detect.app_path bundle. Required for Accessibility actions."
+        },
+        "supported_majors": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "description": "Application major versions whose setting schema has been reviewed. Any other or unparsable version is refused before planning."
+        },
+        "supported_exact": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Exact complete outputs accepted from the version command. Mutually exclusive with supported_majors."
+        }
+      }
+    },
     "config": {
       "type": "array",
       "minItems": 1,
@@ -167,6 +232,12 @@
         },
         {
           "$ref": "#/definitions/kindCommand"
+        },
+        {
+          "$ref": "#/definitions/kindCommandValue"
+        },
+        {
+          "$ref": "#/definitions/kindAccessibility"
         },
         {
           "$ref": "#/definitions/kindGeneratedImport"
@@ -281,8 +352,15 @@
             "jsonc",
             "toml",
             "yaml",
-            "plist"
+            "plist",
+            "ini",
+            "key_value",
+            "qsettings_xml"
           ]
+        },
+        "export": {
+          "const": "reviewed_text",
+          "description": "Explicitly opts a text file into reviewed export. The snapshot caller must separately confirm reviewed-text access before the engine reads it. Valid only when format is text."
         },
         "merge": {
           "enum": [
@@ -290,7 +368,60 @@
             "deep_merge"
           ],
           "default": "replace",
-          "description": "deep_merge only valid for structured formats. Merges profile-owned keys into current file content; keys not owned by the profile are left alone."
+          "description": "deep_merge only valid for structured formats. Merges profile-owned keys into current file content; keys not owned by the profile are left alone. An explicit paths allowlist always uses pointer-only merge semantics regardless of this field, and plans report merge_file."
+        },
+        "paths": {
+          "type": "object",
+          "required": [
+            "allow"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "allow": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "allOf": [
+                  { "pattern": "^/" },
+                  { "not": { "pattern": "(^|/)([0-9]+|-)(/|$)" } }
+                ]
+              },
+              "description": "RFC 6901 JSON pointers owned by this entry. Capture projects only these paths and apply refuses every profile leaf outside them. Required for ini and key_value."
+            },
+            "sensitive": {
+              "type": "array",
+              "uniqueItems": true,
+              "default": [],
+              "items": {
+                "type": "string",
+                "allOf": [
+                  { "pattern": "^/" },
+                  { "not": { "pattern": "(^|/)([0-9]+|-)(/|$)" } }
+                ]
+              },
+              "description": "Paths asserted absent from captured and requested models. They must not overlap an allowed path."
+            }
+          }
+        },
+        "checks": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "preflight": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "\\{file\\}",
+              "description": "Read-only syntax check run against a temporary candidate before replacement. {file} is shell-quoted by the engine."
+            },
+            "verify": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "\\{path\\}",
+              "description": "Read-only verification run after atomic replacement and semantic read-back. {path} is shell-quoted by the engine."
+            }
+          }
         },
         "mode": {
           "type": "string",
@@ -425,6 +556,153 @@
             "add_only"
           ],
           "default": "full"
+        },
+        "confirm": {
+          "$ref": "#/definitions/confirm",
+          "default": "one_click"
+        }
+      }
+    },
+    "kindCommandValue": {
+      "type": "object",
+      "required": [
+        "kind",
+        "name",
+        "type",
+        "get",
+        "set"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "command_value"
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "type": {
+          "enum": [
+            "bool",
+            "int",
+            "float",
+            "string"
+          ]
+        },
+        "get": {
+          "$ref": "#/definitions/ownedCommand",
+          "description": "Structured read-only process invocation that prints exactly one typed scalar value."
+        },
+        "set": {
+          "$ref": "#/definitions/ownedCommand",
+          "description": "Structured setter invocation. Exactly one argument must contain {value}; the engine substitutes the canonical scalar as process argument data and requires semantic read-back through get."
+        },
+        "confirm": {
+          "$ref": "#/definitions/confirm",
+          "default": "none"
+        }
+      }
+    },
+    "ownedCommand": {
+      "type": "object",
+      "required": [
+        "executable"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "executable": {
+          "type": "string",
+          "pattern": "^/",
+          "description": "Absolute executable path. Executed directly without a shell."
+        },
+        "arguments": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "description": "Process arguments. command_value setters must contain exactly one {value} placeholder across this array."
+        }
+      }
+    },
+    "kindAccessibility": {
+      "type": "object",
+      "required": [
+        "kind",
+        "name",
+        "type",
+        "localization",
+        "window",
+        "control"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "accessibility"
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_-]*$",
+          "description": "Profile bind containing exactly {expected, desired}."
+        },
+        "type": {
+          "enum": [
+            "bool",
+            "enum"
+          ],
+          "description": "Only ordinary boolean toggles and closed enums are supported."
+        },
+        "localization": {
+          "type": "string",
+          "pattern": "^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})+$",
+          "description": "Exact normalized locale required before inspecting or mutating UI."
+        },
+        "window": {
+          "type": "object",
+          "required": [
+            "title"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Exact localized AX window title; patterns and partial matches are unsupported."
+            }
+          }
+        },
+        "control": {
+          "type": "object",
+          "required": [
+            "role",
+            "identifier"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "role": {
+              "enum": [
+                "AXCheckBox",
+                "AXSwitch",
+                "AXPopUpButton"
+              ],
+              "description": "Exact safe AX role. Text fields and secure fields are not representable."
+            },
+            "identifier": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Exact AXIdentifier; labels, positions, indexes and fuzzy matching are unsupported."
+            }
+          }
+        },
+        "allowed_values": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Required by semantic validation for enum and forbidden for bool."
         },
         "confirm": {
           "$ref": "#/definitions/confirm",

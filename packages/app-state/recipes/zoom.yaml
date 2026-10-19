@@ -1,0 +1,35 @@
+schema_version: 1
+id: zoom
+name: Zoom
+bundle_id: us.zoom.xos
+install:
+  cask: zoom
+detect:
+  app_path: /Applications/zoom.us.app
+sandboxed: false
+requires: []
+app_version:
+  command: /usr/bin/plutil -extract CFBundleShortVersionString raw -o - '/Applications/zoom.us.app/Contents/Info.plist'
+  supported_majors: [7]
+config:
+  - kind: defaults
+    domain: us.zoom.xos
+    keys:
+      User Select Language Identify: {type: string, ui: "Zoom > Settings > General > Language"}
+      ZMInputTextViewAutomaticSpellingCorrectionEnabled: {type: bool, ui: "Zoom > Settings > General > Automatically correct spelling"}
+      ZMInputTextViewContinuousSpellCheckingEnabled: {type: bool, ui: "Zoom > Settings > General > Check spelling while typing"}
+      ZMInputTextViewGrammarCheckingEnabled: {type: bool, ui: "Zoom > Settings > General > Check grammar while typing"}
+    unknown_keys: reject
+    confirm: none
+  - kind: manual
+    step: Configure Zoom audio, video, device, meeting, and account preferences locally. The observed viper.ini contains only device-derived AEC and AGC identifiers, so none of it is portable.
+    doc: >-
+      Only the four typed CFPreferences values above are exported for Zoom 7.x.
+      Accounts, sessions, meeting and chat history, contacts, device identifiers,
+      camera and microphone grants, audio/video hardware selection, tokens,
+      opaque hashes, cloud policy and window state are never exported.
+    confirm: full_manual
+apply:
+  poke: cfprefsd
+  unsafe_to_kill: false
+verified: null

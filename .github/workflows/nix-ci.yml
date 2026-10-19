@@ -1,25 +1,36 @@
 name: Nix configuration
 
 on:
+  workflow_dispatch:
   pull_request:
     paths:
       - "flake.nix"
       - "flake.lock"
+      - "apps/macos/**"
       - "nix/**"
       - "packages/app-state/engine/**"
+      - "packages/management-api/**"
+      - "tools/automation/**"
       - "tools/installation/**"
       - "Makefile"
       - ".github/workflows/nix-ci.yml"
+      - ".github/workflows/update-flake-inputs.yml"
+      - "docs/NIX_UPDATES.md"
   push:
     branches: [main]
     paths:
       - "flake.nix"
       - "flake.lock"
+      - "apps/macos/**"
       - "nix/**"
       - "packages/app-state/engine/**"
+      - "packages/management-api/**"
+      - "tools/automation/**"
       - "tools/installation/**"
       - "Makefile"
       - ".github/workflows/nix-ci.yml"
+      - ".github/workflows/update-flake-inputs.yml"
+      - "docs/NIX_UPDATES.md"
 
 permissions:
   contents: read
@@ -30,7 +41,15 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: cachix/install-nix-action@v31
+      - name: Evaluate every host configuration
+        run: tools/automation/check-nix-host-matrix.sh
       - name: Check flake outputs
         run: nix flake check --no-build
-      - name: Build app-state package
-        run: nix build .#nix-me-apps --no-link
+      - name: Check beta profile boundary
+        run: |
+          test "$(nix eval .#darwinConfigurations.vm-test.config.apps.state.enable)" = "true"
+          test "$(nix eval .#darwinConfigurations.minimal-mac.config.apps.state.enable)" = "false"
+          test "$(nix eval .#darwinConfigurations.bellerofonte.config.apps.manager.enable)" = "true"
+          test "$(nix eval .#darwinConfigurations.nabucodonosor.config.apps.manager.enable)" = "false"
+      - name: Build managed packages
+        run: nix build .#nix-me-apps .#nix-me-tui .#nix-me-macos --no-link

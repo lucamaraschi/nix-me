@@ -60,8 +60,13 @@
     for f in /etc/shells /etc/bashrc /etc/zshrc /etc/zshenv; do
       if [ -f "$f" ] && [ ! -L "$f" ]; then
         if ! grep -q "nix-darwin" "$f" 2>/dev/null; then
-          echo "Backing up $f to $f.before-nix-darwin" >&2
-          mv "$f" "$f.before-nix-darwin" 2>/dev/null || true
+          if [ -e "$f.before-nix-darwin" ]; then
+            echo "Removing regenerated $f; preserving existing backup" >&2
+            rm "$f"
+          else
+            echo "Backing up $f to $f.before-nix-darwin" >&2
+            mv "$f" "$f.before-nix-darwin"
+          fi
         fi
       fi
     done

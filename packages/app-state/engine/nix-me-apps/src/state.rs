@@ -82,6 +82,7 @@ impl StateGuard {
             .read(true)
             .write(true)
             .create(true)
+            .truncate(false)
             .mode(0o600)
             .open(path)?;
         file.set_permissions(fs::Permissions::from_mode(0o600))?;
@@ -117,6 +118,7 @@ impl StateGuard {
                         .read(true)
                         .write(true)
                         .create(true)
+                        .truncate(false)
                         .mode(0o600)
                         .open(path)?;
                     file.set_permissions(fs::Permissions::from_mode(0o600))?;
@@ -179,5 +181,27 @@ pub fn load_no_mutation(path: &Path) -> Result<(State, Option<String>)> {
                 path.display()
             )),
         )),
+    }
+}
+
+pub fn load_status_no_mutation(path: &Path) -> (State, Option<String>) {
+    let text = match fs::read_to_string(path) {
+        Ok(text) => text,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return (State::default(), None);
+        }
+        Err(_) => {
+            return (
+                State::default(),
+                Some("The persisted app-state status is unavailable".to_owned()),
+            );
+        }
+    };
+    match decode_state(&text) {
+        Ok(state) => (state, None),
+        Err(StateDecodeError::Unsupported(_) | StateDecodeError::Invalid(_)) => (
+            State::default(),
+            Some("The persisted app-state status is malformed".to_owned()),
+        ),
     }
 }

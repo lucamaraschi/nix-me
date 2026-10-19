@@ -40,7 +40,7 @@
       "figma"
 
       # Extended development environment
-      "docker"
+      "docker-desktop"
       "orbstack"
       # "vmware-fusion" # Disabled in Homebrew - requires manual install from VMware
 

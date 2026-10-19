@@ -1,0 +1,19 @@
+schema_version: 1
+id: loom
+name: Loom
+bundle_id: com.loom.desktop
+install:
+  cask: loom
+detect:
+  app_path: /Applications/Loom.app
+sandboxed: false
+requires: []
+config:
+  - kind: manual
+    step: Configure portable launch, capture UI, quality, and notification preferences in Loom, then sign in and grant Loom screen-recording and microphone access manually.
+    doc: No Accessibility action runs, and Nix Me does not request Loom's TCC grants. A future adapter must be pinned to a verified Loom UI version and must not inspect credentials, workspace identity, recordings, upload history, or the permissions database.
+    confirm: full_manual
+apply:
+  poke: none
+  unsafe_to_kill: false
+verified: null

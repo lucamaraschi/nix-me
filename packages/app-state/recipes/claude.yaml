@@ -1,0 +1,22 @@
+schema_version: 1
+id: claude
+name: Claude
+bundle_id: com.anthropic.claudefordesktop
+install:
+  cask: claude
+detect:
+  app_path: /Applications/Claude.app
+sandboxed: false
+requires: []
+config:
+  - kind: file
+    binds: desktop_config
+    path: ~/Library/Application Support/Claude/claude_desktop_config.json
+    format: json
+    merge: deep_merge
+    mode: "0600"
+    confirm: none
+apply:
+  poke: restart_app
+  unsafe_to_kill: true
+verified: null

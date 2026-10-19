@@ -1,0 +1,27 @@
+schema_version: 1
+id: microsoft-outlook
+name: Microsoft Outlook
+bundle_id: com.microsoft.Outlook
+install:
+  cask: microsoft-office
+detect:
+  app_path: /Applications/Microsoft Outlook.app
+sandboxed: true
+requires: []
+config:
+  - kind: defaults
+    domain: com.microsoft.Outlook
+    keys:
+      HideFoldersOnMyComputerRootInFolderList: {type: bool, ui: "General > Sidebar > Hide On My Computer folders", doc: "Observed in Microsoft Outlook 16.83."}
+      ShowReminders: {type: bool, ui: "Notifications > Show reminders", doc: "Observed in Microsoft Outlook 16.83."}
+      UserPreference_ApplicationAppearance: {type: int, ui: "General > Appearance", doc: "Observed in Microsoft Outlook 16.83."}
+      UserPreference_DisplayDensity: {type: int, ui: "General > Display density", doc: "Observed in Microsoft Outlook 16.83."}
+    unknown_keys: reject
+    confirm: none
+  - kind: manual
+    step: Review editor, calendar UI, and remaining notification preferences manually; new-Outlook mode or organizational policy may override these version 16.83 keys. Accounts, mail databases, identities, credentials, signatures, MRU state, account-suffixed keys, and policy are excluded.
+    confirm: full_manual
+apply:
+  poke: restart_app
+  unsafe_to_kill: true
+verified: null

@@ -1,0 +1,30 @@
+schema_version: 1
+id: linear
+name: Linear
+bundle_id: com.linear
+install:
+  cask: linear-linear
+detect:
+  command: >-
+    test "$(/usr/bin/plutil -extract CFBundleShortVersionString raw -o - '/Applications/Linear.app/Contents/Info.plist' 2>/dev/null)" = '1.28.13'
+sandboxed: false
+requires: []
+app_version:
+  command: /usr/bin/plutil -extract CFBundleShortVersionString raw -o - '/Applications/Linear.app/Contents/Info.plist'
+  supported_majors: [1]
+config:
+  - kind: manual
+    step: Configure Linear preferences locally. Version 1.28.13 exposes no proven portable scalar in its reviewed JSON stores.
+    doc: >-
+      Preferences contains a spellcheck dictionary array and an internal user
+      script migration flag. window-state.json contains only display bounds,
+      coordinates, dimensions, and maximization state. Launch and notification
+      presentation settings need sanitized fixtures that establish exact paths
+      and scalar types. OAuth and sessions, workspaces, issues, files/content,
+      cookies, IndexedDB, cache, telemetry and updater IDs, history, extensions,
+      URLs, display geometry, and machine identity are permanently excluded.
+    confirm: full_manual
+apply:
+  poke: none
+  unsafe_to_kill: false
+verified: null

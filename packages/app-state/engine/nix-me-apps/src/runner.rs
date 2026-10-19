@@ -14,6 +14,7 @@ impl std::error::Error for CommandExecutionError {}
 
 pub trait CommandRunner {
     fn run(&mut self, command: &str) -> Result<String>;
+    fn run_owned(&mut self, program: &str, arguments: &[String]) -> Result<String>;
     fn succeeds(&mut self, command: &str) -> bool {
         self.run(command).is_ok()
     }
@@ -47,6 +48,29 @@ impl CommandRunner for RealCommandRunner {
         }
         Ok(String::from_utf8_lossy(&output.stdout).into_owned())
     }
+
+    fn run_owned(&mut self, program: &str, arguments: &[String]) -> Result<String> {
+        let rendered = render_owned_command(program, arguments);
+        self.recorded.push(rendered.clone());
+        if self.no_exec {
+            return Ok(String::new());
+        }
+        let output = Command::new(program)
+            .args(arguments)
+            .output()
+            .map_err(|error| {
+                CommandExecutionError(format!("execute owned command {rendered}: {error}"))
+            })?;
+        if !output.status.success() {
+            return Err(CommandExecutionError(format!(
+                "owned command failed ({}): {}",
+                output.status,
+                String::from_utf8_lossy(&output.stderr).trim()
+            ))
+            .into());
+        }
+        Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+    }
 }
 
 #[derive(Default)]
@@ -63,6 +87,10 @@ impl CommandRunner for ReplayCommandRunner {
             Some(Err(error)) => Err(anyhow!(error.clone())),
             None => Err(anyhow!("no replay transcript for command: {command}")),
         }
+    }
+
+    fn run_owned(&mut self, program: &str, arguments: &[String]) -> Result<String> {
+        self.run(&render_owned_command(program, arguments))
     }
 }
 
@@ -86,4 +114,12 @@ impl Clock for FixedClock {
     fn now(&self) -> String {
         self.0.clone()
     }
+}
+
+pub fn render_owned_command(program: &str, arguments: &[String]) -> String {
+    std::iter::once(program)
+        .chain(arguments.iter().map(String::as_str))
+        .map(shell_words::quote)
+        .collect::<Vec<_>>()
+        .join(" ")
 }

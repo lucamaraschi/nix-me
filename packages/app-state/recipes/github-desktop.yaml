@@ -1,0 +1,31 @@
+schema_version: 1
+id: github-desktop
+name: GitHub Desktop
+bundle_id: com.github.GitHubClient
+install:
+  cask: github
+detect:
+  command: >-
+    test "$(/usr/bin/plutil -extract CFBundleShortVersionString raw -o - '/Applications/GitHub Desktop.app/Contents/Info.plist' 2>/dev/null)" = '3.5.3'
+sandboxed: false
+requires: []
+app_version:
+  command: /usr/bin/plutil -extract CFBundleShortVersionString raw -o - '/Applications/GitHub Desktop.app/Contents/Info.plist'
+  supported_majors: [3]
+config:
+  - kind: manual
+    step: Configure GitHub Desktop preferences locally. Version 3.5.3 exposes no proven portable scalar in its reviewed JSON stores.
+    doc: >-
+      Preferences contains only a spellcheck dictionary array, while
+      window-state.json contains display bounds, coordinates, dimensions, and
+      maximization state. Neither is a safe scalar portability boundary.
+      Theme, update channel, editor, shell, and confirmation settings need
+      sanitized fixtures that establish exact paths and types. OAuth, accounts,
+      repositories, repository/history state, cookies, IndexedDB, cache,
+      telemetry IDs, extensions, URLs, paths, display geometry, and machine
+      identity are permanently excluded.
+    confirm: full_manual
+apply:
+  poke: none
+  unsafe_to_kill: false
+verified: null

@@ -85,7 +85,7 @@ impl Plan {
                 summary.drift += entry.drift.len() as u64;
                 for action in &entry.actions {
                     match action.op.as_str() {
-                        "write" => summary.writes += 1,
+                        "write" | "accessibility" => summary.writes += 1,
                         "add" => summary.adds += 1,
                         "del" => summary.dels += 1,
                         "replace_file" | "merge_file" => summary.files += 1,
@@ -97,18 +97,15 @@ impl Plan {
         }
         summary.manual = self.checklist.iter().filter(|c| !c.satisfied).count() as u64;
         self.summary = summary;
+        let pending_actions = (self.summary.writes
+            + self.summary.adds
+            + self.summary.dels
+            + self.summary.files
+            + self.summary.materialize)
+            > 0;
         self.exit_code = if failed {
             5
-        } else if self.summary.drift > 0 {
-            2
-        } else if !apply
-            && (self.summary.writes
-                + self.summary.adds
-                + self.summary.dels
-                + self.summary.files
-                + self.summary.materialize)
-                > 0
-        {
+        } else if self.summary.drift > 0 || (!apply && pending_actions) {
             2
         } else if self.summary.manual > 0 {
             3

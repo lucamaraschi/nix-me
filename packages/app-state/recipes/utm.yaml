@@ -1,0 +1,30 @@
+schema_version: 1
+id: utm
+name: UTM
+bundle_id: com.utmapp.UTM
+install:
+  cask: utm
+detect:
+  app_path: /Applications/UTM.app
+sandboxed: true
+requires: []
+config:
+  - kind: defaults
+    domain: com.utmapp.UTM
+    keys:
+      FullScreenAutoCapture: {type: bool, ui: "Display > Automatically capture input in full screen", doc: "Observed in UTM 4.7.5."}
+      KeepRunningAfterLastWindowClosed: {type: bool, ui: "General > Keep running after last window closes", doc: "Observed in UTM 4.7.5."}
+      NoCursorCaptureAlert: {type: bool, ui: "Input > Suppress cursor capture alert", doc: "Observed in UTM 4.7.5."}
+      OptionAsMetaKey: {type: bool, ui: "Input > Use Option as Meta key", doc: "Observed in UTM 4.7.5."}
+      QEMURendererFPSLimit: {type: int, ui: "Display > QEMU renderer frame-rate limit", doc: "Observed in UTM 4.7.5."}
+      ShowMenuIcon: {type: bool, ui: "General > Show menu bar icon", doc: "Observed in UTM 4.7.5."}
+      WindowFocusAutoCapture: {type: bool, ui: "Input > Capture input when window gains focus", doc: "Observed in UTM 4.7.5."}
+    unknown_keys: reject
+    confirm: none
+  - kind: manual
+    step: Review console and remaining library-display preferences manually. Registry, VMEntryList, VM bundles, disks, saved state, shared folders, window/path state, machine identifiers, and guest secrets are excluded and virtual machines are never mutated by this recipe.
+    confirm: full_manual
+apply:
+  poke: restart_app
+  unsafe_to_kill: true
+verified: null

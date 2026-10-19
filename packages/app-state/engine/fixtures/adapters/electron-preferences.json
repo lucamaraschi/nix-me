@@ -1,0 +1,15 @@
+{
+  "appearance": {
+    "theme": "dark",
+    "zoom": 1
+  },
+  "updates": {
+    "channel": "stable"
+  },
+  "auth": {
+    "token": "fixture-secret-must-not-be-exported"
+  },
+  "workspace": {
+    "recent": ["private-project"]
+  }
+}

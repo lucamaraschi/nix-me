@@ -93,6 +93,7 @@ make switch HOST=my-work-mac
 - Pi coding agent
 - Public DS4 and pi-ds4 checkouts under `~/src/ai`
 - `local-ai-preflight`, `local-ai-setup`, and `local-ai-doctor` commands
+- Pi settings that load `pi-ds4` as a native package and select DS4 by default
 - Pi DS4 settings for the OpenAI Responses protocol
 
 Before activation, the profile rejects unsupported hardware and checks the
@@ -104,12 +105,36 @@ the host configuration:
 localAi.requirements.enforcement = "fail";
 ```
 
-**First-time setup:**
+**First-time model setup:**
 ```bash
 local-ai-doctor
-local-ai-setup --download-model
+local-ai-model start
+local-ai-model status
 pi
 ```
+
+`make switch` installs Pi, syncs both public repositories, and converges the Pi
+and DS4 settings. `local-ai-setup` is optional; use it only to build
+`ds4-server` eagerly instead of letting the Pi extension build it on first use.
+
+`local-ai-model start` performs a disk-space preflight and returns an operation
+record immediately. `local-ai-model status` reports progress and integrity;
+`local-ai-model cancel` stops the active download and removes partial data. A
+previously installed model remains active until its replacement is complete.
+Pass a trusted checksum when one is available:
+
+```bash
+nix-me local-ai model start --checksum <sha256>
+```
+
+For a host-wide trusted value, set `localAi.expectedSha256` to the same
+64-character digest. That profile value is authoritative: callers may omit the
+checksum or repeat it, but cannot override it with a different digest.
+
+Without a profile or caller checksum, completion is reported as `notProvided`,
+not as verified. Cancellation remains effective during download and checksum
+verification; the final same-directory rename is the atomic commit point.
+Refresh, doctor, and `make switch` never start a download.
 
 Inside Pi, run `/model` and select `ds4/dsv4-flash-q2`. The DeepSeek V4 Flash
 Q2 model is about 81 GiB and is never downloaded by `make switch`. DS4 is for

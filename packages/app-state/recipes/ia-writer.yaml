@@ -1,0 +1,25 @@
+schema_version: 1
+id: ia-writer
+name: iA Writer
+bundle_id: pro.writer.mac
+install:
+  mas: 775737590
+detect:
+  app_path: /Applications/iA Writer.app
+sandboxed: true
+requires: []
+config:
+  - kind: defaults
+    domain: pro.writer.mac
+    keys:
+      NSCloseAlwaysConfirmsChanges: {type: bool, ui: "General > Confirm when closing changed documents", doc: "Observed in iA Writer 8.0.6."}
+      NSQuitAlwaysKeepsWindows: {type: bool, ui: "General > Restore windows when reopening", doc: "Observed in iA Writer 8.0.6."}
+    unknown_keys: reject
+    confirm: none
+  - kind: manual
+    step: Review typography, focus mode, PDF preview scale, and library settings manually until their keys have portable typed representations. The observed preview-scale value is opaque binary data and is not exported. Bookmarks, library locations, navigation/history state, documents, iCloud state, accounts, and ping identifiers are intentionally excluded.
+    confirm: full_manual
+apply:
+  poke: restart_app
+  unsafe_to_kill: true
+verified: null

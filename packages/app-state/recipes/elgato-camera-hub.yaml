@@ -1,0 +1,19 @@
+schema_version: 1
+id: elgato-camera-hub
+name: Elgato Camera Hub
+bundle_id: com.elgato.CameraHub
+install:
+  cask: elgato-camera-hub
+detect:
+  app_path: /Applications/Elgato Camera Hub.app
+sandboxed: false
+requires: []
+config:
+  - kind: manual
+    step: Configure portable launch and UI defaults in Elgato Camera Hub, then grant camera access and calibrate each connected device manually.
+    doc: No Accessibility action runs. A future adapter must be pinned to a verified Camera Hub UI version and begin with a no-device fixture; serial-bound calibration, firmware state, device identity, and camera permission remain excluded.
+    confirm: full_manual
+apply:
+  poke: none
+  unsafe_to_kill: false
+verified: null

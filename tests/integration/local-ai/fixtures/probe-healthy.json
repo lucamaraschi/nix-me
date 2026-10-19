@@ -1,0 +1,9 @@
+{
+  "ds4Checkout": "ready",
+  "piDs4Checkout": "ready",
+  "extension": "linked",
+  "runtime": "built",
+  "model": "present",
+  "server": "stopped",
+  "configuration": {"state": "current", "driftCount": 0}
+}

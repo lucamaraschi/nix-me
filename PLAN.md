@@ -4,7 +4,7 @@ This document is the source of truth for repository-wide work that spans more
 than one application or package. Update the status and decision notes in the
 same pull request as the related change.
 
-Last updated: 2026-10-04
+Last updated: 2026-10-13
 
 ## Current status
 
@@ -135,6 +135,40 @@ Complete when pull requests receive the smallest sufficient test set, shared
 contract changes validate every consumer, and each distributable application
 has an isolated release workflow.
 
+### 5. Operational automation
+
+Status: in progress
+
+| ID | Status | Automation | Safety boundary |
+|---|---|---|---|
+| AUT-001 | Done | Retain an ad-hoc signed arm64 DMG from macOS pull-request CI for 14 days. | The artifact is for beta smoke testing and is not published as a release. |
+| AUT-002 | Done | Run CLI and management contract checks when Local AI scripts or profile declarations change. | Tests use fixtures and never download a model. |
+| AUT-003 | Done | Support signed and notarized GitHub prereleases from tags such as `v0.2.0-beta.1`. | Prereleases never update the stable Homebrew tap. |
+| AUT-004 | Done | Open grouped weekly dependency pull requests for GitHub Actions, npm, Cargo, and Swift. | Dependency changes still require normal CI and review. |
+| AUT-005 | Done | Open a reviewed flake-input update pull request on a fixed cadence. | Weekly automation maintains a draft PR, explicitly dispatches CI, and is gated by the cache policy and complete host manifest in `docs/NIX_UPDATES.md`. |
+| AUT-006 | Ready for operator | Dispatch Rectangle and Raycast T3 runs, retain evidence, and prepare a stamp candidate. | The dispatch-only workflow and unsigned candidate path are complete. Register the documented UTM runner, perform both visible procedures, and sign only after human review; CI never owns the signing key. |
+| AUT-007 | Planned | Protect stable release publication with a GitHub environment and required approval. | Beta prereleases may remain self-service; stable promotion must be deliberate. |
+| AUT-008 | Planned | Run a scheduled disposable-host smoke test covering `make switch`, app launch, status refresh, and idempotence. | It must run only on an isolated runner or VM and must never target a developer workstation. |
+| AUT-009 | Done | Build and install the native manager through Nix on opted-in managed Macs. | The package is source-filtered, ad-hoc signed locally, excludes Sparkle, and never substitutes for notarized external releases. |
+
+The existing weekly application-state job remains responsible for catalog
+freshness and T0-T2 regression checks. Automatic Nix lock-file updates and T3
+signing are intentionally deferred because they can change an entire host or
+assert visible behavior without sufficient review.
+
+### 6. External beta readiness
+
+Status: in progress
+
+| ID | Status | Deliverable |
+|---|---|---|
+| BETA-001 | Done | Package and install the post-install TUI through Nix with a pinned Node 26 runtime and Darwin/Linux package builds in CI. |
+| BETA-002 | Done | Add an opt-in beta profile that enables the application-state harness without changing existing hosts by default. |
+| BETA-003 | Done | Publish a beta testing guide covering installation, rollback, diagnostics, and issue reports. |
+| BETA-004 | Done | Make the native app detect and guide setup of its configuration checkout and command dependencies. |
+| BETA-005 | Partial | Run the install and first-launch path on a disposable macOS host and record the result. Installation, activation, repeat apply, API refresh, app signing, and process launch passed; visual first-launch validation remains blocked by unavailable clone login credentials. See `docs/beta/BETA-005-2026-10-12.md`. |
+| BETA-006 | Parked | Configure protected signing and notarization secrets for distributable macOS beta artifacts. The repository-side protection is complete; an Apple account holder must supply the Developer ID and App Store Connect credentials and run the documented release trial. See `docs/beta/BETA-006-2026-10-13.md` for the full handoff. |
+
 ## Decision log
 
 - 2026-10-04: Adopt an explicit monorepo structure rather than splitting the
@@ -146,3 +180,7 @@ has an isolated release workflow.
   `apps/cli`; future rewrites must preserve its public command surface.
 - 2026-10-04: Treat the post-install TUI as an independent application with
   Node 26.4+, a clean build, and its own path-scoped workflow.
+- 2026-10-06: Separate beta artifact generation from stable release promotion.
+  Dependency updates may be automated as reviewed pull requests, while Nix
+  input updates, host switching, and T3 signing remain gated until isolated
+  infrastructure and explicit trust boundaries are in place.

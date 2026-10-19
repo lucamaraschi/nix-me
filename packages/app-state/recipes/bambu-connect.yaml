@@ -1,0 +1,19 @@
+schema_version: 1
+id: bambu-connect
+name: Bambu Connect
+bundle_id: com.bambulab.bambu-connect
+install:
+  cask: bambu-connect
+detect:
+  app_path: /Applications/Bambu Connect.app
+sandboxed: false
+requires: []
+config:
+  - kind: manual
+    step: Configure portable launch, notification, and UI preferences in Bambu Connect, then sign in and pair printers manually.
+    doc: No Accessibility action runs. A future adapter must be pinned to a verified Bambu Connect UI version and must not inspect printer access codes, device identity, cloud sessions, job history, or device-specific controls.
+    confirm: full_manual
+apply:
+  poke: none
+  unsafe_to_kill: false
+verified: null

@@ -1,0 +1,18 @@
+schema_version: 1
+id: hopper-disassembler
+name: Hopper Disassembler
+bundle_id: com.cryptic-apps.hopper-web-4
+install:
+  cask: hopper-disassembler
+detect:
+  app_path: /Applications/Hopper Disassembler.app
+sandboxed: false
+requires: []
+config:
+  - kind: manual
+    step: Configure Hopper manually. Hopper 6.1.0-demo identifies candidate appearance and theme symbols in its signed application binary, but no com.cryptic-apps.hopper-web-4 preference domain or plist exists locally to prove persisted key names and types. Binary symbols alone are not a configuration schema, so no allowlist is safe yet. License activation, update entitlement, recent documents, scripts, plugins, paths, and analyzed binaries are always excluded.
+    confirm: full_manual
+apply:
+  poke: none
+  unsafe_to_kill: false
+verified: null

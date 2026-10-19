@@ -1,0 +1,19 @@
+schema_version: 1
+id: telegram
+name: Telegram
+bundle_id: ru.keepcoder.Telegram
+install:
+  cask: telegram
+detect:
+  app_path: /Applications/Telegram.app
+sandboxed: false
+requires: []
+config:
+  - kind: manual
+    step: Configure portable appearance, download-limit, and notification-presentation preferences in Telegram, then sign in manually.
+    doc: No Accessibility action runs. A future adapter must be pinned to a verified Telegram UI version and must not inspect encryption keys, sessions, account identity, chats, contacts, media, or cache contents.
+    confirm: full_manual
+apply:
+  poke: none
+  unsafe_to_kill: false
+verified: null

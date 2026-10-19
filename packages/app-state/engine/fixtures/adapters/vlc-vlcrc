@@ -1,0 +1,4 @@
+# VLC fixture with both common key-value delimiters
+qt-privacy-ask=0
+qt-updates-notif: 1
+http-password=fixture-secret-must-not-be-exported

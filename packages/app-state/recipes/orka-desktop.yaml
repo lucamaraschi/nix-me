@@ -1,0 +1,60 @@
+schema_version: 1
+id: orka-desktop
+name: Orka Desktop
+bundle_id: com.macstadium.OrkaDesktop
+install:
+  cask: orka-desktop
+detect:
+  app_path: /Applications/Orka Desktop.app
+sandboxed: false
+requires: []
+app_version:
+  command: /usr/bin/plutil -extract CFBundleShortVersionString raw -o - '/Applications/Orka Desktop.app/Contents/Info.plist'
+  supported_majors: [3]
+config:
+  - kind: file
+    binds: vm_defaults
+    path: ~/.config/orka-desktop/globalConfig.json
+    format: json
+    merge: deep_merge
+    paths:
+      allow:
+        - /defaultCpu
+        - /defaultMemory
+        - /defaultStorage
+      sensitive:
+        - /configDirURL
+        - /configExtension
+        - /configName
+        - /dataDirURL
+        - /imageDirURL
+        - /legacyImageDirURL
+        - /licenseKey
+        - /logFileDir
+        - /showMigrationAlert
+        - /tmpDirURL
+        - /vmGlobalConfigFileURL
+    checks:
+      preflight: >-
+        command -v jq >/dev/null 2>&1 &&
+        jq -e '([.defaultCpu, .defaultMemory, .defaultStorage] |
+          all(.[]; type == "number" and . >= 1 and floor == .))' {file} >/dev/null
+      verify: >-
+        command -v jq >/dev/null 2>&1 &&
+        jq -e '([.defaultCpu, .defaultMemory, .defaultStorage] |
+          all(.[]; type == "number" and . >= 1 and floor == .))' {path} >/dev/null
+    mode: "0644"
+    confirm: one_click
+  - kind: manual
+    step: Configure Orka Desktop credentials, cluster connectivity, storage locations, and VM-specific settings locally. Tokens, license keys, certificates, cluster authorization and endpoints, local sessions, paths, project data, VM configuration, disks and runtime state are never exported.
+    doc: >-
+      Orka Desktop 3.1.0 exposes three typed defaults for newly created VMs in
+      ~/.config/orka-desktop/globalConfig.json. appConfig.json contains only a
+      token, update-check history, and VM data directories on this Mac; none is
+      portable. Existing VM config.json and metadata.json files are machine
+      state and are excluded.
+    confirm: full_manual
+apply:
+  poke: restart_app
+  unsafe_to_kill: true
+verified: null

@@ -5,9 +5,10 @@ use std::path::Path;
 
 use anyhow::{anyhow, Result};
 use nix_me_apps::engine::{checksum, Engine, Options};
-use nix_me_apps::model::{load_recipe, load_values, Artifact, ConfigEntry, Host};
+use nix_me_apps::model::{load_recipe, load_values, Artifact, ConfigEntry, FileExport, Host};
 use nix_me_apps::prefs::FakePrefStore;
 use nix_me_apps::runner::{CommandRunner, FixedClock, ReplayCommandRunner};
+use nix_me_apps::snapshot::{current_values_with_options, SnapshotOptions};
 use nix_me_apps::state::{ArtifactState, EntryState, State, StateGuard};
 use serde_json::Value;
 use tempfile::TempDir;
@@ -34,7 +35,7 @@ verified: null
 fn values(dir: &TempDir, text: &str) -> (std::path::PathBuf, serde_json::Map<String, Value>) {
     let path = dir.path().join("values.yaml");
     write(&path, text);
-    let loaded = load_values(&[path.clone()]).unwrap();
+    let loaded = load_values(std::slice::from_ref(&path)).unwrap();
     (path, loaded)
 }
 fn loaded_recipe(dir: &TempDir, config: &str) -> nix_me_apps::model::Recipe {
@@ -85,7 +86,9 @@ fn defaults_diff_apply_diff_is_idempotent_and_typed() {
         options: Options::default(),
         warnings: vec![],
     };
-    let first = engine.plan(&[recipe.clone()], &values, "diff").unwrap();
+    let first = engine
+        .plan(std::slice::from_ref(&recipe), &values, "diff")
+        .unwrap();
     assert_eq!(first.exit_code, 2);
     assert_eq!(first.summary.writes, 7);
     assert!(
@@ -95,7 +98,7 @@ fn defaults_diff_apply_diff_is_idempotent_and_typed() {
             .all(|a| !a.target.ends_with("ratio")),
         "equivalent CF float must not flap"
     );
-    let applied = engine.apply(&[recipe.clone()], &values, first);
+    let applied = engine.apply(std::slice::from_ref(&recipe), &values, first);
     assert_eq!(applied.exit_code, 0);
     assert!(applied.apps[0].entries[0]
         .actions
@@ -165,6 +168,16 @@ fn semantic_validation_rejects_duplicate_binds_and_text_merge() {
     write(
         &path,
         &recipe_header(
+            "  - kind: file\n    path: /tmp/test\n    format: json\n    export: reviewed_text\n",
+        ),
+    );
+    assert!(load_recipe(&path)
+        .unwrap_err()
+        .to_string()
+        .contains("reviewed_text export is only valid for text files"));
+    write(
+        &path,
+        &recipe_header(
             "  - kind: defaults\n    binds: import\n    domain: one\n  - kind: generated_import\n    source: profile.test-app.import\n    deliver: open {artifact}\n    artifact:\n      pipeline:\n        - json: {}\n",
         ),
     );
@@ -172,6 +185,81 @@ fn semantic_validation_rejects_duplicate_binds_and_text_merge() {
         .unwrap_err()
         .to_string()
         .contains("overlapping profile ownership"));
+}
+
+#[test]
+fn text_export_is_default_closed_and_backward_compatible() {
+    let dir = TempDir::new().unwrap();
+    let recipe = loaded_recipe(
+        &dir,
+        "  - kind: file\n    path: /tmp/test\n    format: text\n",
+    );
+    let ConfigEntry::File(file) = &recipe.config[0] else {
+        panic!("expected file entry");
+    };
+    assert_eq!(file.export, FileExport::None);
+}
+
+#[test]
+fn reviewed_text_snapshot_apply_round_trip_preserves_exact_bytes() {
+    let dir = TempDir::new().unwrap();
+    let target = dir.path().join("settings.conf");
+    let exact = "font = Mono 13\n\n# comments and spacing stay exact\n";
+    write(&target, exact);
+    let recipe = loaded_recipe(
+        &dir,
+        &format!(
+            "  - kind: file\n    binds: settings\n    path: {:?}\n    format: text\n    export: reviewed_text\n",
+            target.display().to_string()
+        ),
+    );
+    let prefs = FakePrefStore::default();
+    let mut capture_runner = ReplayCommandRunner::default();
+    let snapshot = current_values_with_options(
+        std::slice::from_ref(&recipe),
+        &BTreeSet::new(),
+        &prefs,
+        &mut capture_runner,
+        SnapshotOptions {
+            confirm_reviewed_text: true,
+        },
+    );
+    let captured_values = snapshot["values"].as_object().unwrap().clone();
+
+    write(&target, "changed\n");
+    let mut prefs = FakePrefStore::default();
+    let mut runner = ReplayCommandRunner::default();
+    let clock = FixedClock(NOW.into());
+    let mut state = State::default();
+    let mut engine = Engine {
+        prefs: &mut prefs,
+        runner: &mut runner,
+        clock: &clock,
+        state: &mut state,
+        state_dir: dir.path().into(),
+        options: Options {
+            force: true,
+            ..Options::default()
+        },
+        warnings: vec![],
+    };
+    let plan = engine
+        .plan(std::slice::from_ref(&recipe), &captured_values, "diff")
+        .unwrap();
+    assert_eq!(
+        plan.apps[0].entries[0].actions[0].value_type.as_deref(),
+        Some("text")
+    );
+    let applied = engine.apply(std::slice::from_ref(&recipe), &captured_values, plan);
+    assert_eq!(applied.exit_code, 0);
+    assert_eq!(fs::read(&target).unwrap(), exact.as_bytes());
+    assert_eq!(
+        engine
+            .plan(&[recipe], &captured_values, "diff")
+            .unwrap()
+            .exit_code,
+        0
+    );
 }
 
 #[test]
@@ -260,9 +348,11 @@ fn deep_merge_file_preserves_unowned_keys_and_detects_drift() {
         options: Options::default(),
         warnings: vec![],
     };
-    let plan = engine.plan(&[recipe.clone()], &values, "diff").unwrap();
+    let plan = engine
+        .plan(std::slice::from_ref(&recipe), &values, "diff")
+        .unwrap();
     assert!(plan.apps[0].entries[0].drift.is_empty());
-    let applied = engine.apply(&[recipe.clone()], &values, plan);
+    let applied = engine.apply(std::slice::from_ref(&recipe), &values, plan);
     assert_eq!(applied.exit_code, 0);
     assert_eq!(
         serde_json::from_slice::<Value>(&fs::read(&target).unwrap()).unwrap(),
@@ -277,10 +367,14 @@ fn deep_merge_file_preserves_unowned_keys_and_detects_drift() {
 struct SetRunner {
     members: BTreeSet<String>,
     recorded: Vec<String>,
+    fail_on: Option<String>,
 }
 impl CommandRunner for SetRunner {
     fn run(&mut self, command: &str) -> Result<String> {
         self.recorded.push(command.into());
+        if self.fail_on.as_deref() == Some(command) {
+            return Err(anyhow!("injected command failure"));
+        }
         if command == "list" {
             return Ok(self.members.iter().cloned().collect::<Vec<_>>().join("\n"));
         }
@@ -296,6 +390,12 @@ impl CommandRunner for SetRunner {
             return Ok(String::new());
         }
         Err(anyhow!("unknown command"))
+    }
+
+    fn run_owned(&mut self, program: &str, arguments: &[String]) -> Result<String> {
+        self.run(&nix_me_apps::runner::render_owned_command(
+            program, arguments,
+        ))
     }
 }
 
@@ -320,10 +420,12 @@ fn command_set_converges_adds_and_deletes() {
         options: Options::default(),
         warnings: vec![],
     };
-    let plan = engine.plan(&[recipe.clone()], &values, "diff").unwrap();
+    let plan = engine
+        .plan(std::slice::from_ref(&recipe), &values, "diff")
+        .unwrap();
     assert_eq!(plan.summary.adds, 1);
     assert_eq!(plan.summary.dels, 1);
-    let applied = engine.apply(&[recipe.clone()], &values, plan);
+    let applied = engine.apply(std::slice::from_ref(&recipe), &values, plan);
     assert_eq!(applied.exit_code, 0);
     assert_eq!(engine.runner.members, ["new".into()].into());
     assert_eq!(
@@ -356,10 +458,10 @@ fn manual_residue_uses_exit_three() {
 }
 
 #[test]
-fn generated_import_materializes_delivers_and_then_is_idempotent() {
+fn generated_import_is_delivered_only_after_reversible_work_succeeds() {
     let dir = TempDir::new().unwrap();
     let recipe=loaded_recipe(&dir,"  - kind: generated_import\n    source: profile.test-app.import\n    deliver: deliver {artifact}\n    confirm: one_click\n    converges: add_only\n    artifact:\n      pipeline:\n        - header: {bytes: 4, keep: false, template: SEVBRA==}\n        - gzip: {}\n        - json: {}\n");
-    let (_, values) = values(&dir, "test-app:\n  import: {items: [one]}\n");
+    let (_, import_values) = values(&dir, "test-app:\n  import: {items: [one]}\n");
     let mut prefs = FakePrefStore::default();
     let mut runner = SetRunner::default();
     let clock = FixedClock(NOW.into());
@@ -373,21 +475,70 @@ fn generated_import_materializes_delivers_and_then_is_idempotent() {
         options: Options::default(),
         warnings: vec![],
     };
-    let plan = engine.plan(&[recipe.clone()], &values, "diff").unwrap();
+    let plan = engine
+        .plan(std::slice::from_ref(&recipe), &import_values, "diff")
+        .unwrap();
     assert_eq!(plan.summary.materialize, 1);
     assert_eq!(plan.summary.manual, 1);
     let artifact = plan.apps[0].entries[0].actions[0].target.clone();
-    let applied = engine.apply(&[recipe.clone()], &values, plan);
+    let applied = engine.apply(std::slice::from_ref(&recipe), &import_values, plan);
     assert_eq!(applied.exit_code, 3);
     assert!(Path::new(&artifact).exists());
+    assert_eq!(
+        applied.apps[0].entries[0].actions[1].result.as_deref(),
+        Some("delivery_requested")
+    );
     assert!(engine
         .runner
         .recorded
         .iter()
-        .any(|c| c.starts_with("deliver ")));
-    let second = engine.plan(&[recipe], &values, "diff").unwrap();
-    assert_eq!(second.exit_code, 3);
-    assert!(second.apps[0].entries[0].actions.is_empty());
+        .any(|command| command.starts_with("deliver ")));
+    assert!(!engine
+        .warnings
+        .iter()
+        .any(|warning| warning.contains("generated_import delivery is not transaction-safe")));
+    let retry = engine
+        .plan(std::slice::from_ref(&recipe), &import_values, "diff")
+        .unwrap();
+    assert_eq!(retry.summary.materialize, 1);
+    assert!(retry.apps[0].entries[0]
+        .actions
+        .iter()
+        .any(|action| action.op == "deliver"));
+
+    let recipe = loaded_recipe(
+        &dir,
+        "  - kind: command\n    name: extensions\n    list:\n      get: list\n      add: 'add {item}'\n      del: 'del {item}'\n    converges: full\n  - kind: generated_import\n    source: profile.test-app.import\n    deliver: deliver {artifact}\n    confirm: one_click\n    converges: add_only\n    artifact:\n      pipeline:\n        - json: {}\n",
+    );
+    let (_, values) = values(
+        &dir,
+        "test-app:\n  extensions: [new]\n  import: {items: [one]}\n",
+    );
+    let mut prefs = FakePrefStore::default();
+    let mut runner = SetRunner {
+        fail_on: Some("add new".into()),
+        ..Default::default()
+    };
+    let mut state = State::default();
+    let mut engine = Engine {
+        prefs: &mut prefs,
+        runner: &mut runner,
+        clock: &clock,
+        state: &mut state,
+        state_dir: dir.path().into(),
+        options: Options::default(),
+        warnings: vec![],
+    };
+    let plan = engine
+        .plan(std::slice::from_ref(&recipe), &values, "diff")
+        .unwrap();
+    let applied = engine.apply(&[recipe], &values, plan);
+    assert_eq!(applied.exit_code, 5);
+    assert!(!engine
+        .runner
+        .recorded
+        .iter()
+        .any(|command| command.starts_with("deliver ")));
 }
 
 #[test]
@@ -535,16 +686,16 @@ fn local_top_200_catalog_is_complete_and_links_seed_recipes() {
     let validation = nix_me_apps::catalog::validate(&catalog, &recipe_inputs).unwrap();
     assert!(validation.valid);
     assert_eq!(validation.applications, 200);
-    assert_eq!(validation.local_recipes, 4);
+    assert_eq!(validation.local_recipes, 7);
     assert_eq!(validation.confidence.values().sum::<usize>(), 200);
     assert_eq!(validation.mechanisms.values().sum::<usize>(), 200);
 
     let metric = nix_me_apps::catalog::metric(&catalog, &recipe_inputs).unwrap();
     assert_eq!(metric.denominator, 200);
     assert_eq!(metric.behavior_mapped_apps, 200);
-    assert_eq!(metric.zero_click_apps, 3);
+    assert_eq!(metric.zero_click_apps, 6);
     assert_eq!(metric.one_click_apps, 1);
-    assert_eq!(metric.uncovered_apps, 196);
+    assert_eq!(metric.uncovered_apps, 193);
 }
 
 #[test]

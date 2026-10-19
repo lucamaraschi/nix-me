@@ -38,7 +38,7 @@ case "$KIND" in
     if [[ -n "${NIX_ME_DETAILS_MANIFEST:-}" ]]; then
       manifest="$(cat "$NIX_ME_DETAILS_MANIFEST")"
     else
-      manifest="$(nix eval --json "$CONFIG_DIR#darwinConfigurations.$HOST_NAME.config.nixMe.manifest")"
+      manifest="$(nix eval --json "path:$CONFIG_DIR#darwinConfigurations.$HOST_NAME.config.nixMe.manifest")"
     fi
     if ! jq -e --arg name "$NAME" '.software.nixPackageDetails[]? | select(.name == $name or .fullName == $name)' >/dev/null <<<"$manifest"; then
       error_json "not_found" "No Nix package metadata was found for $NAME"

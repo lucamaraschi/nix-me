@@ -1,6 +1,7 @@
 #!/bin/bash
 
 # Validated mutation backend for the native nix-me application.
+# NIX_ME_USER_BUILD_APPLY=1
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -15,14 +16,307 @@ fi
 
 action="${1:-}"
 
+emit_apply_progress() {
+  local phase="$1"
+  local message="$2"
+  printf 'NIX_ME_PROGRESS\t%s\t%s\n' "$phase" "$message" >&2
+}
+
+resolve_app_state_engine() {
+  local candidate
+  if [[ -n "${NIX_ME_APP_STATE_ENGINE:-}" ]]; then
+    candidate="$NIX_ME_APP_STATE_ENGINE"
+    if [[ "$candidate" == */* && -x "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+    if [[ "$candidate" != */* ]] && command -v "$candidate" >/dev/null 2>&1; then
+      command -v "$candidate"
+      return 0
+    fi
+  elif command -v nix-me-apps >/dev/null 2>&1; then
+    command -v nix-me-apps
+    return 0
+  elif [[ -x "$CONFIG_DIR/packages/app-state/engine/target/debug/nix-me-apps" ]]; then
+    printf '%s\n' "$CONFIG_DIR/packages/app-state/engine/target/debug/nix-me-apps"
+    return 0
+  fi
+  return 1
+}
+
+run_app_settings() {
+  local mode="$1"
+  local payload app_id scope profile host_name relative_path destination engine confirm_reviewed_text
+  local settings_temp_dir capture_file existing_file proposed_file captured_values capture_reason
+  local changed preview tracked written message temporary
+  local -a snapshot_args
+
+  payload="$(cat)"
+  if ! jq -e '
+    (.appId | type == "string" and test("^[a-z0-9][a-z0-9-]*$")) and
+    (.scope | IN("shared", "profile", "machine")) and
+    ((.confirmReviewedText // false) | type == "boolean") and
+    (if .scope == "profile"
+      then (.profile | type == "string" and test("^[a-z0-9][a-z0-9-]*$"))
+      else (.profile == null or (.profile | not))
+    end)
+  ' >/dev/null 2>&1 <<<"$payload"; then
+    jq -n '{schemaVersion: 1, error: {code: "invalid_request", message: "Settings capture request failed validation"}}'
+    return 65
+  fi
+
+  app_id="$(jq -r '.appId' <<<"$payload")"
+  scope="$(jq -r '.scope' <<<"$payload")"
+  profile="$(jq -r '.profile // empty' <<<"$payload")"
+  confirm_reviewed_text="$(jq -r '.confirmReviewedText // false' <<<"$payload")"
+  host_name="${NIX_ME_HOSTNAME:-$(hostname -s | tr '[:upper:]' '[:lower:]')}"
+  if [[ ! "$host_name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+    jq -n '{schemaVersion: 1, error: {code: "invalid_configuration", message: "The hostname failed validation"}}'
+    return 78
+  fi
+
+  case "$scope" in
+    shared) relative_path="config/app-state/shared/settings.json" ;;
+    profile) relative_path="config/app-state/profiles/$profile/settings.json" ;;
+    machine) relative_path="config/app-state/machines/$host_name/settings.json" ;;
+  esac
+  destination="$CONFIG_DIR/$relative_path"
+
+  if ! engine="$(resolve_app_state_engine)"; then
+    jq -n '{schemaVersion: 1, error: {code: "missing_dependency", message: "nix-me-apps is required to capture settings"}}'
+    return 69
+  fi
+  if [[ ! -d "$CONFIG_DIR/packages/app-state/recipes" ]]; then
+    jq -n '{schemaVersion: 1, error: {code: "invalid_configuration", message: "The application recipe registry is missing"}}'
+    return 78
+  fi
+
+  if ! settings_temp_dir="$(mktemp -d "${TMPDIR:-/tmp}/nix-me-settings.XXXXXX")"; then
+    jq -n '{schemaVersion: 1, error: {code: "temporary_storage_failed", message: "Could not create temporary settings storage"}}'
+    return 5
+  fi
+  capture_file="$settings_temp_dir/capture.json"
+  existing_file="$settings_temp_dir/existing.json"
+  proposed_file="$settings_temp_dir/proposed.json"
+  trap "rm -rf -- '$settings_temp_dir'" EXIT
+
+  snapshot_args=(
+    snapshot
+    --recipe "$CONFIG_DIR/packages/app-state/recipes"
+    --only "$app_id"
+    --json
+  )
+  if [[ "$confirm_reviewed_text" == "true" ]]; then
+    snapshot_args+=(--confirm-reviewed-text)
+  fi
+  if ! "$engine" "${snapshot_args[@]}" >"$capture_file"; then
+    jq -n --arg appId "$app_id" \
+      '{schemaVersion: 1, error: {code: "capture_failed", message: ("Could not capture current settings for " + $appId)}}'
+    return 4
+  fi
+  if ! jq -e --arg appId "$app_id" '
+    .version == 1 and
+    (.values[$appId] | type == "object" and length > 0) and
+    (.applications | length == 1) and
+    (.redaction | type == "object")
+  ' >/dev/null 2>&1 "$capture_file"; then
+    capture_reason="$(jq -r --arg appId "$app_id" '
+      first(.applications[]? | select(.id == $appId) | .skipped[]?.reason) // empty
+    ' "$capture_file" 2>/dev/null)"
+    jq -n --arg appId "$app_id" --arg reason "$capture_reason" '
+      {schemaVersion: 1, error: {
+        code: "nothing_captured",
+        message: if $reason == ""
+          then ("No safe machine-readable settings were found for " + $appId)
+          else ("Could not read settings for " + $appId + ": " + $reason)
+        end
+      }}'
+    return 4
+  fi
+
+  if [[ -e "$destination" ]]; then
+    if ! jq -e 'select(type == "object")' "$destination" >"$existing_file" 2>/dev/null; then
+      jq -n --arg destination "$relative_path" \
+        '{schemaVersion: 1, error: {code: "invalid_settings_file", message: ($destination + " must contain a JSON object")}}'
+      return 65
+    fi
+  else
+    printf '{}\n' >"$existing_file"
+  fi
+
+  captured_values="$(jq -c '.values' "$capture_file")"
+  if ! jq -S --argjson captured "$captured_values" '. * $captured' "$existing_file" >"$proposed_file"; then
+    jq -n '{schemaVersion: 1, error: {code: "merge_failed", message: "Could not merge captured settings"}}'
+    return 5
+  fi
+  changed=true
+  if cmp -s "$existing_file" "$proposed_file" || jq -e -S --slurpfile proposed "$proposed_file" '. == $proposed[0]' "$existing_file" >/dev/null 2>&1; then
+    changed=false
+  fi
+
+  if [[ "$mode" == "save" && "$changed" == "true" && "${NIX_ME_ACTION_DRY_RUN:-0}" != "1" ]]; then
+    if ! mkdir -p -- "$(dirname "$destination")" ||
+      ! temporary="$(mktemp "$(dirname "$destination")/.settings.json.XXXXXX")" ||
+      ! chmod 0600 "$temporary" ||
+      ! jq -S . "$proposed_file" >"$temporary" ||
+      ! chmod 0644 "$temporary" ||
+      ! mv -f -- "$temporary" "$destination"; then
+      [[ -n "${temporary:-}" ]] && rm -f -- "$temporary"
+      jq -n --arg destination "$relative_path" \
+        '{schemaVersion: 1, error: {code: "write_failed", message: ("Could not atomically write " + $destination)}}'
+      return 5
+    fi
+  fi
+
+  tracked=false
+  if command -v git >/dev/null 2>&1 && git -C "$CONFIG_DIR" ls-files --error-unmatch -- "$relative_path" >/dev/null 2>&1; then
+    tracked=true
+  fi
+  preview="$(jq --arg appId "$app_id" '.[$appId]' "$proposed_file")"
+  if [[ "$changed" == "false" ]]; then
+    message="Current settings already match $relative_path"
+  elif [[ "$mode" == "preview" ]]; then
+    message="Review the captured settings before saving $relative_path"
+  elif [[ "${NIX_ME_ACTION_DRY_RUN:-0}" == "1" ]]; then
+    message="Would save current settings to $relative_path"
+  else
+    message="Saved current settings to $relative_path"
+  fi
+
+  written=false
+  if [[ "$mode" == "save" && "$changed" == "true" && "${NIX_ME_ACTION_DRY_RUN:-0}" != "1" ]]; then
+    written=true
+  fi
+
+  jq -n \
+    --arg action "settings-$mode" \
+    --arg appId "$app_id" \
+    --arg scope "$scope" \
+    --arg profile "$profile" \
+    --arg destination "$relative_path" \
+    --arg preview "$preview" \
+    --arg message "$message" \
+    --argjson changed "$changed" \
+    --argjson written "$written" \
+    --argjson tracked "$tracked" \
+    --argjson redaction "$(jq -c '.redaction' "$capture_file")" \
+    --argjson captured "$(jq -c '.applications[0].captured' "$capture_file")" \
+    --argjson skipped "$(jq -c '.applications[0].skipped' "$capture_file")" \
+    '{
+      schemaVersion: 1,
+      action: $action,
+      success: true,
+      appId: $appId,
+      scope: $scope,
+      profile: (if $profile == "" then null else $profile end),
+      destination: $destination,
+      changed: $changed,
+      written: $written,
+      tracked: $tracked,
+      preview: $preview,
+      redaction: $redaction,
+      captured: $captured,
+      skipped: $skipped,
+      message: $message
+    }'
+}
+
+run_harness_enable() {
+  local host_name relative_path destination current_value changed written tracked message temporary
+  host_name="${NIX_ME_HOSTNAME:-$(hostname -s | tr '[:upper:]' '[:lower:]')}"
+  if [[ ! "$host_name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+    jq -n '{schemaVersion: 1, error: {code: "invalid_configuration", message: "The hostname failed validation"}}'
+    return 78
+  fi
+
+  relative_path="config/app-state/machines/$host_name/enabled"
+  destination="$CONFIG_DIR/$relative_path"
+  if [[ -L "$destination" ]]; then
+    jq -n --arg destination "$relative_path" \
+      '{schemaVersion: 1, error: {code: "invalid_configuration", message: ($destination + " must not be a symbolic link")}}'
+    return 78
+  fi
+
+  current_value=false
+  if [[ -e "$destination" ]]; then
+    if ! current_value="$(jq -r 'if type == "boolean" then . else error("not a boolean") end' "$destination" 2>/dev/null)"; then
+      jq -n --arg destination "$relative_path" \
+        '{schemaVersion: 1, error: {code: "invalid_configuration", message: ($destination + " must contain a JSON boolean")}}'
+      return 78
+    fi
+  fi
+
+  changed=true
+  [[ "$current_value" == "true" ]] && changed=false
+  written=false
+  if [[ "$changed" == "true" && "${NIX_ME_ACTION_DRY_RUN:-0}" != "1" ]]; then
+    if ! mkdir -p -- "$(dirname "$destination")" ||
+      ! temporary="$(mktemp "$(dirname "$destination")/.enabled.XXXXXX")" ||
+      ! chmod 0600 "$temporary" ||
+      ! printf 'true\n' >"$temporary" ||
+      ! chmod 0644 "$temporary" ||
+      ! mv -f -- "$temporary" "$destination"; then
+      [[ -n "${temporary:-}" ]] && rm -f -- "$temporary"
+      jq -n --arg destination "$relative_path" \
+        '{schemaVersion: 1, error: {code: "write_failed", message: ("Could not atomically write " + $destination)}}'
+      return 5
+    fi
+    written=true
+  fi
+
+  tracked=false
+  if command -v git >/dev/null 2>&1 && git -C "$CONFIG_DIR" ls-files --error-unmatch -- "$relative_path" >/dev/null 2>&1; then
+    tracked=true
+  fi
+  if [[ "$changed" == "false" ]]; then
+    message="The application-state harness is already enabled for $host_name"
+  elif [[ "${NIX_ME_ACTION_DRY_RUN:-0}" == "1" ]]; then
+    message="Would enable the application-state harness for $host_name"
+  else
+    message="Enabled the application-state harness for $host_name. Apply the configuration to activate it. Commit the local change when you want to share it."
+  fi
+
+  jq -n \
+    --arg host "$host_name" \
+    --arg destination "$relative_path" \
+    --arg message "$message" \
+    --argjson changed "$changed" \
+    --argjson written "$written" \
+    --argjson tracked "$tracked" \
+    '{
+      schemaVersion: 1,
+      action: "harness-enable",
+      success: true,
+      host: $host,
+      destination: $destination,
+      enabled: true,
+      changed: $changed,
+      written: $written,
+      tracked: $tracked,
+      requiresApply: $changed,
+      message: $message
+    }'
+}
+
 run_apply() {
-  local host_name current_user make_path log_file message succeeded
+  local host_name current_user machine_name machine_type source_revision flake_ref
+  local nix_path nix_env_path administrator_runner build_output build_log activation_log
+  local system_path rebuild_path message succeeded allow_non_store
   host_name="${NIX_ME_HOSTNAME:-$(hostname -s | tr '[:upper:]' '[:lower:]')}"
   current_user="${NIX_ME_USERNAME:-${USER:-$(id -un)}}"
-  make_path="$(command -v make)"
+  machine_name="${NIX_ME_MACHINE_NAME:-$host_name}"
+  machine_type="${NIX_ME_MACHINE_TYPE:-}"
+  source_revision="${NIX_ME_SOURCE_REVISION:-}"
+  emit_apply_progress "preparing" "Checking the host, configuration, and required tools"
+  if [[ -z "$source_revision" ]] && command -v git >/dev/null 2>&1 &&
+    source_revision="$(git -C "$CONFIG_DIR" rev-parse --verify HEAD 2>/dev/null)"; then
+    if [[ -n "$(git -C "$CONFIG_DIR" status --porcelain --untracked-files=normal 2>/dev/null)" ]]; then
+      source_revision="${source_revision}-dirty"
+    fi
+  fi
 
-  if [[ ! -f "$CONFIG_DIR/flake.nix" || ! -f "$CONFIG_DIR/Makefile" ]]; then
-    jq -n '{schemaVersion: 1, action: "apply", success: false, message: "The nix-me configuration or Makefile is missing"}'
+  if [[ ! -f "$CONFIG_DIR/flake.nix" ]]; then
+    jq -n '{schemaVersion: 1, action: "apply", success: false, message: "The nix-me flake is missing"}'
     return
   fi
 
@@ -39,25 +333,74 @@ run_apply() {
     return
   fi
 
-  log_file="$(mktemp "${TMPDIR:-/tmp}/nix-me-apply.XXXXXX")"
+  nix_path="${NIX_ME_NIX_BIN:-$(command -v nix 2>/dev/null || true)}"
+  nix_env_path="${NIX_ME_NIX_ENV_BIN:-$(command -v nix-env 2>/dev/null || true)}"
+  administrator_runner="${NIX_ME_ADMINISTRATOR_RUNNER:-/usr/bin/osascript}"
+  if [[ -z "$nix_path" || ! -x "$nix_path" || -z "$nix_env_path" || ! -x "$nix_env_path" ]]; then
+    jq -n '{schemaVersion: 1, action: "apply", success: false, message: "Nix is unavailable"}'
+    return
+  fi
+  if [[ ! -x "$administrator_runner" ]]; then
+    jq -n '{schemaVersion: 1, action: "apply", success: false, message: "The administrator authorization runner is unavailable"}'
+    return
+  fi
+
+  flake_ref="path:$CONFIG_DIR#darwinConfigurations.$host_name.system"
+  build_output="$(mktemp "${TMPDIR:-/tmp}/nix-me-build-output.XXXXXX")"
+  build_log="$(mktemp "${TMPDIR:-/tmp}/nix-me-build.XXXXXX")"
+  emit_apply_progress "building" "Evaluating the configuration and building the new system generation"
+  if ! env \
+    HOSTNAME="$host_name" \
+    USERNAME="$current_user" \
+    MACHINE_NAME="$machine_name" \
+    MACHINE_TYPE="$machine_type" \
+    NIX_ME_SOURCE_REVISION="$source_revision" \
+    "$nix_path" --extra-experimental-features "nix-command flakes" \
+      build --json --no-link --impure "$flake_ref" >"$build_output" 2>"$build_log"; then
+    message="$(tail -80 "$build_log" 2>/dev/null || true)"
+    rm -f -- "$build_output" "$build_log"
+    jq -n \
+      --arg message "${message:-Configuration build failed}" \
+      '{schemaVersion: 1, action: "apply", success: false, message: $message}'
+    return
+  fi
+
+  if ! system_path="$(jq -er '.[0].outputs.out | select(type == "string")' "$build_output" 2>/dev/null)"; then
+    rm -f -- "$build_output" "$build_log"
+    jq -n '{schemaVersion: 1, action: "apply", success: false, message: "Nix did not return the built system path"}'
+    return
+  fi
+  rm -f -- "$build_output" "$build_log"
+
+  allow_non_store=false
+  [[ -n "${NIX_ME_NIX_BIN:-}" ]] && allow_non_store=true
+  rebuild_path="$system_path/sw/bin/darwin-rebuild"
+  if { [[ "$allow_non_store" != "true" && "$system_path" != /nix/store/* ]]; } ||
+    [[ ! -x "$rebuild_path" ]]; then
+    jq -n '{schemaVersion: 1, action: "apply", success: false, message: "Nix returned an invalid system path"}'
+    return
+  fi
+
+  activation_log="$(mktemp "${TMPDIR:-/tmp}/nix-me-activate.XXXXXX")"
   succeeded=true
-  if ! /usr/bin/osascript \
+  emit_apply_progress "activating" "Build complete; approve the macOS prompt to activate this generation"
+  if ! "$administrator_runner" \
     -e 'on run argv' \
-    -e 'set makePath to item 1 of argv' \
-    -e 'set configPath to item 2 of argv' \
-    -e 'set hostName to item 3 of argv' \
-    -e 'set userName to item 4 of argv' \
-    -e 'set commandText to "env PATH=/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin " & quoted form of makePath & " -C " & quoted form of configPath & " SKIP_BREW=1 FLAKE_DIR=" & quoted form of configPath & " HOSTNAME=" & quoted form of hostName & " USERNAME=" & quoted form of userName & " switch-fast"' \
+    -e 'set systemPath to item 1 of argv' \
+    -e 'set userName to item 2 of argv' \
+    -e 'set nixEnvPath to item 3 of argv' \
+    -e 'set rebuildPath to systemPath & "/sw/bin/darwin-rebuild"' \
+    -e 'set commandText to "env HOME=/var/root USER=root LOGNAME=root PATH=/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin " & quoted form of nixEnvPath & " -p /nix/var/nix/profiles/system --set " & quoted form of systemPath & " && env HOME=/var/root USER=root LOGNAME=root PATH=/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin SUDO_USER=" & quoted form of userName & " USERNAME=" & quoted form of userName & " " & quoted form of rebuildPath & " activate"' \
     -e 'with timeout of 86400 seconds' \
     -e 'do shell script commandText with administrator privileges' \
     -e 'end timeout' \
     -e 'end run' \
-    -- "$make_path" "$CONFIG_DIR" "$host_name" "$current_user" >"$log_file" 2>&1; then
+    -- "$system_path" "$current_user" "$nix_env_path" >"$activation_log" 2>&1; then
     succeeded=false
   fi
 
-  message="$(tail -40 "$log_file" 2>/dev/null || true)"
-  rm -f -- "$log_file"
+  message="$(tail -40 "$activation_log" 2>/dev/null || true)"
+  rm -f -- "$activation_log"
   jq -n \
     --argjson success "$succeeded" \
     --arg message "${message:-Configuration applied successfully}" \
@@ -99,6 +442,200 @@ run_sync_projects() {
     '{schemaVersion: 1, action: "sync-projects", success: $success, message: $message}'
 }
 
+run_project_config() {
+  local mode="$1"
+  local payload name url path branch remote clone update scope profile host_name
+  local relative_path destination parent existing candidate project preview changed replaced tracked written
+  local config_file conflicting_name temp_file message
+
+  payload="$(cat)"
+  if ! jq -e '
+    (.name | type == "string" and test("^[a-z0-9][a-z0-9._-]*$") and length <= 80) and
+    (.url | type == "string" and length <= 512 and
+      test("^(https?://[^[:space:]]+|ssh://[^[:space:]]+|git@[A-Za-z0-9._-]+:[^[:space:]]+)$")) and
+    (.path | type == "string" and length <= 512 and
+      (startswith("/") | not) and (startswith("~/") | not) and
+      (split("/") | length > 0 and all(.[];
+        . != "" and . != "." and . != ".." and test("^[A-Za-z0-9._-]+$")))) and
+    ((.branch == null) or
+      (.branch | type == "string" and length <= 255 and
+        test("^[A-Za-z0-9][A-Za-z0-9._/-]*$") and
+        (contains("..") | not) and (contains("@{") | not))) and
+    (.remote | type == "string" and test("^[A-Za-z0-9][A-Za-z0-9._-]*$") and length <= 80) and
+    (.clone | type == "boolean") and
+    (.update | type == "boolean") and
+    (.scope | IN("shared", "profile", "machine")) and
+    (if .scope == "profile"
+      then (.profile | type == "string" and test("^[a-z0-9][a-z0-9-]*$") and length <= 80)
+      else (.profile == null or (.profile | not))
+    end)
+  ' >/dev/null 2>&1 <<<"$payload"; then
+    jq -n '{schemaVersion: 1, error: {code: "invalid_request", message: "Project settings failed validation"}}'
+    return 65
+  fi
+
+  name="$(jq -r '.name' <<<"$payload")"
+  url="$(jq -r '.url' <<<"$payload")"
+  path="$(jq -r '.path' <<<"$payload")"
+  branch="$(jq -r '.branch // empty' <<<"$payload")"
+  remote="$(jq -r '.remote' <<<"$payload")"
+  clone="$(jq -r '.clone' <<<"$payload")"
+  update="$(jq -r '.update' <<<"$payload")"
+  scope="$(jq -r '.scope' <<<"$payload")"
+  profile="$(jq -r '.profile // empty' <<<"$payload")"
+  host_name="${NIX_ME_HOSTNAME:-$(hostname -s | tr '[:upper:]' '[:lower:]')}"
+
+  if [[ ! "$host_name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+    jq -n '{schemaVersion: 1, error: {code: "invalid_configuration", message: "The hostname failed validation"}}'
+    return 78
+  fi
+  if [[ -n "$branch" ]] && command -v git >/dev/null 2>&1 && ! git check-ref-format --branch "$branch" >/dev/null 2>&1; then
+    jq -n '{schemaVersion: 1, error: {code: "invalid_request", message: "The Git branch name is invalid"}}'
+    return 65
+  fi
+
+  case "$scope" in
+    shared) relative_path="config/projects/shared.json" ;;
+    profile) relative_path="config/projects/profiles/$profile.json" ;;
+    machine) relative_path="config/projects/machines/$host_name.json" ;;
+  esac
+  destination="$CONFIG_DIR/$relative_path"
+  parent="$(dirname "$destination")"
+
+  if [[ -L "$destination" ]]; then
+    jq -n --arg destination "$relative_path" \
+      '{schemaVersion: 1, error: {code: "unsafe_destination", message: ($destination + " must not be a symbolic link")}}'
+    return 78
+  fi
+
+  existing='{}'
+  if [[ -e "$destination" ]]; then
+    if ! existing="$(jq -c 'select(type == "object")' "$destination" 2>/dev/null)" || [[ -z "$existing" ]]; then
+      jq -n --arg destination "$relative_path" \
+        '{schemaVersion: 1, error: {code: "invalid_projects_file", message: ($destination + " must contain a JSON object")}}'
+      return 65
+    fi
+  fi
+
+  conflicting_name=''
+  if [[ -d "$CONFIG_DIR/config/projects" ]]; then
+    while IFS= read -r config_file; do
+      [[ -f "$config_file" ]] || continue
+      conflicting_name="$(jq -r --arg path "$path" --arg name "$name" '
+        to_entries[]? | select(.key != $name and .value.path == $path) | .key
+      ' "$config_file" 2>/dev/null | head -1)"
+      [[ -n "$conflicting_name" ]] && break
+    done < <(find "$CONFIG_DIR/config/projects" -type f -name '*.json' -print 2>/dev/null)
+  fi
+  if [[ -n "$conflicting_name" ]]; then
+    jq -n --arg name "$conflicting_name" --arg path "$path" \
+      '{schemaVersion: 1, error: {code: "duplicate_project_path", message: ("The path " + $path + " is already used by project " + $name)}}'
+    return 65
+  fi
+
+  project="$(jq -cn \
+    --arg url "$url" \
+    --arg path "$path" \
+    --arg branch "$branch" \
+    --arg remote "$remote" \
+    --argjson clone "$clone" \
+    --argjson update "$update" \
+    '{url: $url, path: $path, branch: (if $branch == "" then null else $branch end), remote: $remote, clone: $clone, update: $update}')"
+  candidate="$(jq -cS --arg name "$name" --argjson project "$project" '. + {($name): $project}' <<<"$existing")"
+  preview="$(jq . <<<"$candidate")"
+  changed=true
+  [[ "$(jq -cS . <<<"$existing")" == "$candidate" ]] && changed=false
+  replaced=false
+  jq -e --arg name "$name" 'has($name)' >/dev/null 2>&1 <<<"$existing" && replaced=true
+  tracked=false
+  if command -v git >/dev/null 2>&1 && git -C "$CONFIG_DIR" ls-files --error-unmatch -- "$relative_path" >/dev/null 2>&1; then
+    tracked=true
+  fi
+
+  written=false
+  if [[ "$mode" == "save" && "$changed" == "true" ]]; then
+    mkdir -p "$parent"
+    temp_file="$(mktemp "$parent/.projects.XXXXXX")"
+    printf '%s\n' "$preview" >"$temp_file"
+    chmod 0644 "$temp_file"
+    mv -f -- "$temp_file" "$destination"
+    written=true
+  fi
+
+  if [[ "$changed" != "true" ]]; then
+    message="$name is already configured in $relative_path."
+  elif [[ "$mode" == "save" ]]; then
+    message="$name was saved to $relative_path. Sync Projects to clone it."
+  elif [[ "$replaced" == "true" ]]; then
+    message="$name will be updated in $relative_path."
+  else
+    message="$name will be added to $relative_path."
+  fi
+
+  jq -n \
+    --arg action "project-$mode" \
+    --arg name "$name" \
+    --arg scope "$scope" \
+    --arg profile "$profile" \
+    --arg destination "$relative_path" \
+    --argjson changed "$changed" \
+    --argjson written "$written" \
+    --argjson tracked "$tracked" \
+    --argjson replaced "$replaced" \
+    --argjson project "$project" \
+    --arg preview "$preview" \
+    --arg message "$message" \
+    '{
+      schemaVersion: 1,
+      action: $action,
+      success: true,
+      name: $name,
+      scope: $scope,
+      profile: (if $profile == "" then null else $profile end),
+      destination: $destination,
+      changed: $changed,
+      written: $written,
+      tracked: $tracked,
+      replaced: $replaced,
+      requiresSync: ($changed and $written),
+      project: $project,
+      preview: $preview,
+      message: $message
+    }'
+}
+
+run_local_ai_model() {
+  local subcommand="$1"
+  local lifecycle="$CONFIG_DIR/tools/local-ai/model-lifecycle.sh"
+
+  if [[ ! "$subcommand" =~ ^(start|status|cancel)$ ]]; then
+    jq -n --arg subcommand "$subcommand" \
+      '{schemaVersion: 1, error: {code: "unknown_action", message: ("Unknown local-AI model action: " + $subcommand)}}'
+    return 64
+  fi
+
+  if [[ -n "${NIX_ME_LOCAL_AI_MODEL_BIN:-}" ]]; then
+    lifecycle="$NIX_ME_LOCAL_AI_MODEL_BIN"
+    if [[ "$lifecycle" != /* || ! -x "$lifecycle" || "$lifecycle" == *$'\n'* || "$lifecycle" == *$'\r'* ]]; then
+      jq -n '{schemaVersion: 1, error: {code: "invalid_configuration", message: "NIX_ME_LOCAL_AI_MODEL_BIN is invalid"}}'
+      return 78
+    fi
+  elif command -v local-ai-model >/dev/null 2>&1; then
+    lifecycle="$(command -v local-ai-model)"
+  elif [[ -r "$lifecycle" ]]; then
+    :
+  else
+    jq -n '{schemaVersion: 1, error: {code: "missing_dependency", message: "local-ai-model is not installed"}}'
+    return 69
+  fi
+
+  if [[ -x "$lifecycle" ]]; then
+    "$lifecycle" "$subcommand"
+  else
+    bash "$lifecycle" "$subcommand"
+  fi
+}
+
 if [[ "$action" == "apply" ]]; then
   run_apply
   exit 0
@@ -108,6 +645,46 @@ if [[ "$action" == "sync-projects" ]]; then
   run_sync_projects
   exit 0
 fi
+
+if [[ "$action" == "harness-enable" ]]; then
+  run_harness_enable
+  exit $?
+fi
+
+if [[ "$action" == "settings-preview" ]]; then
+  run_app_settings preview
+  exit $?
+fi
+
+if [[ "$action" == "settings-save" ]]; then
+  run_app_settings save
+  exit $?
+fi
+
+if [[ "$action" == "project-preview" ]]; then
+  run_project_config preview
+  exit $?
+fi
+
+if [[ "$action" == "project-save" ]]; then
+  run_project_config save
+  exit $?
+fi
+
+case "$action" in
+  local-ai-model-start)
+    run_local_ai_model start
+    exit $?
+    ;;
+  local-ai-model-status)
+    run_local_ai_model status </dev/null
+    exit $?
+    ;;
+  local-ai-model-cancel)
+    run_local_ai_model cancel </dev/null
+    exit $?
+    ;;
+esac
 
 if [[ "$action" != "update" ]]; then
   jq -n --arg action "$action" \

@@ -1,0 +1,19 @@
+_nix_me_migration_fixture:
+  production_supported: false
+  shape: synthetic-v2
+apply:
+  poke: none
+bundle_id: com.example.fixture
+config:
+- kind: manual
+  marker:
+    defaults_key:
+      domain: com.example.fixture
+      extension:
+        keep: true
+      key: completed
+  step: Complete fixture setup
+id: migration-fixture
+name: Migration Fixture
+schema_version: 2
+verified: null

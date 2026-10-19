@@ -1,0 +1,19 @@
+schema_version: 1
+id: adobe-creative-cloud
+name: Adobe Creative Cloud
+bundle_id: com.adobe.acc.AdobeCreativeCloud
+install:
+  cask: adobe-creative-cloud
+detect:
+  command: test -d "/Applications/Utilities/Adobe Creative Cloud/ACC/Creative Cloud.app" || test -d "/Applications/Adobe Creative Cloud/Adobe Creative Cloud.app"
+sandboxed: false
+requires: []
+config:
+  - kind: manual
+    step: Configure launch-at-login, update, sync, and notification preferences in Adobe Creative Cloud, then sign in and select licensed applications manually.
+    doc: No Accessibility action runs. A future adapter must be pinned to a verified Creative Cloud UI version and may manage only portable preferences; credentials, licenses, installed-app payloads, cloud libraries, and files remain excluded.
+    confirm: full_manual
+apply:
+  poke: none
+  unsafe_to_kill: false
+verified: null

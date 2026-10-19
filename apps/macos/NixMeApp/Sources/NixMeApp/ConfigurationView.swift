@@ -51,7 +51,7 @@ struct ConfigurationView: View {
                     .controlSize(.large)
             }
         }
-        .navigationTitle("Configuration")
+        .navigationTitle("Configuration Map")
         .searchable(text: $query, placement: .toolbar, prompt: "Search configuration files")
         .onChange(of: graph?.hostname, initial: true) {
             guard selectedID == nil, let graph else { return }

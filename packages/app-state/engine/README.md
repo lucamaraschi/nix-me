@@ -12,12 +12,34 @@ cargo run -p nix-me-apps -- diff \
   --recipe ../recipes/rectangle.yaml \
   --values ../values/rectangle.yaml --json
 cargo run -p nix-me-apps -- registry validate --recipe ../recipes --json
+cargo run -p nix-me-apps -- registry list --recipe ../recipes --json
 cargo run -p nix-me-apps -- registry catalog-validate \
   --catalog ../catalog/homebrew-top-200-apps.json --recipe ../recipes --json
 cargo run -p nix-me-apps -- registry catalog-metric \
   --catalog ../catalog/homebrew-top-200-apps.json --recipe ../recipes --json
 cargo run -p nix-me-apps -- registry codec-smoke --json
+cargo run -p nix-me-apps -- snapshot \
+  --recipe ../recipes --only rectangle --json
 ```
+
+Text files are default-closed. A recipe may mark a reviewed text file with
+`export: reviewed_text`; snapshot callers must then separately pass
+`--confirm-reviewed-text` before the engine reads its exact contents into
+harness JSON. Applying that JSON writes the string bytes without reformatting.
+
+Version migration is never implicit in `status`, `diff`, or `apply`. Inspect a
+migration with `migrate --dry-run`, then opt into mutation with `migrate --apply`:
+
+```sh
+cargo run -p nix-me-apps -- migrate \
+  --kind state --input ../migrations/fixtures/state/v1.json \
+  --from 1 --to 2 --dry-run --json
+```
+
+The checked-in forward/backward fixture matrix and the atomic backup/rollback
+contract are documented in [`../migrations/README.md`](../migrations/README.md).
+The only implemented v2 shape is explicitly synthetic and remains unsupported
+by ordinary production loaders.
 
 To turn an app export into reviewable state, inspect it once or watch the
 scheduled-backup file continuously:
@@ -38,6 +60,6 @@ The real-app checks are intentionally split from headless tests:
 - T2: `tests/macos_real.rs`, using scratch domains only (run on a Mac runner).
 - T3: Rectangle and Raycast visible/import confirmation checks (VM/human harness).
 
-The stable CLI surface is exposed through `nix-me apps diff|apply|capture`.
+The stable CLI surface is exposed through `nix-me apps diff|apply|capture|snapshot`.
 AES pipeline primitives are implemented in-process; the installed binary does not
 shell out to OpenSSL or require a language runtime.

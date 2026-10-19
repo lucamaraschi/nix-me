@@ -1,0 +1,24 @@
+schema_version: 1
+id: microsoft-powerpoint
+name: Microsoft PowerPoint
+bundle_id: com.microsoft.Powerpoint
+install:
+  cask: microsoft-office
+detect:
+  app_path: /Applications/Microsoft PowerPoint.app
+sandboxed: true
+requires: []
+config:
+  - kind: defaults
+    domain: com.microsoft.Powerpoint
+    keys:
+      kOUIRibbonDefaultCollapse: {type: bool, ui: "View > Ribbon", doc: "Observed in Microsoft PowerPoint 16.83."}
+    unknown_keys: reject
+    confirm: none
+  - kind: manual
+    step: Review editing, slideshow, proofing, and remaining view preferences manually; only ribbon collapse is currently proven portable for PowerPoint 16.83. Identity, licensing, templates, add-ins, documents, recent files, secure bookmarks, and cloud policy are excluded.
+    confirm: full_manual
+apply:
+  poke: restart_app
+  unsafe_to_kill: true
+verified: null
