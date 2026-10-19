@@ -3,6 +3,7 @@ name = "nix-me-apps"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 anyhow.workspace = true
@@ -30,7 +31,7 @@ toml.workspace = true
 zip.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
-core-foundation = "=0.10.0"
+core-foundation = "=0.10.1"
 
 [dev-dependencies]
 tempfile.workspace = true

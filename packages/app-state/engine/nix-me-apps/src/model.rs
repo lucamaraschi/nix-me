@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, bail, Context, Result};
-use jsonschema::{Draft, JSONSchema};
+use jsonschema::Draft;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
@@ -404,13 +404,15 @@ pub fn load_recipe(path: &Path) -> Result<Recipe> {
 
 pub(crate) fn decode_recipe_value(json_value: Value, path: &Path) -> Result<Recipe> {
     let schema: Value = serde_json::from_str(include_str!("../../recipe.schema.json"))?;
-    let compiled = JSONSchema::options()
+    let compiled = jsonschema::options()
         .with_draft(Draft::Draft7)
-        .compile(&schema)
+        .build(&schema)
         .map_err(|e| anyhow!("compile embedded recipe schema: {e}"))?;
-    if let Err(errors) = compiled.validate(&json_value) {
+    let errors = compiled.iter_errors(&json_value).collect::<Vec<_>>();
+    if !errors.is_empty() {
         let details = errors
-            .map(|e| format!("{}: {}", e.instance_path, e))
+            .into_iter()
+            .map(|e| format!("{}: {}", e.instance_path(), e))
             .collect::<Vec<_>>()
             .join("; ");
         bail!(

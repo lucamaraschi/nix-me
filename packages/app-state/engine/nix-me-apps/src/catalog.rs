@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
-use jsonschema::{Draft, JSONSchema};
+use jsonschema::Draft;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -108,13 +108,15 @@ pub fn load_catalog(path: &Path) -> Result<AppCatalog> {
         &std::fs::read(&schema_path)
             .with_context(|| format!("read catalog schema {}", schema_path.display()))?,
     )?;
-    let compiled = JSONSchema::options()
+    let compiled = jsonschema::options()
         .with_draft(Draft::Draft7)
-        .compile(&schema)
+        .build(&schema)
         .map_err(|error| anyhow::anyhow!("compile catalog schema: {error}"))?;
-    if let Err(errors) = compiled.validate(&value) {
+    let errors = compiled.iter_errors(&value).collect::<Vec<_>>();
+    if !errors.is_empty() {
         let details = errors
-            .map(|error| format!("{}: {}", error.instance_path, error))
+            .into_iter()
+            .map(|error| format!("{}: {}", error.instance_path(), error))
             .collect::<Vec<_>>()
             .join("; ");
         bail!("catalog schema validation failed: {details}");

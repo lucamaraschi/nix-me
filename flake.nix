@@ -137,7 +137,7 @@
             nix-me-tui = pkgs.callPackage ./nix/packages/post-install-tui.nix {
               inherit nodejsCurrent;
             };
-            nix-me-apps = pkgs.rustPlatform.buildRustPackage {
+            nix-me-apps = unstablePkgs.rustPlatform.buildRustPackage {
               pname = "nix-me-apps";
               version = "0.1.0";
               src = pkgs.lib.cleanSourceWith {
