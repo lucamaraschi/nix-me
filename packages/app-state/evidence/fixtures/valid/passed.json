@@ -24,7 +24,7 @@
   "procedure": {
     "id": "sample-visible-behavior",
     "version": 1,
-    "harness_revision": "599bf2ac65c041d2088f0b0c048810f34f6459a2"
+    "harness_revision": "424845a53060647d9f6bdc166ff72674ac287247"
   },
   "run": {
     "id": "fixture-20261005T170000Z",
@@ -58,7 +58,7 @@
       "kind": "report",
       "path": "packages/app-state/evidence/fixtures/runs/fixture-20261005T170000Z/run-record.json",
       "media_type": "application/json",
-      "sha256": "7e6c6c854d02e7edee7998cf9b43b6161b1dd509a00e028c2b39aab5fad45c96",
+      "sha256": "a9b4e423fae800dfc6d6b45b60e4331950f253ad4c35a3815b0575695b061d6a",
       "bytes": 2913,
       "captured_at": "2026-10-05T17:03:00Z",
       "description": "Synthetic interactive runner record."
