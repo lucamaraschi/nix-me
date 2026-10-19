@@ -77,13 +77,15 @@ struct MenuBarView: View {
                 .buttonStyle(.bordered)
                 .disabled(store.isLoading)
 
-                Button {
-                    updater.checkForUpdates()
-                } label: {
-                    Image(systemName: "arrow.down.circle")
+                if AppUpdater.canCheckForUpdates {
+                    Button {
+                        updater.checkForUpdates()
+                    } label: {
+                        Image(systemName: "arrow.down.circle")
+                    }
+                    .buttonStyle(.bordered)
+                    .help("Check for Nix Me updates")
                 }
-                .buttonStyle(.bordered)
-                .help("Check for Nix Me updates")
 
                 Spacer()
 

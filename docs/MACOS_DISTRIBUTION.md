@@ -4,6 +4,26 @@ Nix Me is distributed outside the Mac App Store. GitHub Releases is the source
 of truth, Sparkle handles in-app updates, and a Homebrew tap provides a second
 installation path.
 
+## Managed-host installation
+
+Machines controlled by this repository can build and install the app through
+Nix instead of downloading a release. Enable it for a host with:
+
+```nix
+apps.manager.enable = true;
+```
+
+The `nix-me-macos` package builds only from the native app and management API
+sources, bundles the matching `nix-me-apps` engine, and ad-hoc signs the final
+application after Nix fixups. Activation links the immutable bundle to
+`~/Applications/Nix Me.app`. Nix reuses the store result until one of those
+inputs changes and rolls the app back with the rest of the system generation.
+
+Sparkle is intentionally excluded from managed-host builds because updates are
+delivered by the Nix configuration. These local builds are suitable for trusted
+managed Macs and do not replace Developer ID signing and notarization for
+downloadable GitHub releases.
+
 ## Release artifacts
 
 Each stable release contains:

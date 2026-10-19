@@ -129,6 +129,7 @@
         (system:
           let
             pkgs = import nixpkgs { inherit system; };
+            unstablePkgs = import nixpkgs-unstable { inherit system; };
             nodejsCurrent = pkgs.callPackage ./nix/packages/nodejs-current-bin.nix { };
           in
           {
@@ -152,6 +153,10 @@
               meta.mainProgram = "nix-me-apps";
             };
             default = self.packages.${system}.nix-me-apps;
+          } // nixpkgs.lib.optionalAttrs pkgs.stdenv.isDarwin {
+            nix-me-macos = unstablePkgs.callPackage ./nix/packages/nix-me-macos.nix {
+              nixMeApps = self.packages.${system}.nix-me-apps;
+            };
           });
 
       # Define specific machine configurations
@@ -201,6 +206,7 @@
             ./nix/hosts/profiles/maker.nix # 3D printing & CAD
             ./nix/hosts/profiles/ai.nix
             ./nix/hosts/profiles/local-ai.nix # Pi with local DS4 inference
+            { apps.manager.enable = true; }
           ];
         };
 

@@ -37,8 +37,10 @@ struct NixMeApp: App {
 
         .commands {
             CommandGroup(after: .appInfo) {
-                Button("Check for Updates…") {
-                    updater.checkForUpdates()
+                if AppUpdater.canCheckForUpdates {
+                    Button("Check for Updates…") {
+                        updater.checkForUpdates()
+                    }
                 }
             }
         }

@@ -6,8 +6,10 @@ on:
     paths:
       - "flake.nix"
       - "flake.lock"
+      - "apps/macos/**"
       - "nix/**"
       - "packages/app-state/engine/**"
+      - "packages/management-api/**"
       - "tools/automation/**"
       - "tools/installation/**"
       - "Makefile"
@@ -19,8 +21,10 @@ on:
     paths:
       - "flake.nix"
       - "flake.lock"
+      - "apps/macos/**"
       - "nix/**"
       - "packages/app-state/engine/**"
+      - "packages/management-api/**"
       - "tools/automation/**"
       - "tools/installation/**"
       - "Makefile"
@@ -45,5 +49,7 @@ jobs:
         run: |
           test "$(nix eval .#darwinConfigurations.vm-test.config.apps.state.enable)" = "true"
           test "$(nix eval .#darwinConfigurations.minimal-mac.config.apps.state.enable)" = "false"
+          test "$(nix eval .#darwinConfigurations.bellerofonte.config.apps.manager.enable)" = "true"
+          test "$(nix eval .#darwinConfigurations.nabucodonosor.config.apps.manager.enable)" = "false"
       - name: Build managed packages
-        run: nix build .#nix-me-apps .#nix-me-tui --no-link
+        run: nix build .#nix-me-apps .#nix-me-tui .#nix-me-macos --no-link

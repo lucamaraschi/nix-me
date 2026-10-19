@@ -149,6 +149,7 @@ Status: in progress
 | AUT-006 | Ready for operator | Dispatch Rectangle and Raycast T3 runs, retain evidence, and prepare a stamp candidate. | The dispatch-only workflow and unsigned candidate path are complete. Register the documented UTM runner, perform both visible procedures, and sign only after human review; CI never owns the signing key. |
 | AUT-007 | Planned | Protect stable release publication with a GitHub environment and required approval. | Beta prereleases may remain self-service; stable promotion must be deliberate. |
 | AUT-008 | Planned | Run a scheduled disposable-host smoke test covering `make switch`, app launch, status refresh, and idempotence. | It must run only on an isolated runner or VM and must never target a developer workstation. |
+| AUT-009 | Done | Build and install the native manager through Nix on opted-in managed Macs. | The package is source-filtered, ad-hoc signed locally, excludes Sparkle, and never substitutes for notarized external releases. |
 
 The existing weekly application-state job remains responsible for catalog
 freshness and T0-T2 regression checks. Automatic Nix lock-file updates and T3
