@@ -137,7 +137,7 @@ struct ManagementAPIClient {
                 process.standardOutput = output
                 process.standardError = errors
 
-                var environment = ProcessInfo.processInfo.environment
+                var environment = RuntimeEnvironment.process
                 environment["NIX_ME_CONFIG_DIR"] = configurationDirectory.path
                 if let engine = ManagementBackend.bundledExecutable(named: "nix-me-apps") {
                     environment["NIX_ME_APP_STATE_ENGINE"] = engine.path

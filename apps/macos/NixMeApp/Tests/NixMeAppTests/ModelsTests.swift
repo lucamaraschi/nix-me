@@ -378,6 +378,43 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(progress.values.last?.message, "Activating test generation")
     }
 
+    func testApplyDeliversProgressBeforeActionExits() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let acknowledgement = root.appendingPathComponent("progress-received")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try write(
+            #"""
+            #!/bin/bash
+            # NIX_ME_USER_BUILD_APPLY=1
+            printf 'NIX_ME_PROGRESS\tbuilding\tBuilding test generation\n' >&2
+            for _ in {1..100}; do
+              [[ -f "\#(acknowledgement.path)" ]] && break
+              sleep 0.01
+            done
+            [[ -f "\#(acknowledgement.path)" ]] || exit 70
+            printf '%s\n' '{"schemaVersion":1,"success":true,"message":"Applied"}'
+            """#,
+            to: root.appendingPathComponent("packages/management-api/bin/nix-me-action")
+        )
+
+        let response = try await ManagementActionClient(configurationDirectory: root)
+            .apply(
+                hostname: "test-host",
+                username: "test-user",
+                onProgress: { progress in
+                    guard progress.phase == .building else { return }
+                    FileManager.default.createFile(
+                        atPath: acknowledgement.path,
+                        contents: Data()
+                    )
+                }
+            )
+
+        XCTAssertTrue(response.success)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: acknowledgement.path))
+    }
+
     func testApplyFallsBackForActionWithoutUserBuildContract() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

@@ -93,13 +93,19 @@ Run directly from GitHub - no need to manually clone the repository:
 curl -fsSL https://raw.githubusercontent.com/lucamaraschi/nix-me/main/install.sh | bash
 ```
 
-The wizard will guide you through:
+The installer prepares Apple's developer tools, Homebrew, Nix, and the
+configuration checkout, then opens the locally built Nix Me setup app. The app
+guides you through:
 
-1. **Clone or create** - Copy settings from an existing host or start fresh
-2. **Select profiles** - Choose dev, work, personal (or combine them)
-3. **Choose app state** - Optionally manage supported application settings declaratively
-4. **Configure machine** - Set hostname, type, and username
-5. **Build system** - Apply your configuration
+1. **Detect this Mac** - Pre-fill its hostname, display name, hardware type, and user
+2. **Load or create** - Reuse an existing machine definition without rewriting it, or create a new one
+3. **Select profiles** - Choose development, work, personal, local AI, or any combination
+4. **Review the plan** - See exactly what will be written and activated
+5. **Build and verify** - Follow visible progress, approve activation once, and get inline recovery if anything fails
+
+The setup app is compiled locally through Nix, so first installation does not
+depend on a notarized download. Automation and recovery environments can keep
+the terminal-only flow with `USE_NATIVE_INSTALLER=0`.
 
 See [Declarative application state](docs/APP_STATE.md) for recipes, profile
 values, capture, command auditing, and migration behavior.
@@ -147,7 +153,7 @@ curl -fsSL https://raw.githubusercontent.com/lucamaraschi/nix-me/dev/install.sh 
 <summary><strong>Non-interactive installation</strong></summary>
 
 ```bash
-# Fully automated setup
+# Fully automated terminal setup
 curl -fsSL https://raw.githubusercontent.com/lucamaraschi/nix-me/main/install.sh | \
   NON_INTERACTIVE=1 bash -s -- hostname macmini "My Mac Mini" username
 ```

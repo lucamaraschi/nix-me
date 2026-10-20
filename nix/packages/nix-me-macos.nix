@@ -2,11 +2,16 @@
 , swiftPackages
 , swift
 , swiftpm
-, nixMeApps
+, nixMeApps ? null
+, includeAppStateEngine ? true
+, git
+, jq
+, nix
+, gnumake
 }:
 
 swiftPackages.stdenv.mkDerivation {
-  pname = "nix-me-macos";
+  pname = if includeAppStateEngine then "nix-me-macos" else "nix-me-setup";
   version = "0.1.0";
 
   src = lib.fileset.toSource {
@@ -52,7 +57,7 @@ swiftPackages.stdenv.mkDerivation {
   installPhase = ''
     runHook preInstall
 
-    app="$out/Applications/Nix Me.app"
+    app="$out/Applications/${if includeAppStateEngine then "Nix Me" else "Nix Me Setup"}.app"
     contents="$app/Contents"
     package="apps/macos/NixMeApp"
     binary="$(swift build \
@@ -93,20 +98,29 @@ swiftPackages.stdenv.mkDerivation {
       packages/management-api/bin/nix-me-action \
       packages/management-api/bin/nix-me-details \
       "$contents/Resources/management-api/"
-    install -m 0755 \
-      ${nixMeApps}/bin/nix-me-apps \
-      "$contents/Resources/management-api/nix-me-apps"
+    ${lib.optionalString includeAppStateEngine ''
+      install -m 0755 \
+        ${nixMeApps}/bin/nix-me-apps \
+        "$contents/Resources/management-api/nix-me-apps"
+    ''}
 
     /usr/libexec/PlistBuddy -c "Delete :SUEnableAutomaticChecks" "$contents/Info.plist" || true
     /usr/libexec/PlistBuddy -c "Delete :SUFeedURL" "$contents/Info.plist" || true
     /usr/libexec/PlistBuddy -c "Delete :SUPublicEDKey" "$contents/Info.plist" || true
+    ${lib.optionalString (!includeAppStateEngine) ''
+      /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Nix Me Setup" "$contents/Info.plist"
+      /usr/libexec/PlistBuddy -c "Set :CFBundleName Nix Me Setup" "$contents/Info.plist"
+      /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.nix-me.setup" "$contents/Info.plist"
+      /usr/libexec/PlistBuddy -c "Add :NixMeSetupOnly bool true" "$contents/Info.plist"
+    ''}
+    /usr/libexec/PlistBuddy -c "Add :NixMeRuntimePath string '${lib.makeBinPath [ git jq nix gnumake ]}'" "$contents/Info.plist"
     /usr/bin/plutil -lint "$contents/Info.plist" >/dev/null
 
     runHook postInstall
   '';
 
   postFixup = ''
-    app="$out/Applications/Nix Me.app"
+    app="$out/Applications/${if includeAppStateEngine then "Nix Me" else "Nix Me Setup"}.app"
     /usr/bin/codesign --force --sign - --timestamp=none "$app"
     /usr/bin/codesign --verify --deep --strict --verbose=2 "$app"
   '';

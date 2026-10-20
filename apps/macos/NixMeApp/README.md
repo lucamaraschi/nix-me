@@ -24,6 +24,20 @@ integrations remain available as expanded diagnostics without competing with
 the action that unblocks the app. Once the configuration is ready, onboarding
 disappears from the sidebar.
 
+## First installation
+
+Interactive `install.sh` runs only the prerequisite bootstrap in Terminal and
+then launches a lightweight, locally built variant of this app with
+`--first-install`. The native flow detects the Mac, loads an existing machine
+definition or creates a validated new one, presents composable profiles, shows
+the complete plan, and drives build, administrator-approved activation, and
+verification without modal error alerts. The lightweight setup package omits
+the app-state engine to reduce first-build work; the activated system installs
+the complete managed app when `apps.manager.enable` is enabled.
+
+Use `USE_NATIVE_INSTALLER=0 ./install.sh` to exercise the terminal-only
+fallback used by automation and recovery.
+
 The app displays desired and applied state, Git synchronization, managed
 software, updates, and configured projects using `nix-me api snapshot`.
 Available updates can be applied individually, as a selection, or as one batch.

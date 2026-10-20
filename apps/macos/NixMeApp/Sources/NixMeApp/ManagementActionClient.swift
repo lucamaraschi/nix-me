@@ -446,7 +446,7 @@ struct ManagementActionClient {
                     process.currentDirectoryURL = configurationDirectory
                     process.standardOutput = output
                     process.standardError = errorHandle
-                    var environment = ProcessInfo.processInfo.environment
+                    var environment = RuntimeEnvironment.process
                     environment["HOSTNAME"] = hostname
                     environment["USERNAME"] = username
                     environment["MACHINE_NAME"] = machineName
@@ -764,7 +764,7 @@ struct ManagementActionClient {
                 process.standardOutput = output
                 process.standardError = errors
 
-                var environment = ProcessInfo.processInfo.environment
+                var environment = RuntimeEnvironment.process
                 environment["NIX_ME_CONFIG_DIR"] = configurationDirectory.path
                 if let engine = ManagementBackend.bundledExecutable(named: "nix-me-apps") {
                     environment["NIX_ME_APP_STATE_ENGINE"] = engine.path
@@ -781,7 +781,9 @@ struct ManagementActionClient {
                     errorDrain.enter()
                     DispatchQueue.global(qos: .userInitiated).async {
                         while true {
-                            let data = errors.fileHandleForReading.readData(ofLength: 4096)
+                            // Read whatever is currently available so progress markers are
+                            // delivered immediately instead of waiting for a full buffer or EOF.
+                            let data = errors.fileHandleForReading.availableData
                             guard !data.isEmpty else { break }
                             errorCollector.append(data)
                         }

@@ -65,8 +65,10 @@ cat >"$TEMP_DIR/fake-nix" <<'SH'
 [[ "$HOSTNAME" == "test-host" ]] || exit 66
 [[ "$USERNAME" == "test-user" ]] || exit 67
 [[ "$MACHINE_NAME" == "Test Mac" ]] || exit 68
-[[ "$MACHINE_TYPE" == "test" ]] || exit 69
+[[ "$MACHINE_TYPE" == "vm" ]] || exit 69
 [[ "$NIX_ME_SOURCE_REVISION" == "abc123" ]] || exit 70
+[[ "$SKIP_BREW_ON_VM" == "1" ]] || exit 74
+[[ "$SKIP_MAS_APPS" == "1" ]] || exit 75
 jq -n --arg out "$NIX_ME_TEST_SYSTEM" '[{outputs:{out:$out}}]'
 SH
 cat >"$TEMP_DIR/fake-nix-env" <<'SH'
@@ -87,7 +89,8 @@ NIX_ME_CONFIG_DIR="$APPLY_REPO" \
   NIX_ME_HOSTNAME=test-host \
   NIX_ME_USERNAME=test-user \
   NIX_ME_MACHINE_NAME='Test Mac' \
-  NIX_ME_MACHINE_TYPE=test \
+  NIX_ME_MACHINE_TYPE=vm \
+  SKIP_BREW_ON_VM=1 \
   NIX_ME_SOURCE_REVISION=abc123 \
   NIX_ME_NIX_BIN="$TEMP_DIR/fake-nix" \
   NIX_ME_NIX_ENV_BIN="$TEMP_DIR/fake-nix-env" \

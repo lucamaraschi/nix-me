@@ -6,6 +6,9 @@ let
   userHome = "/Users/${username}";
   symbolicHotkeysPath = "${userHome}/Library/Preferences/com.apple.symbolichotkeys.plist";
   launchAgentPath = "${userHome}/Library/LaunchAgents/com.raycast.launcher.plist";
+  caskName = cask: if builtins.isString cask then cask else cask.name;
+  raycastEnabled = config.homebrew.enable
+    && lib.any (cask: caskName cask == "raycast") config.homebrew.casks;
 
   # LaunchAgent to start Raycast at login
   raycastLaunchAgent = ''
@@ -30,10 +33,11 @@ let
   '';
 in
 {
+  config = lib.mkIf raycastEnabled {
   # Disable Spotlight keyboard shortcuts to free up Cmd+Space for Raycast
   # Key 64 = Show Spotlight search (Cmd+Space)
   # Key 65 = Show Spotlight window (Cmd+Option+Space)
-  system.activationScripts.extraActivation.text = lib.mkAfter ''
+    system.activationScripts.extraActivation.text = lib.mkAfter ''
     echo "Configuring Raycast as default launcher..." >&2
 
     # Disable Spotlight keyboard shortcuts (run as user, not root!)
@@ -144,5 +148,6 @@ PLIST
     echo "│                                                                  │" >&2
     echo "│  LaunchAgent installed: Raycast will start at login             │" >&2
     echo "└──────────────────────────────────────────────────────────────────┘" >&2
-  '';
+    '';
+  };
 }

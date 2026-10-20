@@ -190,7 +190,10 @@ struct ConfigurationBootstrap {
 
         let searchDirectories =
             commandSearchDirectories
-            ?? executableSearchDirectories(environment: environment, homeDirectory: homeDirectory)
+            ?? executableSearchDirectories(
+                environment: RuntimeEnvironment.process(merging: environment),
+                homeDirectory: homeDirectory
+            )
         let dependencies = dependencyDefinitions.map { definition in
             CommandDependency(
                 command: definition.command,
@@ -231,7 +234,7 @@ struct ConfigurationBootstrap {
             let git = executableURL(
                 for: "git",
                 searchDirectories: executableSearchDirectories(
-                    environment: ProcessInfo.processInfo.environment,
+                    environment: RuntimeEnvironment.process,
                     homeDirectory: fileManager.homeDirectoryForCurrentUser
                 ),
                 fileManager: fileManager
@@ -285,7 +288,7 @@ struct ConfigurationBootstrap {
             let git = gitURL ?? executableURL(
                 for: "git",
                 searchDirectories: executableSearchDirectories(
-                    environment: ProcessInfo.processInfo.environment,
+                    environment: RuntimeEnvironment.process,
                     homeDirectory: fileManager.homeDirectoryForCurrentUser
                 ),
                 fileManager: fileManager
