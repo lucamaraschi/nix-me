@@ -4,7 +4,7 @@ This document is the source of truth for repository-wide work that spans more
 than one application or package. Update the status and decision notes in the
 same pull request as the related change.
 
-Last updated: 2026-10-13
+Last updated: 2026-10-19
 
 ## Current status
 
@@ -169,6 +169,25 @@ Status: in progress
 | BETA-005 | Partial | Run the install and first-launch path on a disposable macOS host and record the result. Installation, activation, repeat apply, API refresh, app signing, and process launch passed; visual first-launch validation remains blocked by unavailable clone login credentials. See `docs/beta/BETA-005-2026-10-12.md`. |
 | BETA-006 | Parked | Configure protected signing and notarization secrets for distributable macOS beta artifacts. The repository-side protection is complete; an Apple account holder must supply the Developer ID and App Store Connect credentials and run the documented release trial. See `docs/beta/BETA-006-2026-10-13.md` for the full handoff. |
 
+### 7. Native first installation
+
+Status: in progress
+
+- [x] Preserve the terminal installer as a prerequisite bootstrap and move
+  machine choices into the macOS app.
+- [x] Add a lightweight locally built setup app that does not require
+  notarization or compile the app-state engine.
+- [x] Add validated, idempotent machine generation for the native flow.
+- [x] Show machine discovery, profile selection, review, staged progress,
+  inline diagnostics, retry, and verified completion in one window.
+- [ ] Run the complete path twice in a disposable macOS VM and record timings
+  and screenshots in a beta evidence note.
+- [ ] Replace elapsed build messaging with structured Nix progress events after
+  validating which event stream remains stable across supported Nix versions.
+
+The detailed boundary, compatibility path, and verification commands live in
+`docs/FIRST_INSTALL.md`.
+
 ## Decision log
 
 - 2026-10-04: Adopt an explicit monorepo structure rather than splitting the
@@ -184,3 +203,6 @@ Status: in progress
   Dependency updates may be automated as reviewed pull requests, while Nix
   input updates, host switching, and T3 signing remain gated until isolated
   infrastructure and explicit trust boundaries are in place.
+- 2026-10-19: Keep only unavoidable prerequisites in the terminal bootstrap;
+  use a locally built native app for first-install decisions, progress, and
+  recovery. Preserve the terminal-only path for automation and repair.

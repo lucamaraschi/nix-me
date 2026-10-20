@@ -4,7 +4,9 @@ on:
   pull_request:
     paths:
       - "apps/cli/**"
+      - "install.sh"
       - "packages/management-api/**"
+      - "tools/installation/**"
       - "tools/local-ai/**"
       - "nix/hosts/profiles/local-ai.nix"
       - "nix/projects/local-ai.nix"
@@ -15,7 +17,9 @@ on:
     branches: [main]
     paths:
       - "apps/cli/**"
+      - "install.sh"
       - "packages/management-api/**"
+      - "tools/installation/**"
       - "tools/local-ai/**"
       - "nix/hosts/profiles/local-ai.nix"
       - "nix/projects/local-ai.nix"

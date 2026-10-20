@@ -17,9 +17,14 @@ generate_machine_config_multi_profile() {
     local profiles=("$@")  # Remaining args are profiles
     local app_state_enable="${WIZARD_APP_STATE_ENABLE:-}"
     local app_state_config="  # apps.state.enable inherits its module/profile default."
+    local manager_enable="${WIZARD_MANAGER_ENABLE:-}"
+    local manager_config="  # apps.manager.enable inherits its module default."
 
     case "$app_state_enable" in
         true|false) app_state_config="  apps.state.enable = $app_state_enable;" ;;
+    esac
+    case "$manager_enable" in
+        true|false) manager_config="  apps.manager.enable = $manager_enable;" ;;
     esac
 
     print_info "Generating configuration for $hostname"
@@ -64,6 +69,7 @@ generate_machine_config_multi_profile() {
   # Declarative application preferences are opt-in. The setup wizard records
   # this explicitly so existing machines retain their prior activation behavior.
 $app_state_config
+$manager_config
 
   # Add any machine-specific overrides here:
   # apps = {

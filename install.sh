@@ -12,6 +12,7 @@
 #   XCODE_INSTALL_TIMEOUT_SECONDS=1800
 #                            Maximum interactive wait for Command Line Tools
 #   USE_WIZARD=1             Enable interactive wizard (default)
+#   USE_NATIVE_INSTALLER=1   Continue interactive setup in the macOS app (default)
 
 set -e
 
@@ -175,25 +176,65 @@ safe_git_update() {
 
     cd "$repo_dir"
 
-    # Fetch latest changes
+    # Fetch latest changes without rewriting local work.
     git fetch origin || {
         error "Failed to fetch from remote repository"
         return 1
     }
 
-    # Check if we have local changes
-    if ! git diff --quiet HEAD; then
-        warn "Local changes detected in repository"
-        log "Stashing local changes..."
-        git stash push -m "install.sh auto-stash $(date)" || true
+    local current_branch
+    current_branch=$(git branch --show-current)
+    if [ -z "$current_branch" ]; then
+        git checkout "$repo_branch" 2>/dev/null || git checkout -b "$repo_branch" "origin/$repo_branch"
+        current_branch="$repo_branch"
     fi
 
-    # Force reset to remote state
-    log "Resetting to remote state..."
-    git checkout "$repo_branch" 2>/dev/null || git checkout -b "$repo_branch" origin/"$repo_branch"
-    git reset --hard origin/"$repo_branch"
+    if [ "$current_branch" != "$repo_branch" ]; then
+        warn "Configuration is on branch $current_branch; leaving it unchanged"
+        return 0
+    fi
+
+    log "Rebasing local work onto origin/$repo_branch..."
+    git pull --rebase --autostash origin "$repo_branch" || {
+        error "Could not update without rewriting local work"
+        error "Resolve the Git state in $repo_dir, then run the installer again"
+        return 1
+    }
 
     log "Repository successfully updated to latest remote state"
+}
+
+launch_native_installer() {
+    local repo_dir="$1"
+    local setup_output setup_app setup_log
+
+    print_header "Continue in Nix Me"
+    print_info "Building a lightweight local setup app. This does not require notarization."
+    setup_log=$(mktemp "${TMPDIR:-/tmp}/nix-me-setup.XXXXXX")
+    setup_output=$(nix --extra-experimental-features "nix-command flakes" \
+        build --no-link --print-out-paths "path:$repo_dir#nix-me-setup" 2>"$setup_log") || {
+        error "Could not build the Nix Me setup app"
+        tail -80 "$setup_log" >&2 || true
+        rm -f "$setup_log"
+        return 1
+    }
+    rm -f "$setup_log"
+    setup_app="$setup_output/Applications/Nix Me Setup.app"
+    if [ ! -d "$setup_app" ]; then
+        error "The setup app was not found at $setup_app"
+        return 1
+    fi
+
+    defaults write com.nix-me.manager NixMeConfigurationDirectory "$repo_dir"
+    if ! open "$setup_app" --args --first-install; then
+        error "macOS could not open Nix Me Setup"
+        return 1
+    fi
+
+    echo ""
+    print_success "Nix Me is open"
+    print_info "Choose the profiles for this Mac, review the plan, and apply it from the app."
+    print_info "You can close this terminal window."
 }
 
 # Function to ensure Homebrew is properly installed and in PATH
@@ -533,12 +574,24 @@ main() {
     SKIP_XCODE_CLT=${SKIP_XCODE_CLT:-0}
     SKIP_MAS_APPS=${SKIP_MAS_APPS:-0}
     USE_WIZARD=${USE_WIZARD:-1}
+    USE_NATIVE_INSTALLER=${USE_NATIVE_INSTALLER:-1}
 
     REPO_URL=${REPO_URL:-"https://github.com/lucamaraschi/nix-me.git"}
     REPO_BRANCH=${REPO_BRANCH:-"main"}
     REPO_DIR=${HOME}/.config/nixpkgs
+    NATIVE_INSTALL_FLOW=0
+    if [ $# -eq 0 ] && [ "$NON_INTERACTIVE" != "1" ] && [ "$USE_NATIVE_INSTALLER" = "1" ]; then
+        NATIVE_INSTALL_FLOW=1
+    fi
+    STEP_TOTAL=7
+    [ "$NATIVE_INSTALL_FLOW" = "1" ] && STEP_TOTAL=5
 
     print_header "nix-me Installation"
+    if [ "$NATIVE_INSTALL_FLOW" = "1" ]; then
+        print_info "This terminal prepares the trusted system tools only."
+        print_info "Machine choices, build progress, and recovery continue in the Nix Me app."
+        echo ""
+    fi
 
     # Verify macOS
     if [[ "$OSTYPE" != "darwin"* ]]; then
@@ -551,7 +604,7 @@ main() {
     log "Detected environment: ${VM_TYPE}"
 
     # STEP 1: Request sudo privileges (keep alive throughout)
-    print_step "1/7" "Requesting Administrator Privileges"
+    print_step "1/$STEP_TOTAL" "Requesting Administrator Privileges"
     if sudo -n true 2>/dev/null; then
         log "Passwordless sudo is configured"
     else
@@ -566,7 +619,7 @@ main() {
     echo ""
 
     # STEP 2: Install Xcode CLI tools (needed for git)
-    print_step "2/7" "Installing Xcode Command Line Tools"
+    print_step "2/$STEP_TOTAL" "Installing Xcode Command Line Tools"
     ensure_xcode_command_line_tools || exit 1
     print_success "Xcode Command Line Tools ready"
 
@@ -581,7 +634,7 @@ main() {
     echo ""
 
     # STEP 3: Clone/update repository so wizard can see existing hosts
-    print_step "3/7" "Setting up Configuration Repository"
+    print_step "3/$STEP_TOTAL" "Setting up Configuration Repository"
     if [ "${SKIP_REPO_CLONE:-0}" = "1" ]; then
         log "Skipping git clone/update (SKIP_REPO_CLONE=1)"
         if [ ! -d "$REPO_DIR" ]; then
@@ -610,8 +663,17 @@ main() {
     echo ""
 
     # STEP 4: Run wizard (now that repo is available with existing hosts)
-    print_step "4/7" "Configuration Wizard"
-    if [ $# -eq 0 ] && [ "$NON_INTERACTIVE" != "1" ] && [ "$USE_WIZARD" == "1" ]; then
+    if [ "$NATIVE_INSTALL_FLOW" != "1" ]; then
+        print_step "4/7" "Configuration Wizard"
+    fi
+    if [ "$NATIVE_INSTALL_FLOW" = "1" ]; then
+        HOST_NAME=$(hostname -s | tr '[:upper:]' '[:lower:]')
+        MACHINE_TYPE=""
+        MACHINE_NAME="$HOST_NAME"
+        NIXOS_USERNAME=$(whoami)
+        CONFIG_PROFILE="native"
+        print_info "The native setup assistant will configure this Mac after prerequisites are ready"
+    elif [ $# -eq 0 ] && [ "$NON_INTERACTIVE" != "1" ] && [ "$USE_WIZARD" == "1" ]; then
         # Use full wizard if available (it can see existing hosts now)
         if [ -f "$REPO_DIR/apps/cli/lib/wizard.sh" ] && [ -f "$REPO_DIR/apps/cli/lib/ui.sh" ]; then
             source "$REPO_DIR/apps/cli/lib/ui.sh"
@@ -670,28 +732,35 @@ main() {
     # Set HOST environment variable
     export HOST="$HOST_NAME"
 
-    # Display configuration
-    print_header "Installation Configuration"
-    echo ""
-    echo "  Hostname:       $HOST_NAME"
-    echo "  Machine Type:   $MACHINE_TYPE"
-    echo "  Machine Name:   $MACHINE_NAME"
-    echo "  Username:       $NIXOS_USERNAME"
-    echo "  Profile:        $CONFIG_PROFILE"
-    echo "  Environment:    $VM_TYPE"
-    echo "  Repository:     $REPO_URL"
-    echo "  Branch:         $REPO_BRANCH"
-    echo ""
+    if [ "$NATIVE_INSTALL_FLOW" != "1" ]; then
+        # Display configuration for CLI-driven installs. The native flow owns
+        # this review when it is active.
+        print_header "Installation Configuration"
+        echo ""
+        echo "  Hostname:       $HOST_NAME"
+        echo "  Machine Type:   $MACHINE_TYPE"
+        echo "  Machine Name:   $MACHINE_NAME"
+        echo "  Username:       $NIXOS_USERNAME"
+        echo "  Profile:        $CONFIG_PROFILE"
+        echo "  Environment:    $VM_TYPE"
+        echo "  Repository:     $REPO_URL"
+        echo "  Branch:         $REPO_BRANCH"
+        echo ""
 
-    if [ "$NON_INTERACTIVE" != "1" ] && [ $# -gt 0 ]; then
-        if ! ask_yes_no "Continue with installation?"; then
-            error "Installation cancelled"
-            exit 1
+        if [ "$NON_INTERACTIVE" != "1" ] && [ $# -gt 0 ]; then
+            if ! ask_yes_no "Continue with installation?"; then
+                error "Installation cancelled"
+                exit 1
+            fi
         fi
     fi
 
     # STEP 5: Ensure Homebrew
-    print_step "5/7" "Setting up Homebrew"
+    if [ "$NATIVE_INSTALL_FLOW" = "1" ]; then
+        print_step "4/$STEP_TOTAL" "Setting up Homebrew"
+    else
+        print_step "5/$STEP_TOTAL" "Setting up Homebrew"
+    fi
     ensure_homebrew || {
         error "Failed to set up Homebrew"
         exit 1
@@ -700,7 +769,11 @@ main() {
     echo ""
 
     # STEP 6: Install or fix Nix
-    print_step "6/7" "Installing Nix Package Manager"
+    if [ "$NATIVE_INSTALL_FLOW" = "1" ]; then
+        print_step "5/$STEP_TOTAL" "Installing Nix Package Manager"
+    else
+        print_step "6/$STEP_TOTAL" "Installing Nix Package Manager"
+    fi
     install_or_fix_nix || {
         error "Failed to install or fix Nix"
         exit 1
@@ -709,8 +782,13 @@ main() {
     print_success "Nix installed and configured"
     echo ""
 
+    if [ "$NATIVE_INSTALL_FLOW" = "1" ]; then
+        launch_native_installer "$REPO_DIR" || exit 1
+        exit 0
+    fi
+
     # STEP 7: Generate machine configuration and build
-    print_step "7/7" "Building and Activating System"
+    print_step "7/$STEP_TOTAL" "Building and Activating System"
     cd "$REPO_DIR"
 
     # Generate config only if creating new (not selecting existing host)

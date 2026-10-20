@@ -190,10 +190,11 @@ test-details:
 
 test-cli:
 	@bash -n install.sh
-	@for script in apps/cli/bin/nix-me apps/cli/lib/*.sh packages/management-api/bin/* tools/local-ai/*.sh; do \
+	@for script in apps/cli/bin/nix-me apps/cli/lib/*.sh packages/management-api/bin/* tools/installation/*.sh tools/local-ai/*.sh; do \
 		bash -n "$$script" || exit; \
 	done
 	@./tests/integration/test-install-prerequisites.sh
+	@./tests/integration/test-create-machine.sh
 	@$(MAKE) test-local-ai
 	@./apps/cli/tests/test-harness-status.sh
 	@$(MAKE) test-api test-actions test-details

@@ -105,8 +105,9 @@
               ];
             }
 
-            # VM mode - skip Mac App Store apps (iCloud doesn't work in VMs)
-            (if skipMasApps then ./nix/modules/darwin/vm-mode.nix else { })
+            # VM constraints are part of the host model so builds and later
+            # read-only evaluations produce the same manifest.
+            (if machineType == "vm" || skipMasApps then ./nix/modules/darwin/vm-mode.nix else { })
 
             # Minimal disposable VMs can validate Nix without bootstrapping Homebrew.
             (if skipHomebrew then { lib, ... }: {
@@ -156,6 +157,9 @@
           } // nixpkgs.lib.optionalAttrs pkgs.stdenv.isDarwin {
             nix-me-macos = unstablePkgs.callPackage ./nix/packages/nix-me-macos.nix {
               nixMeApps = self.packages.${system}.nix-me-apps;
+            };
+            nix-me-setup = unstablePkgs.callPackage ./nix/packages/nix-me-macos.nix {
+              includeAppStateEngine = false;
             };
           });
 

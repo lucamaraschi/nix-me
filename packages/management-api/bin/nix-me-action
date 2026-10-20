@@ -301,12 +301,20 @@ run_harness_enable() {
 run_apply() {
   local host_name current_user machine_name machine_type source_revision flake_ref
   local nix_path nix_env_path administrator_runner build_output build_log activation_log
-  local system_path rebuild_path message succeeded allow_non_store
+  local system_path rebuild_path message succeeded allow_non_store skip_homebrew skip_mas_apps
   host_name="${NIX_ME_HOSTNAME:-$(hostname -s | tr '[:upper:]' '[:lower:]')}"
   current_user="${NIX_ME_USERNAME:-${USER:-$(id -un)}}"
   machine_name="${NIX_ME_MACHINE_NAME:-$host_name}"
   machine_type="${NIX_ME_MACHINE_TYPE:-}"
   source_revision="${NIX_ME_SOURCE_REVISION:-}"
+  skip_homebrew="${SKIP_BREW_ON_VM:-0}"
+  skip_mas_apps="${SKIP_MAS_APPS:-0}"
+  if [[ "$machine_type" == "vm" ]]; then
+    skip_mas_apps=1
+    if ! command -v brew >/dev/null 2>&1; then
+      skip_homebrew=1
+    fi
+  fi
   emit_apply_progress "preparing" "Checking the host, configuration, and required tools"
   if [[ -z "$source_revision" ]] && command -v git >/dev/null 2>&1 &&
     source_revision="$(git -C "$CONFIG_DIR" rev-parse --verify HEAD 2>/dev/null)"; then
@@ -355,6 +363,8 @@ run_apply() {
     MACHINE_NAME="$machine_name" \
     MACHINE_TYPE="$machine_type" \
     NIX_ME_SOURCE_REVISION="$source_revision" \
+    SKIP_BREW_ON_VM="$skip_homebrew" \
+    SKIP_MAS_APPS="$skip_mas_apps" \
     "$nix_path" --extra-experimental-features "nix-command flakes" \
       build --json --no-link --impure "$flake_ref" >"$build_output" 2>"$build_log"; then
     message="$(tail -80 "$build_log" 2>/dev/null || true)"
