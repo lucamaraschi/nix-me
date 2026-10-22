@@ -61,6 +61,22 @@ struct ManagementSnapshot: Codable {
             + inventory.installed.homebrew.casks.count
     }
 
+    var managedSoftwareCount: Int {
+        softwareItems.count(where: \.isDesired)
+    }
+
+    var installedSoftwareCount: Int {
+        softwareItems.count(where: \.isInstalled)
+    }
+
+    var unmanagedSoftwareCount: Int {
+        softwareItems.count { !$0.isDesired && $0.isInstalled }
+    }
+
+    var missingSoftwareCount: Int {
+        softwareItems.count { $0.isDesired && !$0.isInstalled }
+    }
+
     var projectAttentionCount: Int {
         projects.filter { $0.status != "current" }.count
     }
@@ -485,10 +501,10 @@ enum SoftwareKind: String, Codable, Hashable, CaseIterable {
 
     var label: String {
         switch self {
-        case .nix: "Nix package"
-        case .formula: "Homebrew formula"
-        case .cask: "Homebrew application"
-        case .mas: "Mac App Store application"
+        case .nix: "System package"
+        case .formula: "Command-line tool"
+        case .cask: "Application"
+        case .mas: "App Store application"
         }
     }
 
@@ -515,6 +531,10 @@ struct SoftwareListItem: Identifiable, Hashable {
     let isApplied: Bool
 
     var id: String { "\(kind.rawValue):\(name)" }
+
+    var isInstalled: Bool {
+        isApplied || !installedVersions.isEmpty
+    }
 }
 
 struct PackageDetails: Codable, Hashable {
@@ -530,6 +550,16 @@ struct PackageDetails: Codable, Hashable {
     let publisher: String?
     let dependencies: [String]
     let storeId: Int?
+    let declarationChain: [PackageDeclaration]?
+}
+
+struct PackageDeclaration: Codable, Hashable, Identifiable {
+    let scope: String
+    let label: String
+    let path: String
+    let declaredAs: String?
+
+    var id: String { "\(scope):\(path)" }
 }
 
 enum SoftwareChangeKind: String, CaseIterable, Equatable {
@@ -609,6 +639,37 @@ extension ManagementSnapshot {
         return items
     }
 
+    var softwareItems: [SoftwareListItem] {
+        var merged: [String: SoftwareListItem] = [:]
+
+        for item in desiredSoftwareItems + installedSoftwareItems {
+            guard let existing = merged[item.id] else {
+                merged[item.id] = item
+                continue
+            }
+
+            merged[item.id] = SoftwareListItem(
+                kind: existing.kind,
+                name: existing.name,
+                displayName: existing.displayName,
+                desiredVersion: existing.desiredVersion ?? item.desiredVersion,
+                appliedVersion: existing.appliedVersion ?? item.appliedVersion,
+                installedVersions: Array(Set(existing.installedVersions + item.installedVersions)).sorted(),
+                storeId: existing.storeId ?? item.storeId,
+                embeddedDetails: existing.embeddedDetails ?? item.embeddedDetails,
+                isDesired: existing.isDesired || item.isDesired,
+                isApplied: existing.isApplied || item.isApplied
+            )
+        }
+
+        return merged.values.sorted {
+            if $0.kind == $1.kind {
+                return $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
+            }
+            return $0.kind.rawValue < $1.kind.rawValue
+        }
+    }
+
     private var nixDifferences: [SoftwareDifference] {
         let desired = nixMetadata(inventory.desired)
         let applied = nixMetadata(inventory.applied)
@@ -664,7 +725,8 @@ extension ManagementSnapshot {
                 license: package.license ?? reference?.license,
                 publisher: nil,
                 dependencies: [],
-                storeId: nil
+                storeId: nil,
+                declarationChain: nil
             )
             return SoftwareListItem(
                 kind: .nix,

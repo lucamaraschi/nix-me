@@ -2,6 +2,40 @@ import XCTest
 @testable import NixMeApp
 
 final class ModelsTests: XCTestCase {
+    func testPackageDetailsDecodesConfigurationChain() throws {
+        let data = Data(#"""
+        {
+          "schemaVersion": 1,
+          "kind": "nix",
+          "name": "nodejs-current-bin",
+          "displayName": "nodejs-current-bin",
+          "description": "Node.js",
+          "version": "26.11.1",
+          "installedVersions": [],
+          "homepage": "https://nodejs.org",
+          "license": "MIT",
+          "publisher": null,
+          "dependencies": [],
+          "storeId": null,
+          "declarationChain": [
+            {
+              "scope": "profile",
+              "label": "Profile: dev",
+              "path": "nix/hosts/profiles/dev.nix",
+              "declaredAs": "nodejs_latest"
+            }
+          ]
+        }
+        """#.utf8)
+
+        let details = try JSONDecoder().decode(PackageDetails.self, from: data)
+        let declaration = try XCTUnwrap(details.declarationChain?.first)
+
+        XCTAssertEqual(declaration.scope, "profile")
+        XCTAssertEqual(declaration.path, "nix/hosts/profiles/dev.nix")
+        XCTAssertEqual(declaration.declaredAs, "nodejs_latest")
+    }
+
     func testManagementBackendPrefersBundledExecutableAndFallsBackToCheckout() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -58,6 +92,14 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(snapshot.host.hostname, "bellerofonte")
         XCTAssertEqual(snapshot.desiredSoftwareCount, 5)
         XCTAssertEqual(snapshot.installedHomebrewCount, 3)
+        XCTAssertEqual(snapshot.softwareItems.count, 6)
+        XCTAssertEqual(snapshot.managedSoftwareCount, 5)
+        XCTAssertEqual(snapshot.installedSoftwareCount, 6)
+        XCTAssertEqual(snapshot.unmanagedSoftwareCount, 1)
+        XCTAssertEqual(snapshot.missingSoftwareCount, 0)
+        let rectangle = try XCTUnwrap(snapshot.softwareItems.first { $0.name == "rectangle" })
+        XCTAssertFalse(rectangle.isDesired)
+        XCTAssertTrue(rectangle.isInstalled)
         XCTAssertEqual(snapshot.projectAttentionCount, 1)
         XCTAssertEqual(snapshot.softwareUpdateCount, 3)
         XCTAssertEqual(snapshot.updates.macAppStore.first?.storeId, 497799835)
