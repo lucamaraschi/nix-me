@@ -85,10 +85,6 @@ struct ManagementAPIClient {
     }
 
     func details(for item: SoftwareListItem) async throws -> PackageDetails {
-        if let embeddedDetails = item.embeddedDetails {
-            return embeddedDetails
-        }
-
         let executable = ManagementBackend.executable(
             named: "nix-me-details",
             configurationDirectory: configurationDirectory
@@ -97,11 +93,16 @@ struct ManagementAPIClient {
         if let storeId = item.storeId {
             arguments.append(String(storeId))
         }
-        let data = try await run(executable: executable, arguments: arguments)
-
         do {
+            let data = try await run(executable: executable, arguments: arguments)
             return try JSONDecoder().decode(PackageDetails.self, from: data)
         } catch {
+            if let embeddedDetails = item.embeddedDetails {
+                return embeddedDetails
+            }
+            if error is ManagementAPIError {
+                throw error
+            }
             throw ManagementAPIError.invalidResponse(error.localizedDescription)
         }
     }

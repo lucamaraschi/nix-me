@@ -11,7 +11,17 @@ cat >"$TEMP_DIR/manifest.json" <<'JSON'
 {"software":{"nixPackageDetails":[{"name":"ripgrep","fullName":"ripgrep-14.1.1","version":"14.1.1","description":"A fast search tool","homepage":"https://github.com/BurntSushi/ripgrep","license":"Unlicense"}]}}
 JSON
 
+cat >"$TEMP_DIR/declarations.json" <<'JSON'
+{
+  "nix:ripgrep": [
+    {"scope":"base","label":"Base software","path":"nix/modules/darwin/apps/installations.nix","declaredAs":"ripgrep"},
+    {"scope":"profile","label":"Profile: dev","path":"nix/hosts/profiles/dev.nix","declaredAs":"ripgrep"}
+  ]
+}
+JSON
+
 NIX_ME_DETAILS_MANIFEST="$TEMP_DIR/manifest.json" \
+  NIX_ME_DETAILS_DECLARATIONS="$TEMP_DIR/declarations.json" \
   "$REPO_DIR/apps/cli/bin/nix-me" details nix ripgrep >"$TEMP_DIR/details.json"
 
 jq -e '
@@ -19,7 +29,10 @@ jq -e '
   .kind == "nix" and
   .name == "ripgrep" and
   .version == "14.1.1" and
-  (.description | type == "string")
+  (.description | type == "string") and
+  (.declarationChain | length == 2) and
+  .declarationChain[0].scope == "base" and
+  .declarationChain[1].path == "nix/hosts/profiles/dev.nix"
 ' "$TEMP_DIR/details.json" >/dev/null
 
 if "$REPO_DIR/apps/cli/bin/nix-me" details invalid package >"$TEMP_DIR/invalid.json"; then

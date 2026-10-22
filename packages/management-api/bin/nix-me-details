@@ -18,6 +18,217 @@ error_json() {
     '{schemaVersion: 1, error: {code: $code, message: $message}}'
 }
 
+configuration_flake_ref() {
+  if git -C "$CONFIG_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    printf 'git+file://%s\n' "$CONFIG_DIR"
+  else
+    printf 'path:%s\n' "$CONFIG_DIR"
+  fi
+}
+
+declaration_chain() {
+  local base_option additions_option direct_option base_expression additions_expression
+  local direct_expression flake_ref nix_expression definitions
+  local fixture_key
+
+  fixture_key="$KIND:$NAME"
+  if [[ -n "${NIX_ME_DETAILS_DECLARATIONS:-}" ]]; then
+    jq -c --arg key "$fixture_key" '
+      if type == "array" then .
+      elif type == "object" then (.[$key] // [])
+      else []
+      end
+    ' "$NIX_ME_DETAILS_DECLARATIONS"
+    return
+  fi
+
+  command -v nix >/dev/null 2>&1 || {
+    printf '[]\n'
+    return
+  }
+
+  case "$KIND" in
+    nix)
+      base_option="apps.baseSystemPackages"
+      additions_option="apps.systemPackagesToAdd"
+      direct_option="environment.systemPackages"
+      ;;
+    formula)
+      base_option="apps.baseBrews"
+      additions_option="apps.brewsToAdd"
+      direct_option="homebrew.brews"
+      ;;
+    cask)
+      base_option="apps.baseCasks"
+      additions_option="apps.casksToAdd"
+      direct_option="homebrew.casks"
+      ;;
+    mas)
+      base_option="apps.baseMasApps"
+      additions_option="apps.masAppsToAdd"
+      direct_option="homebrew.masApps"
+      ;;
+    *)
+      printf '[]\n'
+      return
+      ;;
+  esac
+
+  flake_ref="$(configuration_flake_ref)"
+  base_expression="options.${base_option}.definitionsWithLocations"
+  additions_expression="options.${additions_option}.definitionsWithLocations"
+  direct_expression="options.${direct_option}.definitionsWithLocations"
+  if [[ "$KIND" == "nix" ]]; then
+    base_expression="resolveDefinitions ${base_expression}"
+    additions_expression="resolveDefinitions ${additions_expression}"
+  fi
+
+  nix_expression="$(cat <<EOF
+let
+  flake = builtins.getFlake (builtins.getEnv "NIX_ME_DETAILS_FLAKE");
+  host = builtins.getEnv "NIX_ME_DETAILS_HOST";
+  configuration = builtins.getAttr host flake.darwinConfigurations;
+  options = configuration.options;
+  pkgs = configuration.pkgs;
+  resolvePackage = name:
+    let
+      legacyPath = pkgs.lib.splitString "." name;
+      topLevelName =
+        if pkgs.lib.hasPrefix "nodePackages." name
+        then pkgs.lib.removePrefix "nodePackages." name
+        else name;
+      topLevelPackage = pkgs.lib.attrByPath [ topLevelName ] null pkgs;
+      legacyPackage = pkgs.lib.attrByPath legacyPath null pkgs;
+    in
+    if topLevelPackage != null then topLevelPackage
+    else if legacyPackage != null then legacyPackage
+    else throw "Unknown package '\${name}'";
+  resolveDefinitions = definitions:
+    map
+      (definition: definition // {
+        value = map
+          (declaredName:
+            let package = resolvePackage declaredName;
+            in {
+              inherit declaredName;
+              resolvedName = package.pname or (builtins.parseDrvName package.name).name;
+            })
+          definition.value;
+      })
+      definitions;
+in {
+  base = ${base_expression};
+  additions = ${additions_expression};
+  direct = ${direct_expression};
+}
+EOF
+)"
+
+  if ! definitions="$(
+    NIX_ME_DETAILS_FLAKE="$flake_ref" \
+      NIX_ME_DETAILS_HOST="$HOST_NAME" \
+      nix eval --impure --option warn-dirty false --json --expr "$nix_expression" 2>/dev/null
+  )"; then
+    printf '[]\n'
+    return
+  fi
+
+  jq -c \
+    --arg kind "$KIND" \
+    --arg name "$NAME" \
+    --arg config "$CONFIG_DIR" '
+      def normalized_path($file):
+        ($file
+          | if test("^/nix/store/[^/]+-source/") then sub("^/nix/store/[^/]+-source/"; "")
+            elif startswith($config + "/") then .[($config | length) + 1:]
+            else .
+            end)
+        | if test("^nix/hosts/(machines|types)/[^/]+$") then . + "/default.nix" else . end;
+
+      def package_name:
+        tostring
+        | split("/")[-1]
+        | sub("^[a-z0-9]{32}-"; "");
+
+      def value_matches:
+        if type == "string" then
+          (. == $name or ((package_name) == $name) or ((package_name) | startswith($name + "-")))
+        elif type == "object" then
+          ((.resolvedName? // "") == $name or
+           (.declaredName? // "") == $name or
+           (.name? // "") == $name)
+        else false
+        end;
+
+      def definition_matches:
+        if $kind == "mas" then
+          ((.value | type) == "object" and (.value | has($name)))
+        else
+          any(.value[]?; value_matches)
+        end;
+
+      def declared_as:
+        if $kind != "nix" then null
+        else
+          first(
+            .value[]?
+            | select(value_matches)
+            | if type == "object" then (.declaredName // null) else null end
+          ) // null
+        end;
+
+      def source($scope; $label):
+        normalized_path(.file) as $path
+        | {
+            scope: $scope,
+            label: $label,
+            path: $path,
+            declaredAs: declared_as
+          };
+
+      def classified_source:
+        normalized_path(.file) as $path
+        | if ($path | test("^nix/hosts/profiles/[^/]+\\.nix$")) then
+            ($path | capture("^nix/hosts/profiles/(?<name>[^/]+)\\.nix$").name) as $sourceName
+            | source("profile"; "Profile: " + $sourceName)
+          elif ($path | test("^nix/hosts/types/[^/]+/default\\.nix$")) then
+            ($path | capture("^nix/hosts/types/(?<name>[^/]+)/default\\.nix$").name) as $sourceName
+            | source("machineType"; "Machine type: " + $sourceName)
+          elif ($path | test("^nix/hosts/machines/[^/]+/default\\.nix$")) then
+            ($path | capture("^nix/hosts/machines/(?<name>[^/]+)/default\\.nix$").name) as $sourceName
+            | source("machine"; "Machine: " + $sourceName)
+          elif ($path | test("^nix/modules/.+\\.nix$")) then
+            ($path | split("/")[-1] | sub("\\.nix$"; "")) as $sourceName
+            | source("module"; "Module: " + $sourceName)
+          else
+            source("configuration"; "Configuration")
+          end;
+
+      any(.direct[]?; definition_matches) as $managed
+      | if $managed | not then []
+        else
+          ([.base[]? | select(definition_matches) | source("base"; "Base software")] +
+           [.additions[]? | select(definition_matches) | classified_source] +
+           [.direct[]?
+             | select(definition_matches)
+             | select(normalized_path(.file) != "nix/modules/darwin/apps/installations.nix")
+             | select(normalized_path(.file) | startswith("nix/"))
+             | classified_source])
+          | unique_by(.scope + "\u0000" + .path)
+          | sort_by(
+              (if .scope == "base" then 0
+               elif .scope == "module" then 1
+               elif .scope == "machineType" then 2
+               elif .scope == "profile" then 3
+               elif .scope == "machine" then 4
+               else 5
+               end),
+              .path
+            )
+        end
+    ' <<<"$definitions"
+}
+
 if ! command -v jq >/dev/null 2>&1; then
   printf '{"schemaVersion":1,"error":{"code":"missing_dependency","message":"jq is required"}}\n'
   exit 69
@@ -38,13 +249,13 @@ case "$KIND" in
     if [[ -n "${NIX_ME_DETAILS_MANIFEST:-}" ]]; then
       manifest="$(cat "$NIX_ME_DETAILS_MANIFEST")"
     else
-      manifest="$(nix eval --json "path:$CONFIG_DIR#darwinConfigurations.$HOST_NAME.config.nixMe.manifest")"
+      manifest="$(nix eval --option warn-dirty false --json "$(configuration_flake_ref)#darwinConfigurations.$HOST_NAME.config.nixMe.manifest")"
     fi
     if ! jq -e --arg name "$NAME" '.software.nixPackageDetails[]? | select(.name == $name or .fullName == $name)' >/dev/null <<<"$manifest"; then
       error_json "not_found" "No Nix package metadata was found for $NAME"
       exit 66
     fi
-    jq --arg name "$NAME" '
+    details="$(jq --arg name "$NAME" '
       .software.nixPackageDetails
       | map(select(.name == $name or .fullName == $name))[0]
       | {
@@ -60,11 +271,11 @@ case "$KIND" in
           publisher: null,
           dependencies: []
         }
-    ' <<<"$manifest"
+    ' <<<"$manifest")"
     ;;
   formula)
     metadata="$(brew info --json=v2 --formula "$NAME")"
-    jq '
+    details="$(jq '
       .formulae[0]
       | {
           schemaVersion: 1,
@@ -79,11 +290,11 @@ case "$KIND" in
           publisher: null,
           dependencies: (.dependencies // [])
         }
-    ' <<<"$metadata"
+    ' <<<"$metadata")"
     ;;
   cask)
     metadata="$(brew info --json=v2 --cask "$NAME")"
-    jq '
+    details="$(jq '
       .casks[0]
       | {
           schemaVersion: 1,
@@ -98,7 +309,7 @@ case "$KIND" in
           publisher: null,
           dependencies: []
         }
-    ' <<<"$metadata"
+    ' <<<"$metadata")"
     ;;
   mas)
     if [[ ! "$STORE_ID" =~ ^[0-9]+$ ]]; then
@@ -110,7 +321,7 @@ case "$KIND" in
       error_json "not_found" "No Mac App Store metadata was found for $NAME"
       exit 66
     fi
-    jq --arg name "$NAME" --argjson storeId "$STORE_ID" '
+    details="$(jq --arg name "$NAME" --argjson storeId "$STORE_ID" '
       .results[0]
       | {
           schemaVersion: 1,
@@ -126,10 +337,13 @@ case "$KIND" in
           dependencies: [],
           storeId: $storeId
         }
-    ' <<<"$metadata"
+    ' <<<"$metadata")"
     ;;
   *)
     error_json "invalid_kind" "Unsupported package kind: $KIND"
     exit 64
     ;;
 esac
+
+chain="$(declaration_chain)"
+jq --argjson declarationChain "$chain" '. + {declarationChain: $declarationChain}' <<<"$details"

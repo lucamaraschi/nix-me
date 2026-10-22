@@ -6,8 +6,7 @@ enum DashboardSection: String, Identifiable {
     case configuration = "Config Map"
     case harness = "App Settings"
     case localAI = "Local AI"
-    case managedSoftware = "Managed"
-    case installedSoftware = "Installed"
+    case software = "Apps & Packages"
     case configurationChanges = "Changes"
     case projects = "Projects"
     case updates = "Updates"
@@ -20,8 +19,7 @@ enum DashboardSection: String, Identifiable {
         case .configuration: "point.3.connected.trianglepath.dotted"
         case .harness: "checklist.checked"
         case .localAI: "cpu"
-        case .managedSoftware: "shippingbox"
-        case .installedSoftware: "internaldrive"
+        case .software: "square.stack.3d.up"
         case .configurationChanges: "arrow.left.arrow.right"
         case .projects: "folder"
         case .updates: "arrow.triangle.2.circlepath"
@@ -34,6 +32,7 @@ struct DashboardView: View {
     @State private var projectFilter = ProjectFilter.all
     @State private var selectedUpdateIDs = Set<String>()
     @State private var showingApplyConfirmation = false
+    @State private var softwareScope = SoftwareScope.all
 
     var body: some View {
         NavigationSplitView {
@@ -49,8 +48,7 @@ struct DashboardView: View {
                     SidebarRow(section: .overview)
 
                     Section("Software") {
-                        SidebarRow(section: .managedSoftware, count: store.snapshot?.desiredSoftwareCount)
-                        SidebarRow(section: .installedSoftware, count: store.snapshot?.installedSoftwareItems.count)
+                        SidebarRow(section: .software, count: store.snapshot?.softwareItems.count)
                         SidebarRow(
                             section: .configurationChanges,
                             count: store.snapshot?.softwareDifferences.count,
@@ -195,17 +193,15 @@ struct DashboardView: View {
         case .overview:
             OverviewView(
                 snapshot: snapshot,
-                openManagedSoftware: {
-                    store.selectedSection = .managedSoftware
-                },
-                openInstalledSoftware: {
-                    store.selectedSection = .installedSoftware
+                openSoftware: { scope in
+                    softwareScope = scope
+                    store.selectedSection = .software
                 },
                 openUpdates: {
                     store.selectedSection = .updates
                 },
-                openProjectAttention: {
-                    projectFilter = .attention
+                openProjects: {
+                    projectFilter = snapshot.projectAttentionCount > 0 ? .attention : .all
                     store.selectedSection = .projects
                 },
                 openConfigurationChanges: {
@@ -249,10 +245,8 @@ struct DashboardView: View {
                 cancelDownload: { Task { await store.cancelLocalAIModelDownload() } },
                 refreshOperation: { Task { await store.refreshLocalAIModelOperation() } }
             )
-        case .managedSoftware:
-            SoftwareView(snapshot: snapshot, mode: .managed, loadDetails: store.packageDetails)
-        case .installedSoftware:
-            SoftwareView(snapshot: snapshot, mode: .installed, loadDetails: store.packageDetails)
+        case .software:
+            SoftwareView(snapshot: snapshot, scope: $softwareScope, loadDetails: store.packageDetails)
         case .configurationChanges:
             ConfigurationChangesView(
                 snapshot: snapshot,
@@ -560,61 +554,41 @@ private struct SidebarRow: View {
 
 private struct OverviewView: View {
     let snapshot: ManagementSnapshot
-    let openManagedSoftware: () -> Void
-    let openInstalledSoftware: () -> Void
+    let openSoftware: (SoftwareScope) -> Void
     let openUpdates: () -> Void
-    let openProjectAttention: () -> Void
+    let openProjects: () -> Void
     let openConfigurationChanges: () -> Void
     let applyConfiguration: () -> Void
     let isApplying: Bool
+    @State private var showingConfigurationDetails = false
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 22) {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(snapshot.host.machineName)
-                            .font(.system(size: 34, weight: .semibold, design: .rounded))
-                        Text("@\(snapshot.host.hostname) · generation \(snapshot.configuration.generation.map(String.init) ?? "unknown")")
+                            .font(.system(size: 38, weight: .bold, design: .rounded))
+                        Text("@\(snapshot.host.hostname) · generation \(snapshot.configuration.generation.map(String.init) ?? "unknown") · \(snapshot.configuration.git?.branch ?? "no branch")")
                             .foregroundStyle(.secondary)
                     }
-                    Spacer()
-                    StatusBadge(label: applyLabel, color: applyColor, symbol: applySymbol)
                 }
 
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: 14)], spacing: 14) {
-                    MetricCard(title: "Managed software", value: snapshot.desiredSoftwareCount, symbol: "shippingbox.fill", tint: .blue, action: openManagedSoftware)
-                    MetricCard(title: "Homebrew installed", value: snapshot.installedHomebrewCount, symbol: "mug.fill", tint: .orange, action: openInstalledSoftware)
-                    MetricCard(title: "Available updates", value: snapshot.softwareUpdateCount, symbol: "arrow.down.circle.fill", tint: snapshot.softwareUpdateCount == 0 ? .green : .orange, action: openUpdates)
-                    MetricCard(title: "Projects needing attention", value: snapshot.projectAttentionCount, symbol: "folder.badge.questionmark", tint: snapshot.projectAttentionCount == 0 ? .green : .orange, action: openProjectAttention)
-                }
-
-                ConfigurationDriftCard(
+                OverviewStatusHero(
                     snapshot: snapshot,
                     isApplying: isApplying,
                     reviewChanges: openConfigurationChanges,
                     applyConfiguration: applyConfiguration
                 )
 
-                SectionCard(title: "Configuration", symbol: "slider.horizontal.3") {
-                    DetailRow(label: "Apply state", value: applyLabel)
-                    DetailRow(label: "Git branch", value: snapshot.configuration.git?.branch ?? "Unavailable")
-                    DetailRow(label: "Remote", value: remoteSummary)
-                    DetailRow(label: "Working tree", value: snapshot.configuration.git?.dirty == true ? "Uncommitted changes" : "Clean")
-                    DetailRow(label: "Repository revision", value: shortRevision(snapshot.configuration.desiredSource?.revision))
-                    DetailRow(label: "Machine revision", value: shortRevision(snapshot.configuration.appliedSource?.revision))
-                    if let desiredLock = snapshot.configuration.desiredSource?.lockHash,
-                       let appliedLock = snapshot.configuration.appliedSource?.lockHash,
-                       desiredLock != appliedLock {
-                        DetailRow(label: "Lock file", value: "Repository and machine differ")
-                    }
-                    DetailRow(label: "Location", value: snapshot.configuration.path)
-                }
-
-                SectionCard(title: "System services", symbol: "heart.text.square") {
-                    HealthRow(name: "Nix", health: snapshot.health.nix)
-                    HealthRow(name: "nix-darwin", health: snapshot.health.nixDarwin)
-                    HealthRow(name: "Homebrew", health: snapshot.health.homebrew)
+                LazyVGrid(
+                    columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)],
+                    spacing: 16
+                ) {
+                    SoftwareOverviewCard(snapshot: snapshot, openSoftware: openSoftware)
+                    UpdatesOverviewCard(snapshot: snapshot, openUpdates: openUpdates)
+                    ProjectsOverviewCard(snapshot: snapshot, openProjects: openProjects)
+                    SystemHealthOverviewCard(snapshot: snapshot)
                 }
 
                 if !snapshot.warnings.isEmpty {
@@ -625,10 +599,422 @@ private struct OverviewView: View {
                         }
                     }
                 }
+
+                ConfigurationDetailsCard(
+                    snapshot: snapshot,
+                    isExpanded: $showingConfigurationDetails
+                )
             }
             .padding(28)
         }
         .navigationTitle("Overview")
+    }
+}
+
+private struct OverviewStatusHero: View {
+    let snapshot: ManagementSnapshot
+    let isApplying: Bool
+    let reviewChanges: () -> Void
+    let applyConfiguration: () -> Void
+
+    var body: some View {
+        HStack(spacing: 22) {
+            ZStack {
+                Circle()
+                    .fill(.thinMaterial)
+                Image(systemName: symbol)
+                    .font(.system(size: 38, weight: .semibold))
+                    .foregroundStyle(tint)
+            }
+            .frame(width: 82, height: 82)
+
+            VStack(alignment: .leading, spacing: 7) {
+                Text(title)
+                    .font(.system(size: 26, weight: .bold, design: .rounded))
+                Text(summary)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    HeroMetadataPill(symbol: "point.3.connected.trianglepath.dotted", text: snapshot.configuration.git?.branch ?? "No branch")
+                    HeroMetadataPill(symbol: "clock.arrow.circlepath", text: "Generation \(snapshot.configuration.generation.map(String.init) ?? "unknown")")
+                }
+            }
+
+            Spacer(minLength: 20)
+
+            if isApplying {
+                VStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.large)
+                    Text("Applying…")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
+            } else if snapshot.configuration.applyState == "unknown" {
+                Button("Establish Baseline", systemImage: "arrow.triangle.2.circlepath", action: applyConfiguration)
+                    .buttonStyle(.borderedProminent)
+            } else if snapshot.configuration.applyState == "pending" {
+                HStack {
+                    Button("Review Changes", action: reviewChanges)
+                        .buttonStyle(.bordered)
+                    Button("Apply", systemImage: "checkmark.circle", action: applyConfiguration)
+                        .buttonStyle(.borderedProminent)
+                }
+            }
+        }
+        .padding(24)
+        .background(
+            LinearGradient(
+                colors: [tint.opacity(0.18), Color.cyan.opacity(0.06), Color(nsColor: .controlBackgroundColor)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(tint.opacity(0.35), lineWidth: 1)
+        }
+    }
+
+    private var title: String {
+        switch snapshot.configuration.applyState {
+        case "current": "Everything is in sync"
+        case "pending": "Changes are ready to apply"
+        default: "Finish setting up this Mac"
+        }
+    }
+
+    private var summary: String {
+        guard snapshot.configuration.applyState != "unknown" else {
+            return "Apply once to record the configuration currently active on this Mac."
+        }
+        let differences = snapshot.softwareDifferences
+        if snapshot.configuration.applyState == "current" {
+            return "The repository and active system configuration match."
+        }
+        if differences.isEmpty {
+            return "Configuration files or project settings changed; no software selections changed."
+        }
+        return "\(differences.count) software change\(differences.count == 1 ? "" : "s") and configuration updates are waiting."
+    }
+
+    private var tint: Color {
+        switch snapshot.configuration.applyState {
+        case "current": .green
+        case "pending": .orange
+        default: .cyan
+        }
+    }
+
+    private var symbol: String {
+        switch snapshot.configuration.applyState {
+        case "current": "checkmark.seal.fill"
+        case "pending": "arrow.left.arrow.right.circle.fill"
+        default: "sparkles"
+        }
+    }
+}
+
+private struct HeroMetadataPill: View {
+    let symbol: String
+    let text: String
+
+    var body: some View {
+        Label(text, systemImage: symbol)
+            .font(.caption.weight(.medium))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
+            .background(.thinMaterial, in: Capsule())
+    }
+}
+
+private struct SoftwareOverviewCard: View {
+    let snapshot: ManagementSnapshot
+    let openSoftware: (SoftwareScope) -> Void
+
+    var body: some View {
+        OverviewPanel(title: "Software", symbol: "square.stack.3d.up.fill", tint: .cyan) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(snapshot.softwareItems.count, format: .number)
+                    .font(.system(size: 42, weight: .bold, design: .rounded))
+                Text("apps and packages")
+                    .foregroundStyle(.secondary)
+            }
+
+            SoftwareCompositionBar(
+                managed: snapshot.managedSoftwareCount,
+                separate: snapshot.unmanagedSoftwareCount,
+                missing: snapshot.missingSoftwareCount
+            )
+
+            VStack(spacing: 7) {
+                OverviewLinkRow(label: "Managed", value: snapshot.managedSoftwareCount, color: .blue) {
+                    openSoftware(.managed)
+                }
+                OverviewLinkRow(label: "Installed separately", value: snapshot.unmanagedSoftwareCount, color: .orange) {
+                    openSoftware(.unmanaged)
+                }
+                if snapshot.missingSoftwareCount > 0 {
+                    OverviewLinkRow(label: "Need installation", value: snapshot.missingSoftwareCount, color: .red) {
+                        openSoftware(.missing)
+                    }
+                }
+            }
+
+            Button("View all software", systemImage: "arrow.right") {
+                openSoftware(.all)
+            }
+            .buttonStyle(.borderless)
+        }
+    }
+}
+
+private struct SoftwareCompositionBar: View {
+    let managed: Int
+    let separate: Int
+    let missing: Int
+
+    var body: some View {
+        GeometryReader { geometry in
+            HStack(spacing: 0) {
+                Color.blue.frame(width: geometry.size.width * fraction(managed))
+                Color.orange.frame(width: geometry.size.width * fraction(separate))
+                Color.red.frame(width: geometry.size.width * fraction(missing))
+            }
+        }
+        .frame(height: 9)
+        .background(.quaternary)
+        .clipShape(Capsule())
+        .accessibilityLabel("\(managed) managed, \(separate) installed separately, \(missing) need installation")
+    }
+
+    private var total: Double {
+        Double(max(managed + separate + missing, 1))
+    }
+
+    private func fraction(_ value: Int) -> Double {
+        Double(value) / total
+    }
+}
+
+private struct UpdatesOverviewCard: View {
+    let snapshot: ManagementSnapshot
+    let openUpdates: () -> Void
+
+    var body: some View {
+        OverviewPanel(
+            title: "Updates",
+            symbol: snapshot.softwareUpdateCount == 0 ? "checkmark.circle.fill" : "arrow.down.circle.fill",
+            tint: snapshot.softwareUpdateCount == 0 ? .green : .orange
+        ) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(snapshot.softwareUpdateCount, format: .number)
+                    .font(.system(size: 42, weight: .bold, design: .rounded))
+                Text(snapshot.softwareUpdateCount == 0 ? "everything is current" : "updates available")
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 10) {
+                OverviewMiniStat(label: "Homebrew", value: snapshot.updates.homebrew.count)
+                OverviewMiniStat(label: "App Store", value: snapshot.updates.macAppStore.count)
+                OverviewMiniStat(label: "Nix inputs", value: snapshot.updates.nixFlake.count)
+            }
+
+            Spacer(minLength: 8)
+
+            Button(snapshot.softwareUpdateCount == 0 ? "Review update history" : "Review available updates", systemImage: "arrow.right", action: openUpdates)
+                .buttonStyle(.borderedProminent)
+                .tint(snapshot.softwareUpdateCount == 0 ? .green : .orange)
+        }
+    }
+}
+
+private struct OverviewMiniStat: View {
+    let label: String
+    let value: Int
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(value, format: .number)
+                .font(.headline.monospacedDigit())
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+}
+
+private struct ProjectsOverviewCard: View {
+    let snapshot: ManagementSnapshot
+    let openProjects: () -> Void
+
+    var body: some View {
+        OverviewPanel(
+            title: "Projects",
+            symbol: snapshot.projectAttentionCount == 0 ? "folder.fill.badge.checkmark" : "folder.badge.questionmark",
+            tint: snapshot.projectAttentionCount == 0 ? .green : .orange
+        ) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(snapshot.projects.count, format: .number)
+                    .font(.system(size: 42, weight: .bold, design: .rounded))
+                Text("configured repositories")
+                    .foregroundStyle(.secondary)
+            }
+
+            Label(
+                snapshot.projectAttentionCount == 0
+                    ? "Every project is synchronized"
+                    : snapshot.projectAttentionCount == 1
+                        ? "1 project needs attention"
+                        : "\(snapshot.projectAttentionCount) projects need attention",
+                systemImage: snapshot.projectAttentionCount == 0 ? "checkmark.circle.fill" : "exclamationmark.circle.fill"
+            )
+            .foregroundStyle(snapshot.projectAttentionCount == 0 ? .green : .orange)
+
+            Spacer(minLength: 8)
+
+            Button("Open projects", systemImage: "arrow.right", action: openProjects)
+                .buttonStyle(.bordered)
+        }
+    }
+}
+
+private struct SystemHealthOverviewCard: View {
+    let snapshot: ManagementSnapshot
+
+    var body: some View {
+        OverviewPanel(title: "System health", symbol: "waveform.path.ecg", tint: healthTint) {
+            Text(allAvailable ? "Core services are ready" : "A core service needs attention")
+                .font(.title3.weight(.semibold))
+
+            VStack(spacing: 9) {
+                OverviewHealthRow(name: "Nix", health: snapshot.health.nix)
+                OverviewHealthRow(name: "nix-darwin", health: snapshot.health.nixDarwin)
+                OverviewHealthRow(name: "Homebrew", health: snapshot.health.homebrew)
+            }
+
+            Spacer(minLength: 8)
+
+            Text("Service versions and configuration details are available below.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var allAvailable: Bool {
+        snapshot.health.nix.available && snapshot.health.nixDarwin.available && snapshot.health.homebrew.available
+    }
+
+    private var healthTint: Color {
+        allAvailable ? .green : .orange
+    }
+}
+
+private struct OverviewHealthRow: View {
+    let name: String
+    let health: ToolHealth
+
+    var body: some View {
+        HStack {
+            Image(systemName: health.available ? "checkmark.circle.fill" : "xmark.circle.fill")
+                .foregroundStyle(health.available ? .green : .orange)
+            Text(name)
+                .fontWeight(.medium)
+            Spacer()
+            Text(health.version ?? (health.available ? "Ready" : "Unavailable"))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+    }
+}
+
+private struct OverviewLinkRow: View {
+    let label: String
+    let value: Int
+    let color: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack {
+                Circle()
+                    .fill(color)
+                    .frame(width: 8, height: 8)
+                Text(label)
+                Spacer()
+                Text(value, format: .number)
+                    .font(.body.monospacedDigit().weight(.semibold))
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.tertiary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct OverviewPanel<Content: View>: View {
+    let title: String
+    let symbol: String
+    let tint: Color
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 15) {
+            Label(title, systemImage: symbol)
+                .font(.headline)
+                .foregroundStyle(tint)
+            content
+        }
+        .frame(maxWidth: .infinity, minHeight: 220, alignment: .topLeading)
+        .padding(20)
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(tint.opacity(0.2), lineWidth: 1)
+        }
+    }
+}
+
+private struct ConfigurationDetailsCard: View {
+    let snapshot: ManagementSnapshot
+    @Binding var isExpanded: Bool
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            VStack(spacing: 11) {
+                Divider()
+                DetailRow(label: "Apply state", value: applyLabel)
+                DetailRow(label: "Git branch", value: snapshot.configuration.git?.branch ?? "Unavailable")
+                DetailRow(label: "Remote", value: remoteSummary)
+                DetailRow(label: "Working tree", value: snapshot.configuration.git?.dirty == true ? "Uncommitted changes" : "Clean")
+                DetailRow(label: "Repository revision", value: shortRevision(snapshot.configuration.desiredSource?.revision))
+                DetailRow(label: "Machine revision", value: shortRevision(snapshot.configuration.appliedSource?.revision))
+                DetailRow(label: "Location", value: snapshot.configuration.path)
+            }
+            .padding(.top, 8)
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "slider.horizontal.3")
+                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Configuration details")
+                        .font(.headline)
+                    Text("\(snapshot.configuration.git?.branch ?? "No branch") · \(shortRevision(snapshot.configuration.desiredSource?.revision))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(18)
+        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
     private var applyLabel: String {
@@ -637,18 +1023,6 @@ private struct OverviewView: View {
         case "pending": "Changes need applying"
         default: "Baseline needed"
         }
-    }
-
-    private var applyColor: Color {
-        switch snapshot.configuration.applyState {
-        case "current": .green
-        case "pending": .orange
-        default: .orange
-        }
-    }
-
-    private var applySymbol: String {
-        snapshot.configuration.applyState == "current" ? "checkmark.circle.fill" : "arrow.triangle.2.circlepath"
     }
 
     private var remoteSummary: String {
@@ -2001,7 +2375,7 @@ private struct LocalAIStatusView: View {
 
 private struct SoftwareView: View {
     let snapshot: ManagementSnapshot
-    let mode: SoftwareMode
+    @Binding var scope: SoftwareScope
     let loadDetails: (SoftwareListItem) async throws -> PackageDetails
     @State private var selectedItem: SoftwareListItem?
     @State private var details: PackageDetails?
@@ -2013,29 +2387,61 @@ private struct SoftwareView: View {
     var body: some View {
         VStack(spacing: 0) {
             SoftwareInventoryHeader(
-                mode: mode,
                 itemCount: filteredItems.count,
                 totalCount: allItems.count,
-                baselineAvailable: snapshot.configuration.applyState != "unknown",
+                managedCount: snapshot.managedSoftwareCount,
+                unmanagedCount: snapshot.unmanagedSoftwareCount,
+                missingCount: snapshot.missingSoftwareCount,
+                scope: $scope,
                 filter: $filter
             )
 
-            List(selection: $selectedItem) {
-                ForEach(SoftwareKind.allCases, id: \.self) { kind in
-                    SoftwareItemSection(
-                        title: sectionTitle(kind),
-                        items: filteredItems.filter { $0.kind == kind },
-                        mode: mode,
-                        baselineAvailable: snapshot.configuration.applyState != "unknown"
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 28) {
+                    SoftwareListSection(
+                        title: "Applications",
+                        subtitle: "Mac apps you can launch and use",
+                        symbol: "macwindow.on.rectangle",
+                        tint: .teal,
+                        items: applicationItems,
+                        baselineAvailable: baselineAvailable,
+                        selectedItem: $selectedItem
+                    )
+                    SoftwareListSection(
+                        title: "Command-line tools",
+                        subtitle: "Developer tools and utilities available in your shell",
+                        symbol: "terminal.fill",
+                        tint: .orange,
+                        items: commandLineItems,
+                        baselineAvailable: baselineAvailable,
+                        selectedItem: $selectedItem
+                    )
+                    SoftwareListSection(
+                        title: "System packages",
+                        subtitle: "Packages provided by the active Nix configuration",
+                        symbol: "snowflake",
+                        tint: .blue,
+                        items: systemItems,
+                        baselineAvailable: baselineAvailable,
+                        selectedItem: $selectedItem
                     )
                 }
+                .padding(22)
             }
         }
-        .navigationTitle(mode.title)
-        .searchable(text: $query, placement: .toolbar, prompt: "Search software")
+        .navigationTitle("Apps & Packages")
+        .searchable(text: $query, placement: .toolbar, prompt: "Search apps and packages")
         .overlay {
             if filteredItems.isEmpty {
-                ContentUnavailableView.search(text: query)
+                if query.isEmpty {
+                    ContentUnavailableView(
+                        "No matching software",
+                        systemImage: "line.3.horizontal.decrease.circle",
+                        description: Text("Choose another state or source filter.")
+                    )
+                } else {
+                    ContentUnavailableView.search(text: query)
+                }
             }
         }
         .inspector(isPresented: Binding(
@@ -2067,44 +2473,87 @@ private struct SoftwareView: View {
 
     private var filteredItems: [SoftwareListItem] {
         allItems.filter { item in
+            let matchesScope = scope.matches(item)
             let matchesFilter = filter.kind == nil || item.kind == filter.kind
             let matchesQuery = query.isEmpty
                 || item.displayName.localizedCaseInsensitiveContains(query)
+                || item.libraryDisplayName.localizedCaseInsensitiveContains(query)
                 || item.kind.label.localizedCaseInsensitiveContains(query)
-            return matchesFilter && matchesQuery
+            return matchesScope && matchesFilter && matchesQuery
         }
     }
 
     private var allItems: [SoftwareListItem] {
-        mode == .managed ? snapshot.desiredSoftwareItems : snapshot.installedSoftwareItems
+        snapshot.softwareItems
     }
 
-    private func sectionTitle(_ kind: SoftwareKind) -> String {
-        switch (mode, kind) {
-        case (.managed, .nix): "Nix packages"
-        case (.managed, .formula): "Homebrew formulae"
-        case (.managed, .cask): "Applications"
-        case (.managed, .mas): "Mac App Store"
-        case (.installed, .nix): "Active Nix packages"
-        case (.installed, .formula): "Installed Homebrew formulae"
-        case (.installed, .cask): "Installed applications"
-        case (.installed, .mas): "Mac App Store"
+    private var applicationItems: [SoftwareListItem] {
+        filteredItems.filter { $0.kind == .cask || $0.kind == .mas }
+    }
+
+    private var commandLineItems: [SoftwareListItem] {
+        filteredItems.filter { $0.kind == .formula }
+    }
+
+    private var systemItems: [SoftwareListItem] {
+        filteredItems.filter { $0.kind == .nix }
+    }
+
+    private var baselineAvailable: Bool {
+        snapshot.configuration.applyState != "unknown"
+    }
+}
+
+private enum SoftwareScope: String, CaseIterable, Identifiable {
+    case all = "Everything"
+    case managed = "Managed"
+    case unmanaged = "Installed separately"
+    case missing = "Needs install"
+
+    var id: String { rawValue }
+
+    var shortLabel: String {
+        switch self {
+        case .all: "All software"
+        case .managed: "Managed by Nix Me"
+        case .unmanaged: "Installed separately"
+        case .missing: "Waiting to install"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .all: "square.grid.2x2.fill"
+        case .managed: "checkmark.seal.fill"
+        case .unmanaged: "person.crop.circle.badge.checkmark"
+        case .missing: "arrow.down.circle.fill"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .all: .cyan
+        case .managed: .blue
+        case .unmanaged: .orange
+        case .missing: .red
+        }
+    }
+
+    func matches(_ item: SoftwareListItem) -> Bool {
+        switch self {
+        case .all: true
+        case .managed: item.isDesired
+        case .unmanaged: !item.isDesired && item.isInstalled
+        case .missing: item.isDesired && !item.isInstalled
         }
     }
 }
 
-private enum SoftwareMode: String {
-    case managed = "Managed"
-    case installed = "Installed"
-
-    var title: String { "\(rawValue) Software" }
-}
-
 private enum SoftwareFilter: String, CaseIterable, Identifiable {
-    case all = "All"
+    case all = "All types"
     case nix = "Nix"
-    case formula = "Formulae"
-    case cask = "Apps"
+    case formula = "Command-line"
+    case cask = "Applications"
     case mas = "App Store"
 
     var id: String { rawValue }
@@ -2118,131 +2567,320 @@ private enum SoftwareFilter: String, CaseIterable, Identifiable {
         case .mas: .mas
         }
     }
+
+    var symbol: String {
+        switch self {
+        case .all: "square.grid.2x2"
+        case .nix: "snowflake"
+        case .formula: "terminal"
+        case .cask: "macwindow"
+        case .mas: "apple.logo"
+        }
+    }
 }
 
 private struct SoftwareInventoryHeader: View {
-    let mode: SoftwareMode
     let itemCount: Int
     let totalCount: Int
-    let baselineAvailable: Bool
+    let managedCount: Int
+    let unmanagedCount: Int
+    let missingCount: Int
+    @Binding var scope: SoftwareScope
     @Binding var filter: SoftwareFilter
 
     var body: some View {
-        HStack(spacing: 20) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(mode == .managed ? "Declared by this configuration" : "Present on this Mac")
-                    .font(.headline)
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .firstTextBaseline, spacing: 20) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Your software library")
+                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                    Text("Browse everything on this Mac and see at a glance who manages it.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
                 Text(countLabel)
-                    .font(.caption)
+                    .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
-                if mode == .managed && !baselineAvailable {
-                    Label("Apply once to compare this list with the active configuration", systemImage: "info.circle")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                }
             }
 
-            Spacer()
+            HStack(spacing: 10) {
+                SoftwareScopeLens(
+                    scope: .all,
+                    count: totalCount,
+                    isSelected: scope == .all,
+                    action: { scope = .all }
+                )
+                SoftwareScopeLens(
+                    scope: .managed,
+                    count: managedCount,
+                    isSelected: scope == .managed,
+                    action: { scope = .managed }
+                )
+                SoftwareScopeLens(
+                    scope: .unmanaged,
+                    count: unmanagedCount,
+                    isSelected: scope == .unmanaged,
+                    action: { scope = .unmanaged }
+                )
+                SoftwareScopeLens(
+                    scope: .missing,
+                    count: missingCount,
+                    isSelected: scope == .missing,
+                    action: { scope = .missing }
+                )
 
-            Picker("Source", selection: $filter) {
-                ForEach(SoftwareFilter.allCases) { filter in
-                    Text(filter.rawValue).tag(filter)
-                }
+                Spacer()
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(maxWidth: 470)
+
+            HStack(spacing: 8) {
+                Text("Show")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                ForEach(SoftwareFilter.allCases) { option in
+                    Button {
+                        filter = option
+                    } label: {
+                        Label(option.rawValue, systemImage: option.symbol)
+                            .font(.caption.weight(.semibold))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(
+                                filter == option ? Color.accentColor.opacity(0.16) : Color.clear,
+                                in: Capsule()
+                            )
+                            .overlay {
+                                Capsule()
+                                    .stroke(
+                                        filter == option ? Color.accentColor.opacity(0.5) : Color.secondary.opacity(0.22),
+                                        lineWidth: 1
+                                    )
+                            }
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Spacer()
+
+                Label("Select an item for details", systemImage: "sidebar.right")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 14)
-        .background(.bar)
+        .padding(22)
+        .background(
+            LinearGradient(
+                colors: [Color.accentColor.opacity(0.09), Color(nsColor: .controlBackgroundColor)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .overlay(alignment: .bottom) { Divider() }
     }
 
     private var countLabel: String {
         if itemCount == totalCount {
             return "\(totalCount) item\(totalCount == 1 ? "" : "s")"
         }
-        return "Showing \(itemCount) of \(totalCount) items"
+        return "Showing \(itemCount) of \(totalCount)"
     }
 }
 
-private struct SoftwareItemSection: View {
+private struct SoftwareScopeLens: View {
+    let scope: SoftwareScope
+    let count: Int
+    let isSelected: Bool
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 7) {
+                Image(systemName: scope.symbol)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(scope.tint)
+                Text(scope.shortLabel)
+                    .font(.caption.weight(.semibold))
+                Text(count, format: .number)
+                    .font(.caption.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(isSelected ? scope.tint : .secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(scope.tint.opacity(isSelected ? 0.15 : 0.07), in: Capsule())
+            }
+            .padding(.horizontal, 11)
+            .padding(.vertical, 8)
+        }
+        .buttonStyle(.plain)
+        .background(
+            isSelected || isHovered ? scope.tint.opacity(isSelected ? 0.12 : 0.06) : Color(nsColor: .controlBackgroundColor),
+            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(isSelected ? scope.tint.opacity(0.65) : Color.secondary.opacity(0.16), lineWidth: 1)
+        }
+        .onHover { isHovered = $0 }
+        .accessibilityLabel("\(scope.rawValue), \(count)")
+    }
+}
+
+private struct SoftwareListSection: View {
     let title: String
+    let subtitle: String
+    let symbol: String
+    let tint: Color
     let items: [SoftwareListItem]
-    let mode: SoftwareMode
     let baselineAvailable: Bool
+    @Binding var selectedItem: SoftwareListItem?
+    @State private var isExpanded = true
 
     var body: some View {
         if !items.isEmpty {
-            Section {
-                ForEach(items.sorted { $0.displayName < $1.displayName }) { item in
-                    SoftwareItemRow(item: item, mode: mode, baselineAvailable: baselineAvailable)
-                        .tag(item)
+            VStack(spacing: 0) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        isExpanded.toggle()
+                    }
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: symbol)
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(tint)
+                            .frame(width: 34, height: 34)
+                            .background(tint.opacity(0.13), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(title)
+                                .font(.headline)
+                            Text(subtitle)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer()
+
+                        Text(items.count, format: .number)
+                            .font(.caption.monospacedDigit().weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(.quaternary, in: Capsule())
+
+                        Image(systemName: "chevron.down")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.tertiary)
+                            .rotationEffect(.degrees(isExpanded ? 0 : -90))
+                    }
+                    .padding(14)
+                    .contentShape(Rectangle())
                 }
-            } header: {
-                Text("\(title) · \(items.count)")
+                .buttonStyle(.plain)
+
+                if isExpanded {
+                    Divider()
+
+                    ForEach(sortedItems) { item in
+                        SoftwareLibraryRow(
+                            item: item,
+                            baselineAvailable: baselineAvailable,
+                            isSelected: selectedItem == item,
+                            action: { selectedItem = item }
+                        )
+
+                        if item.id != sortedItems.last?.id {
+                            Divider()
+                                .padding(.leading, 72)
+                        }
+                    }
+                }
             }
+            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(tint.opacity(0.2), lineWidth: 1)
+            }
+        }
+    }
+
+    private var sortedItems: [SoftwareListItem] {
+        items.sorted {
+            $0.libraryDisplayName.localizedCaseInsensitiveCompare($1.libraryDisplayName) == .orderedAscending
         }
     }
 }
 
-private struct SoftwareItemRow: View {
+private struct SoftwareLibraryRow: View {
     let item: SoftwareListItem
-    let mode: SoftwareMode
     let baselineAvailable: Bool
+    let isSelected: Bool
+    let action: () -> Void
+    @State private var isHovered = false
 
     var body: some View {
-        HStack(spacing: 13) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .fill(kindColor.opacity(0.13))
-                Image(systemName: item.kind.symbol)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(kindColor)
-            }
-            .frame(width: 34, height: 34)
+        Button(action: action) {
+            HStack(spacing: 13) {
+                SoftwareArtwork(item: item, tint: kindColor)
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(item.displayName)
-                    .font(.body.weight(.medium))
-                Text(item.kind.label)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(item.libraryDisplayName)
+                        .font(.body.weight(.semibold))
+                        .lineLimit(1)
+
+                    HStack(spacing: 5) {
+                        Image(systemName: item.kind.symbol)
+                        Text(sourceLabel)
+                    }
                     .font(.caption)
                     .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
-            VStack(alignment: .trailing, spacing: 4) {
-                if let version = item.desiredVersion ?? item.installedVersions.first {
-                    Text(version)
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
                 }
-                Text(status.label)
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundStyle(status.color)
-            }
 
-            Image(systemName: "chevron.right")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.tertiary)
+                Spacer()
+
+                if let version = displayVersion {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("Version")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                        Text(version)
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    .frame(maxWidth: 190, alignment: .trailing)
+                }
+
+                SoftwareStateBadge(label: status.label, color: status.color)
+
+                Image(systemName: isSelected ? "sidebar.right" : "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(isSelected ? kindColor : Color.secondary.opacity(0.5))
+                    .frame(width: 18)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .contentShape(Rectangle())
         }
-        .padding(.vertical, 5)
-        .contentShape(Rectangle())
+        .buttonStyle(.plain)
+        .background(
+            isSelected ? kindColor.opacity(0.12) : isHovered ? Color.primary.opacity(0.045) : Color.clear
+        )
+        .onHover { isHovered = $0 }
+        .accessibilityLabel("\(item.libraryDisplayName), \(status.label)")
+        .accessibilityHint("Show software details")
     }
 
     private var status: (label: String, color: Color) {
-        if mode == .installed {
-            return item.isDesired ? ("Managed", .blue) : ("Unmanaged", .secondary)
-        }
-        if !item.installedVersions.isEmpty {
-            return ("Installed", .green)
-        }
         if item.kind == .nix && !baselineAvailable {
-            return ("Managed", .blue)
+            return item.isDesired ? ("Managed", .blue) : ("Status unknown", .secondary)
         }
-        return item.isApplied ? ("Active", .green) : ("Pending", .orange)
+        if item.isDesired {
+            return item.isInstalled ? ("Managed", .blue) : ("Needs installation", .red)
+        }
+        return ("Installed separately", .orange)
     }
 
     private var kindColor: Color {
@@ -2252,6 +2890,190 @@ private struct SoftwareItemRow: View {
         case .cask: .teal
         case .mas: .indigo
         }
+    }
+
+    private var sourceLabel: String {
+        switch item.kind {
+        case .nix: "Nix system package"
+        case .formula: "Homebrew command-line tool"
+        case .cask: "Homebrew application"
+        case .mas: "Mac App Store"
+        }
+    }
+
+    private var displayVersion: String? {
+        item.desiredVersion ?? item.installedVersions.first
+    }
+}
+
+private struct SoftwareArtwork: View {
+    let item: SoftwareListItem
+    let tint: Color
+
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            if let visual = InstalledApplicationCatalog.visual(for: item) {
+                Image(nsImage: visual.icon)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+            } else {
+                RoundedRectangle(cornerRadius: 13, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [tint.opacity(0.95), tint.opacity(0.55)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+
+                if item.kind == .cask || item.kind == .mas {
+                    Text(String(item.libraryDisplayName.prefix(1)).uppercased())
+                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    Image(systemName: item.kind.symbol)
+                        .font(.system(size: 21, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+
+            Image(systemName: item.kind == .mas ? "apple.logo" : item.kind.symbol)
+                .font(.system(size: 8, weight: .bold))
+                .foregroundStyle(tint)
+                .frame(width: 19, height: 19)
+                .background(.white, in: Circle())
+                .offset(x: 4, y: 4)
+        }
+        .frame(width: 42, height: 42)
+        .shadow(color: tint.opacity(0.2), radius: 4, y: 2)
+    }
+}
+
+private struct InstalledApplicationVisual {
+    let name: String
+    let icon: NSImage
+}
+
+private enum InstalledApplicationCatalog {
+    private struct ApplicationBundle {
+        let name: String
+        let path: String
+    }
+
+    private static let aliases = [
+        "codexapp": "codex",
+        "dockerdesktop": "docker",
+        "github": "githubdesktop",
+        "iawriter": "iawriter",
+        "microsoftteams": "microsoftteams",
+        "pdfexpert": "pdfexpert",
+        "wiresharkapp": "wireshark"
+    ]
+
+    private static let commandOnlyCasks = Set(["1password-cli", "claude-code", "codex"])
+
+    private static let bundles: [String: ApplicationBundle] = {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        let roots = [
+            URL(fileURLWithPath: "/Applications", isDirectory: true),
+            home.appendingPathComponent("Applications", isDirectory: true)
+        ]
+        var discovered: [String: ApplicationBundle] = [:]
+
+        for root in roots {
+            guard let urls = try? FileManager.default.contentsOfDirectory(
+                at: root,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles]
+            ) else { continue }
+
+            for url in urls where url.pathExtension.caseInsensitiveCompare("app") == .orderedSame {
+                let name = url.deletingPathExtension().lastPathComponent
+                discovered[normalize(name)] = ApplicationBundle(name: name, path: url.path)
+            }
+        }
+
+        return discovered
+    }()
+
+    static func visual(for item: SoftwareListItem) -> InstalledApplicationVisual? {
+        guard item.kind == .cask || item.kind == .mas else { return nil }
+        guard !commandOnlyCasks.contains(item.name.lowercased()) else { return nil }
+        let normalizedNames = [item.displayName, item.name].map(normalize)
+
+        for name in normalizedNames {
+            let lookup = aliases[name] ?? name
+            guard let bundle = bundles[lookup] else { continue }
+            return InstalledApplicationVisual(
+                name: bundle.name,
+                icon: NSWorkspace.shared.icon(forFile: bundle.path)
+            )
+        }
+
+        return nil
+    }
+
+    private static func normalize(_ value: String) -> String {
+        String(value.lowercased().unicodeScalars.filter(CharacterSet.alphanumerics.contains))
+    }
+}
+
+private extension SoftwareListItem {
+    var libraryDisplayName: String {
+        let preferredNames = [
+            "bambu-studio": "Bambu Studio",
+            "codex": "Codex CLI",
+            "codex-app": "Codex",
+            "hiddenbar": "Hidden Bar",
+            "openscad": "OpenSCAD",
+            "wireshark-app": "Wireshark"
+        ]
+        if let preferredName = preferredNames[name.lowercased()] {
+            return preferredName
+        }
+        if let visual = InstalledApplicationCatalog.visual(for: self) {
+            return visual.name
+        }
+        guard kind == .cask else { return displayName }
+
+        let knownTerms = [
+            "ai": "AI",
+            "api": "API",
+            "cli": "CLI",
+            "github": "GitHub",
+            "iterm2": "iTerm2",
+            "macos": "macOS",
+            "obs": "OBS",
+            "pdf": "PDF",
+            "ssh": "SSH",
+            "vpn": "VPN",
+            "vscode": "VS Code",
+            "xcode": "Xcode",
+            "1password": "1Password"
+        ]
+        return displayName
+            .split(whereSeparator: { $0 == "-" || $0 == "_" })
+            .map { word in
+                let value = String(word)
+                return knownTerms[value.lowercased()] ?? value.capitalized
+            }
+            .joined(separator: " ")
+    }
+}
+
+private struct SoftwareStateBadge: View {
+    let label: String
+    let color: Color
+
+    var body: some View {
+        Text(label)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(color)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(color.opacity(0.12), in: Capsule())
     }
 }
 
@@ -3069,10 +3891,8 @@ private struct PackageDetailsPanel: View {
             if let item {
                 VStack(alignment: .leading, spacing: 20) {
                     VStack(alignment: .leading, spacing: 8) {
-                        Image(systemName: item.kind.symbol)
-                            .font(.system(size: 34))
-                            .foregroundStyle(Color.accentColor)
-                        Text(details?.displayName ?? item.displayName)
+                        SoftwareArtwork(item: item, tint: tint(for: item.kind))
+                        Text(item.libraryDisplayName)
                             .font(.title2.weight(.semibold))
                             .textSelection(.enabled)
                         Text(item.kind.label)
@@ -3113,6 +3933,12 @@ private struct PackageDetailsPanel: View {
                             }
                         }
 
+                        Divider()
+                        PackageDeclarationChain(
+                            item: item,
+                            declarations: details.declarationChain ?? []
+                        )
+
                         if !details.dependencies.isEmpty {
                             Divider()
                             VStack(alignment: .leading, spacing: 8) {
@@ -3143,7 +3969,89 @@ private struct PackageDetailsPanel: View {
         if item.kind == .nix && !baselineAvailable {
             return "Baseline unavailable"
         }
-        return item.isApplied ? "Applied" : "Not applied"
+        return item.isInstalled ? "Installed" : "Not installed"
+    }
+
+    private func tint(for kind: SoftwareKind) -> Color {
+        switch kind {
+        case .nix: .blue
+        case .formula: .orange
+        case .cask: .teal
+        case .mas: .indigo
+        }
+    }
+}
+
+private struct PackageDeclarationChain: View {
+    let item: SoftwareListItem
+    let declarations: [PackageDeclaration]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Configuration chain", systemImage: "point.3.connected.trianglepath.dotted")
+                .font(.headline)
+
+            if declarations.isEmpty {
+                Label {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(item.isDesired ? "Declaration source unavailable" : "Not declared by this configuration")
+                            .fontWeight(.medium)
+                        Text(item.isDesired
+                            ? "Nix Me could not trace this managed item to a configuration file."
+                            : "This item is installed on the Mac but is not part of the active Nix Me configuration.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                } icon: {
+                    Image(systemName: item.isDesired ? "questionmark.circle" : "externaldrive.badge.questionmark")
+                        .foregroundStyle(item.isDesired ? .orange : .secondary)
+                }
+            } else {
+                Text("Declaration sources, ordered from the broadest layer to the most specific.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                ForEach(Array(declarations.enumerated()), id: \.element.id) { index, declaration in
+                    HStack(alignment: .top, spacing: 10) {
+                        ZStack {
+                            Circle()
+                                .fill(declarationTint(declaration.scope).opacity(0.16))
+                            Text(String(index + 1))
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(declarationTint(declaration.scope))
+                        }
+                        .frame(width: 24, height: 24)
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(declaration.label)
+                                .fontWeight(.medium)
+                            Text(declaration.path)
+                                .font(.caption.monospaced())
+                                .foregroundStyle(.secondary)
+                                .textSelection(.enabled)
+                            if let declaredAs = declaration.declaredAs,
+                               declaredAs != item.name {
+                                Text("Declared as \(declaredAs)")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func declarationTint(_ scope: String) -> Color {
+        switch scope {
+        case "base": .blue
+        case "module": .teal
+        case "machineType": .purple
+        case "profile": .orange
+        case "machine": .green
+        default: .secondary
+        }
     }
 }
 
