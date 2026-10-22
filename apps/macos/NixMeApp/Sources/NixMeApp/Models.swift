@@ -62,19 +62,19 @@ struct ManagementSnapshot: Codable {
     }
 
     var managedSoftwareCount: Int {
-        softwareItems.count(where: \.isDesired)
+        softwareItems.filter(\.isDesired).count
     }
 
     var installedSoftwareCount: Int {
-        softwareItems.count(where: \.isInstalled)
+        softwareItems.filter(\.isInstalled).count
     }
 
     var unmanagedSoftwareCount: Int {
-        softwareItems.count { !$0.isDesired && $0.isInstalled }
+        softwareItems.filter { !$0.isDesired && $0.isInstalled }.count
     }
 
     var missingSoftwareCount: Int {
-        softwareItems.count { $0.isDesired && !$0.isInstalled }
+        softwareItems.filter { $0.isDesired && !$0.isInstalled }.count
     }
 
     var projectAttentionCount: Int {
