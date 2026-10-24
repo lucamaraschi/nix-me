@@ -148,4 +148,29 @@ if grep -Eq 'mkdir -p .*\/etc\/static' "$REPO_DIR/install.sh"; then
     exit 1
 fi
 
+# The native setup bundle is disposable only after the app verifies that the
+# selected configuration is active. Interrupted setup remains recoverable.
+SUCCESSFUL_SETUP_DIR="$TMP_DIR/successful-native-setup"
+mkdir -p "$SUCCESSFUL_SETUP_DIR/Nix Me Setup.app"
+touch "$SUCCESSFUL_SETUP_DIR/installation-complete"
+NIX_ME_LSREGISTER=/usr/bin/true cleanup_native_installer_copy \
+    "$SUCCESSFUL_SETUP_DIR" \
+    "$SUCCESSFUL_SETUP_DIR/Nix Me Setup.app" \
+    "$SUCCESSFUL_SETUP_DIR/installation-complete"
+if [ -e "$SUCCESSFUL_SETUP_DIR" ]; then
+    echo "successful native setup copy was not removed" >&2
+    exit 1
+fi
+
+INTERRUPTED_SETUP_DIR="$TMP_DIR/interrupted-native-setup"
+mkdir -p "$INTERRUPTED_SETUP_DIR/Nix Me Setup.app"
+NIX_ME_LSREGISTER=/usr/bin/true cleanup_native_installer_copy \
+    "$INTERRUPTED_SETUP_DIR" \
+    "$INTERRUPTED_SETUP_DIR/Nix Me Setup.app" \
+    "$INTERRUPTED_SETUP_DIR/installation-complete"
+if [ ! -d "$INTERRUPTED_SETUP_DIR/Nix Me Setup.app" ]; then
+    echo "interrupted native setup copy should remain available" >&2
+    exit 1
+fi
+
 echo "install prerequisite and prompt tests passed"

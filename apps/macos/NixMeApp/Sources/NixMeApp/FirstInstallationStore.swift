@@ -267,6 +267,7 @@ final class FirstInstallationStore: ObservableObject {
             phase = .verification
             phaseMessage = "Confirming the active host and system generation"
             try await verifyInstallation()
+            Self.recordSuccessfulInstallation()
             phaseMessage = "The managed system is active and ready"
             isInstalling = false
             screen = .complete
@@ -405,6 +406,20 @@ final class FirstInstallationStore: ObservableObject {
         detectedHostname: String
     ) -> String? {
         machines.first(where: { $0.id == detectedHostname })?.id
+    }
+
+    nonisolated static func recordSuccessfulInstallation(
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) {
+        guard let markerPath = environment["NIX_ME_SETUP_COMPLETION_MARKER"],
+              !markerPath.isEmpty
+        else { return }
+
+        _ = FileManager.default.createFile(
+            atPath: markerPath,
+            contents: Data(),
+            attributes: nil
+        )
     }
 
     nonisolated static func machineConfigurations(

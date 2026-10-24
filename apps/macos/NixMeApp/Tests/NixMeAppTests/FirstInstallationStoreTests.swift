@@ -102,6 +102,22 @@ final class FirstInstallationStoreTests: XCTestCase {
         )
     }
 
+    func testSuccessfulInstallationCreatesBootstrapCompletionMarker() throws {
+        let marker = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: marker) }
+
+        FirstInstallationStore.recordSuccessfulInstallation(environment: [
+            "NIX_ME_SETUP_COMPLETION_MARKER": marker.path,
+        ])
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: marker.path))
+    }
+
+    func testSuccessfulInstallationWithoutBootstrapMarkerIsANoOp() {
+        FirstInstallationStore.recordSuccessfulInstallation(environment: [:])
+    }
+
     func testErrorSummaryPrefersTheConcreteFailureNearTheEnd() {
         let error = ManagementAPIError.commandFailed(
             1,

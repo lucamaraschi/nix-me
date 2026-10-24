@@ -104,8 +104,9 @@ guides you through:
 5. **Build and verify** - Follow visible progress, approve activation once, and get inline recovery if anything fails
 
 The setup app is compiled locally through Nix, so first installation does not
-depend on a notarized download. Automation and recovery environments can keep
-the terminal-only flow with `USE_NATIVE_INSTALLER=0`.
+depend on a notarized download. It runs from a temporary copy that is removed
+after the app verifies a successful activation. Automation and recovery
+environments can keep the terminal-only flow with `USE_NATIVE_INSTALLER=0`.
 
 See [Declarative application state](docs/APP_STATE.md) for recipes, profile
 values, capture, command auditing, and migration behavior.

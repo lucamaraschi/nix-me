@@ -35,7 +35,10 @@ The setup app owns choices and long-running feedback:
 records store paths for Git, jq, Nix, and Make so a Finder-launched app does not
 depend on shell initialization. It uses a separate `Nix Me Setup` bundle and a
 clearly labeled temporary menu-bar item, then exits after opening the complete
-app installed by the activated host.
+app installed by the activated host. The bootstrap launches a temporary copy of
+the setup bundle; after activation is verified, that copy is unregistered from
+Launch Services and deleted when it exits. Interrupted setup copies are retained
+for recovery instead of being mistaken for successful installations.
 
 ## Compatibility
 
