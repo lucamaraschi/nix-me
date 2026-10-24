@@ -6,18 +6,21 @@ installation path.
 
 ## Managed-host installation
 
-Machines controlled by this repository can build and install the app through
-Nix instead of downloading a release. Enable it for a host with:
+Machines controlled by this repository build and install the app through Nix
+instead of downloading a release. The manager is enabled by default. A host
+can explicitly opt out with:
 
 ```nix
-apps.manager.enable = true;
+apps.manager.enable = false;
 ```
 
 The `nix-me-macos` package builds only from the native app and management API
 sources, bundles the matching `nix-me-apps` engine, and ad-hoc signs the final
-application after Nix fixups. Activation links the immutable bundle to
-`~/Applications/Nix Me.app`. Nix reuses the store result until one of those
-inputs changes and rolls the app back with the rest of the system generation.
+application after Nix fixups. Activation copies the signed bundle to
+`/Applications/Nix Me.app`, records its Nix source under `/var/db/nix-me`, and
+registers it with Launch Services. Nix reuses the store result until one of
+those inputs changes and reinstalls the matching app when the system generation
+is switched or rolled back.
 
 Sparkle is intentionally excluded from managed-host builds because updates are
 delivered by the Nix configuration. These local builds are suitable for trusted

@@ -82,34 +82,64 @@ in
     };
   };
 
-  options.apps.manager.enable = lib.mkEnableOption "the locally built Nix Me macOS app";
+  options.apps.manager.enable = lib.mkOption {
+    type = lib.types.bool;
+    default = true;
+    description = "Whether to install the locally built Nix Me macOS app in /Applications.";
+  };
 
   config = {
     apps.state.enable = lib.mkIf machineEnableDefault (lib.mkForce true);
     apps.state.resolvedValues = resolvedValues;
 
-    # Add nix-me, the packaged TUI, and the app-state engine to system packages.
+    # The native app is referenced by the activation script below so nix-darwin
+    # does not also expose a duplicate under /Applications/Nix Apps.
     environment.systemPackages = [
       nix-me-cli
       inputs.self.packages.${pkgs.system}.nix-me-tui
       inputs.self.packages.${pkgs.system}.nix-me-apps
-    ] ++ lib.optionals config.apps.manager.enable [
-      inputs.self.packages.${pkgs.system}.nix-me-macos
     ];
 
     system.activationScripts.postActivation.text = lib.mkAfter ''
       ${lib.optionalString config.apps.manager.enable ''
         manager_source=${lib.escapeShellArg "${inputs.self.packages.${pkgs.system}.nix-me-macos}/Applications/Nix Me.app"}
-        manager_dir=${lib.escapeShellArg "${config.users.users.${username}.home}/Applications"}
+        manager_dir="/Applications"
         manager_target="$manager_dir/Nix Me.app"
+        manager_stage="$manager_dir/.Nix Me.app.nix-me-new"
+        manager_state_dir="/var/db/nix-me"
+        manager_receipt="$manager_state_dir/manager-app"
+        legacy_target=${lib.escapeShellArg "${config.users.users.${username}.home}/Applications/Nix Me.app"}
 
-        mkdir -p "$manager_dir"
-        chown ${lib.escapeShellArg username}:staff "$manager_dir"
-        if [ -e "$manager_target" ] && [ ! -L "$manager_target" ]; then
-          echo "warning: $manager_target exists and is not managed by Nix; leaving it unchanged" >&2
-        else
-          ln -sfn "$manager_source" "$manager_target"
-          chown -h ${lib.escapeShellArg username}:staff "$manager_target"
+        mkdir -p "$manager_dir" "$manager_state_dir"
+        rm -rf "$manager_stage"
+        echo "Installing Nix Me in $manager_target..." >&2
+        /usr/bin/ditto "$manager_source" "$manager_stage"
+        chown -R root:wheel "$manager_stage"
+
+        if [ -e "$manager_target" ] || [ -L "$manager_target" ]; then
+          rm -rf "$manager_target"
+        fi
+        mv "$manager_stage" "$manager_target"
+        printf '%s\n' "$manager_source" > "$manager_receipt"
+        chmod 0644 "$manager_receipt"
+
+        if [ -L "$legacy_target" ]; then
+          rm "$legacy_target"
+        fi
+
+        launch_services="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+        if [ -x "$launch_services" ]; then
+          "$launch_services" -f "$manager_target" >/dev/null 2>&1 || true
+        fi
+      ''}
+
+      ${lib.optionalString (!config.apps.manager.enable) ''
+        manager_target="/Applications/Nix Me.app"
+        manager_receipt="/var/db/nix-me/manager-app"
+        if [ -f "$manager_receipt" ]; then
+          echo "Removing Nix-managed $manager_target..." >&2
+          rm -rf "$manager_target"
+          rm "$manager_receipt"
         fi
       ''}
 
