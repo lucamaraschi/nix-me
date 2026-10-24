@@ -117,29 +117,81 @@ struct FirstInstallationView: View {
     private var configuration: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                Text("Configure this Mac")
+                Text("Choose this Mac's configuration")
                     .font(.largeTitle.weight(.semibold))
-                Text("Detected values are already filled in. Select only the profiles that belong on this machine.")
+                Text("The current Mac name is only a suggestion. Apply a saved machine from this checkout, or explicitly create a new one.")
                     .foregroundStyle(.secondary)
 
-                if installer.configurationExists {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("Saved machines")
+                            .font(.title2.weight(.semibold))
+                        Spacer()
+                        Text("Detected: \(installer.detectedHostname)")
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if installer.availableMachines.isEmpty {
+                        Label(
+                            "No saved Darwin machine configurations were found in flake.nix.",
+                            systemImage: "tray"
+                        )
+                        .foregroundStyle(.secondary)
+                        .padding(14)
+                    } else {
+                        LazyVGrid(
+                            columns: [GridItem(.flexible()), GridItem(.flexible())],
+                            spacing: 12
+                        ) {
+                            ForEach(installer.availableMachines) { machine in
+                                machineCard(machine)
+                            }
+                        }
+                    }
+
+                    createMachineCard
+                }
+
+                if let machine = installer.selectedExistingMachine {
+                    GroupBox("Selected machine configuration") {
+                        Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 12) {
+                            GridRow {
+                                Text("Configuration").foregroundStyle(.secondary)
+                                Text(machine.id).font(.body.monospaced())
+                            }
+                            GridRow {
+                                Text("Computer name").foregroundStyle(.secondary)
+                                Text(machine.machineName)
+                            }
+                            GridRow {
+                                Text("Hardware").foregroundStyle(.secondary)
+                                Text(machineTypeLabel(machine.machineType))
+                            }
+                            GridRow {
+                                Text("User").foregroundStyle(.secondary)
+                                Text(machine.username)
+                            }
+                            GridRow {
+                                Text("Profiles").foregroundStyle(.secondary)
+                                Text(profileSummary(for: machine.profiles))
+                            }
+                        }
+                        .padding(8)
+                    }
+
                     Label(
-                        "A machine definition for \(installer.hostname) already exists. Its hardware, profiles, and application settings will be used without rewriting the checkout.",
+                        "Nix Me will apply this saved configuration unchanged. Activation will rename this Mac to \(machine.hostname).",
                         systemImage: "checkmark.seal.fill"
                     )
                     .foregroundStyle(.green)
-                    .padding(14)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.green.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
-                }
-
-                GroupBox("Machine") {
-                    Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 14) {
-                        GridRow {
-                            Text("Hostname").foregroundStyle(.secondary)
-                            TextField("my-mac", text: $installer.hostname)
-                        }
-                        if !installer.configurationExists {
+                } else if installer.isCreatingNewMachine {
+                    GroupBox("New machine") {
+                        Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 14) {
+                            GridRow {
+                                Text("Hostname").foregroundStyle(.secondary)
+                                TextField("my-mac", text: $installer.hostname)
+                            }
                             GridRow {
                                 Text("Display name").foregroundStyle(.secondary)
                                 TextField("My Mac", text: $installer.machineName)
@@ -160,12 +212,10 @@ struct FirstInstallationView: View {
                                 .pickerStyle(.segmented)
                             }
                         }
+                        .textFieldStyle(.roundedBorder)
+                        .padding(8)
                     }
-                    .textFieldStyle(.roundedBorder)
-                    .padding(8)
-                }
 
-                if !installer.configurationExists {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Profiles")
                             .font(.title2.weight(.semibold))
@@ -210,18 +260,25 @@ struct FirstInstallationView: View {
             Text("Review before building")
                 .font(.largeTitle.weight(.semibold))
             Text(installer.configurationExists
-                ? "This Mac already has a configuration. Nix Me will leave its files unchanged and apply it."
+                ? "Nix Me will apply the selected saved machine unchanged, even when this Mac currently has a different name."
                 : "Nix Me will add this machine to the checkout, build the complete system, and then ask to activate it.")
                 .foregroundStyle(.secondary)
 
             GroupBox {
                 VStack(spacing: 0) {
-                    reviewRow("Hostname", value: installer.hostname)
+                    reviewRow(
+                        installer.configurationExists ? "Machine configuration" : "Hostname",
+                        value: installer.hostname
+                    )
                     if installer.configurationExists {
                         Divider()
-                        reviewRow("Configuration", value: "Loaded from checkout")
+                        reviewRow("Mac", value: installer.machineName)
                         Divider()
-                        reviewRow("Machine settings", value: "Preserved as defined")
+                        reviewRow("Hardware", value: machineTypeLabel)
+                        Divider()
+                        reviewRow("User", value: installer.username)
+                        Divider()
+                        reviewRow("Profiles", value: profileSummary)
                     } else {
                         Divider()
                         reviewRow("Mac", value: installer.machineName)
@@ -381,6 +438,85 @@ struct FirstInstallationView: View {
         .buttonStyle(.plain)
     }
 
+    private func machineCard(_ machine: InstallationMachineConfiguration) -> some View {
+        let selected = installer.selectedExistingMachine?.id == machine.id
+        let suggested = machine.id == installer.detectedHostname
+        return Button {
+            installer.selectExistingMachine(machine)
+        } label: {
+            VStack(alignment: .leading, spacing: 9) {
+                HStack(alignment: .top) {
+                    Image(systemName: selected ? "checkmark.circle.fill" : "desktopcomputer")
+                        .font(.title3)
+                        .foregroundStyle(selected ? Color.accentColor : Color.secondary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(machine.machineName)
+                            .fontWeight(.semibold)
+                        Text(machine.id)
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    if suggested {
+                        Text("MATCH")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.green)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(.green.opacity(0.12), in: Capsule())
+                    }
+                }
+                Text("\(machineTypeLabel(machine.machineType)) · \(profileSummary(for: machine.profiles))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, minHeight: 96, alignment: .topLeading)
+            .background(
+                selected ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.08),
+                in: RoundedRectangle(cornerRadius: 13)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 13)
+                    .stroke(selected ? Color.accentColor : Color.clear, lineWidth: 1.5)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var createMachineCard: some View {
+        let selected = installer.isCreatingNewMachine
+        return Button(action: installer.selectNewMachine) {
+            HStack(spacing: 12) {
+                Image(systemName: selected ? "checkmark.circle.fill" : "plus.circle")
+                    .font(.title3)
+                    .foregroundStyle(Color.accentColor)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Create a new machine configuration")
+                        .fontWeight(.semibold)
+                    Text("Start from this Mac's detected name and hardware, then choose profiles.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                selected ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.08),
+                in: RoundedRectangle(cornerRadius: 13)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 13)
+                    .stroke(selected ? Color.accentColor : Color.clear, lineWidth: 1.5)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
     private func reviewRow(_ label: String, value: String) -> some View {
         HStack {
             Text(label).foregroundStyle(.secondary)
@@ -399,14 +535,23 @@ struct FirstInstallationView: View {
     }
 
     private var profileSummary: String {
-        let names = FirstInstallationStore.profiles
-            .filter { installer.selectedProfiles.contains($0.id) }
-            .map(\.name)
+        profileSummary(for: Array(installer.selectedProfiles))
+    }
+
+    private func profileSummary(for ids: [String]) -> String {
+        let namesByID = Dictionary(
+            uniqueKeysWithValues: FirstInstallationStore.profiles.map { ($0.id, $0.name) }
+        )
+        let names = ids.sorted().map { namesByID[$0] ?? $0 }
         return names.isEmpty ? "Minimal base" : names.joined(separator: ", ")
     }
 
     private var machineTypeLabel: String {
-        switch installer.machineType {
+        machineTypeLabel(installer.machineType)
+    }
+
+    private func machineTypeLabel(_ machineType: String) -> String {
+        switch machineType {
         case "macbook-pro": "MacBook Pro"
         case "macmini": "Mac mini"
         case "vm": "Virtual machine"
