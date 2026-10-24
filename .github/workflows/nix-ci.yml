@@ -55,5 +55,14 @@ jobs:
             | grep -Fq '/Applications/Nix Me.app'
           nix eval --raw .#darwinConfigurations.nabucodonosor.config.system.activationScripts.postActivation.text \
             | grep -Fq '/usr/bin/ditto'
+          activation="$(nix eval --raw .#darwinConfigurations.nabucodonosor.config.system.activationScripts.extraActivation.text)"
+          grep -Fq '/bin/launchctl asuser "$user_uid"' <<<"$activation"
+          grep -Fq 'HOME=/Users/batman' <<<"$activation"
+          grep -Fq 'USER=batman' <<<"$activation"
+          grep -Fq 'LOGNAME=batman' <<<"$activation"
+          if grep -Fq 'sudo -u batman defaults write' <<<"$activation"; then
+            echo 'Raycast preferences must run with the explicit user environment' >&2
+            exit 1
+          fi
       - name: Build managed packages
         run: nix build .#nix-me-apps .#nix-me-tui .#nix-me-macos --no-link

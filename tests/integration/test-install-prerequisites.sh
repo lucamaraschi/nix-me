@@ -60,7 +60,12 @@ case "$1" in
 esac
 EOF
 
-chmod +x "$TMP_DIR/sudo" "$TMP_DIR/xcode-select" "$TMP_DIR/softwareupdate"
+cat >"$TMP_DIR/lsregister" <<'EOF'
+#!/bin/bash
+printf '%s\n' "$*" >>"$TEST_STATE/lsregister.log"
+EOF
+
+chmod +x "$TMP_DIR/sudo" "$TMP_DIR/xcode-select" "$TMP_DIR/softwareupdate" "$TMP_DIR/lsregister"
 
 export PATH="$TMP_DIR:$PATH"
 export TEST_STATE="$TMP_DIR/state"
@@ -170,6 +175,37 @@ NIX_ME_LSREGISTER=/usr/bin/true cleanup_native_installer_copy \
     "$INTERRUPTED_SETUP_DIR/installation-complete"
 if [ ! -d "$INTERRUPTED_SETUP_DIR/Nix Me Setup.app" ]; then
     echo "interrupted native setup copy should remain available" >&2
+    exit 1
+fi
+
+STALE_SETUP_ROOT="$TMP_DIR/stale-native-setups"
+mkdir -p \
+    "$STALE_SETUP_ROOT/nix-me-native-setup.first/Nix Me Setup.app" \
+    "$STALE_SETUP_ROOT/nix-me-native-setup.second/Nix Me Setup.app"
+NIX_ME_NATIVE_SETUP_ROOT="$STALE_SETUP_ROOT" \
+    NIX_ME_LSREGISTER=/usr/bin/true \
+    cleanup_stale_native_installer_copies
+if find "$STALE_SETUP_ROOT" -maxdepth 1 -name 'nix-me-native-setup.*' | grep -q .; then
+    echo "stale native setup copies were not removed" >&2
+    exit 1
+fi
+
+RUNNING_SETUP_APP="$TMP_DIR/running/Nix Me Setup.app"
+/bin/bash -c 'exec -a "$1/Contents/MacOS/NixMeApp" sleep 30' _ "$RUNNING_SETUP_APP" &
+RUNNING_SETUP_PID=$!
+disown "$RUNNING_SETUP_PID" 2>/dev/null || true
+sleep 0.2
+NIX_ME_LSREGISTER="$TMP_DIR/lsregister" stop_running_nix_me_app \
+    "com.nix-me.test-setup" \
+    "^$RUNNING_SETUP_APP/Contents/MacOS/NixMeApp" \
+    "1"
+if kill -0 "$RUNNING_SETUP_PID" 2>/dev/null; then
+    echo "previous native setup process was not stopped" >&2
+    kill "$RUNNING_SETUP_PID" 2>/dev/null || true
+    exit 1
+fi
+if ! grep -Fq -- "-u $RUNNING_SETUP_APP" "$TEST_STATE/lsregister.log"; then
+    echo "previous native setup bundle was not unregistered" >&2
     exit 1
 fi
 

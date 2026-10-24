@@ -219,6 +219,56 @@ cleanup_native_installer_copy() {
     rm -rf "$setup_dir"
 }
 
+stop_running_nix_me_app() {
+    local bundle_id="$1"
+    local process_pattern="$2"
+    local unregister_bundle="${3:-0}"
+    local attempt
+    local bundle_path command_path lsregister pid
+
+    /usr/bin/pgrep -f "$process_pattern" >/dev/null 2>&1 || return 0
+    if [ "$unregister_bundle" = "1" ]; then
+        lsregister=${NIX_ME_LSREGISTER:-/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister}
+        if [ -x "$lsregister" ]; then
+            for pid in $(/usr/bin/pgrep -f "$process_pattern"); do
+                command_path=$(/bin/ps -p "$pid" -o command= 2>/dev/null || true)
+                case "$command_path" in
+                    *"/Contents/MacOS/NixMeApp"*)
+                        bundle_path="${command_path%%/Contents/MacOS/NixMeApp*}"
+                        "$lsregister" -u "$bundle_path" >/dev/null 2>&1 || true
+                        ;;
+                esac
+            done
+        fi
+    fi
+    /usr/bin/osascript -e "tell application id \"$bundle_id\" to quit" >/dev/null 2>&1 || true
+    for attempt in 1 2 3 4 5; do
+        /usr/bin/pgrep -f "$process_pattern" >/dev/null 2>&1 || return 0
+        sleep 0.2
+    done
+    /usr/bin/pkill -TERM -f "$process_pattern" >/dev/null 2>&1 || true
+    for attempt in 1 2 3 4 5; do
+        /usr/bin/pgrep -f "$process_pattern" >/dev/null 2>&1 || return 0
+        sleep 0.2
+    done
+    /usr/bin/pkill -KILL -f "$process_pattern" >/dev/null 2>&1 || true
+}
+
+cleanup_stale_native_installer_copies() {
+    local temp_root stale_dir stale_app lsregister
+
+    temp_root=${NIX_ME_NATIVE_SETUP_ROOT:-${TMPDIR:-/tmp}}
+    lsregister=${NIX_ME_LSREGISTER:-/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister}
+    for stale_dir in "$temp_root"/nix-me-native-setup.*; do
+        [ -d "$stale_dir" ] || continue
+        stale_app="$stale_dir/Nix Me Setup.app"
+        if [ -x "$lsregister" ] && [ -d "$stale_app" ]; then
+            "$lsregister" -u "$stale_app" >/dev/null 2>&1 || true
+        fi
+        rm -rf "$stale_dir"
+    done
+}
+
 launch_native_installer() {
     local repo_dir="$1"
     local setup_output setup_app setup_dir setup_copy completion_marker setup_log launcher_pid
@@ -240,7 +290,16 @@ launch_native_installer() {
         return 1
     fi
 
-    setup_dir=$(mktemp -d "${TMPDIR:-/tmp}/nix-me-native-setup.XXXXXX")
+    stop_running_nix_me_app \
+        "com.nix-me.setup" \
+        "^.*/Nix Me Setup\\.app/Contents/MacOS/NixMeApp" \
+        "1"
+    stop_running_nix_me_app \
+        "com.nix-me.manager" \
+        "^/Applications/Nix Me\\.app/Contents/MacOS/NixMeApp"
+    cleanup_stale_native_installer_copies
+
+    setup_dir=$(mktemp -d "${NIX_ME_NATIVE_SETUP_ROOT:-${TMPDIR:-/tmp}}/nix-me-native-setup.XXXXXX")
     setup_copy="$setup_dir/Nix Me Setup.app"
     completion_marker="$setup_dir/installation-complete"
     setup_log="$setup_dir/setup.log"

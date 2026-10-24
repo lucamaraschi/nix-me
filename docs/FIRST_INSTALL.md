@@ -33,12 +33,14 @@ The setup app owns choices and long-running feedback:
 
 `nix-me-setup` excludes the Rust app-state engine and Sparkle. Its Info.plist
 records store paths for Git, jq, Nix, and Make so a Finder-launched app does not
-depend on shell initialization. It uses a separate `Nix Me Setup` bundle and a
-clearly labeled temporary menu-bar item, then exits after opening the complete
-app installed by the activated host. The bootstrap launches a temporary copy of
-the setup bundle; after activation is verified, that copy is unregistered from
-Launch Services and deleted when it exits. Interrupted setup copies are retained
-for recovery instead of being mistaken for successful installations.
+depend on shell initialization. It uses a separate `Nix Me Setup` bundle, then
+exits after opening the complete app installed by the activated host. The
+bootstrap launches a temporary copy of the setup bundle; after activation is
+verified, that copy is unregistered from Launch Services and deleted when it
+exits. Interrupted setup copies are retained for recovery until the next
+bootstrap run replaces them. Starting setup closes any previous setup session
+and the managed dashboard, and the setup-only build does not publish a menu-bar
+item. The managed dashboard returns after a verified activation.
 
 ## Compatibility
 
