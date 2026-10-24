@@ -19,6 +19,20 @@ struct InstallationProfile: Identifiable, Hashable {
     let symbol: String
 }
 
+struct InstallationMachineConfiguration: Identifiable, Hashable {
+    let id: String
+    let hostname: String
+    let machineName: String
+    let username: String
+    let machineType: String
+    let profiles: [String]
+}
+
+enum FirstInstallationMachineSelection: Equatable {
+    case existing(String)
+    case createNew
+}
+
 enum FirstInstallationScreen: Int, CaseIterable {
     case welcome
     case configure
@@ -85,6 +99,7 @@ final class FirstInstallationStore: ObservableObject {
     @Published var machineType: String
     @Published var selectedProfiles: Set<String> = []
     @Published var appStateEnabled = false
+    @Published private(set) var machineSelection: FirstInstallationMachineSelection?
     @Published private(set) var phase: FirstInstallationPhase = .configuration
     @Published private(set) var phaseMessage = ""
     @Published private(set) var isInstalling = false
@@ -93,6 +108,12 @@ final class FirstInstallationStore: ObservableObject {
 
     let configurationDirectory: URL
     let setupStatus: ConfigurationSetupStatus
+    let detectedHostname: String
+    let availableMachines: [InstallationMachineConfiguration]
+
+    private let detectedMachineName: String
+    private let detectedUsername: String
+    private let detectedMachineType: String
 
     init(configurationDirectory: URL? = nil) {
         let status = ConfigurationBootstrap.inspect(configurationDirectory: configurationDirectory)
@@ -100,23 +121,61 @@ final class FirstInstallationStore: ObservableObject {
         self.configurationDirectory = status.configurationDirectory ?? status.defaultCloneDestination
 
         let detectedHostname = Self.detectHostname()
-        hostname = detectedHostname
-        machineName = Self.detectMachineName(fallback: detectedHostname)
-        username = NSUserName()
-        machineType = Self.detectMachineType()
+        let detectedMachineName = Self.detectMachineName(fallback: detectedHostname)
+        let detectedUsername = NSUserName()
+        let detectedMachineType = Self.detectMachineType()
+        let availableMachines = Self.machineConfigurations(
+            in: self.configurationDirectory,
+            fallbackUsername: detectedUsername
+        )
+
+        self.detectedHostname = detectedHostname
+        self.detectedMachineName = detectedMachineName
+        self.detectedUsername = detectedUsername
+        self.detectedMachineType = detectedMachineType
+        self.availableMachines = availableMachines
+
+        if let suggestedID = Self.suggestedMachineID(
+            in: availableMachines,
+            detectedHostname: detectedHostname
+        ), let suggested = availableMachines.first(where: { $0.id == suggestedID }) {
+            machineSelection = .existing(suggested.id)
+            hostname = suggested.id
+            machineName = suggested.machineName
+            username = suggested.username
+            machineType = suggested.machineType
+            selectedProfiles = Set(suggested.profiles)
+        } else {
+            machineSelection = nil
+            hostname = detectedHostname
+            machineName = detectedMachineName
+            username = detectedUsername
+            machineType = detectedMachineType
+        }
+    }
+
+    var selectedExistingMachine: InstallationMachineConfiguration? {
+        guard case let .existing(id) = machineSelection else { return nil }
+        return availableMachines.first(where: { $0.id == id })
+    }
+
+    var isCreatingNewMachine: Bool {
+        machineSelection == .createNew
     }
 
     var configurationExists: Bool {
-        guard let contents = try? String(
-            contentsOf: configurationDirectory.appendingPathComponent("flake.nix"),
-            encoding: .utf8
-        ) else { return false }
-        return contents.contains("\"\(hostname)\" =")
+        selectedExistingMachine != nil
     }
 
     var validationMessage: String? {
+        guard machineSelection != nil else {
+            return "Choose a saved machine configuration or create a new one."
+        }
         if hostname.range(of: "^[a-z0-9][a-z0-9-]*$", options: .regularExpression) == nil {
             return "Hostname must use lowercase letters, numbers, and hyphens."
+        }
+        if isCreatingNewMachine && availableMachines.contains(where: { $0.id == hostname }) {
+            return "A saved configuration named \(hostname) already exists. Select it above instead."
         }
         if machineName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return "Give this Mac a display name."
@@ -133,6 +192,26 @@ final class FirstInstallationStore: ObservableObject {
         } else {
             selectedProfiles.insert(profile.id)
         }
+    }
+
+    func selectExistingMachine(_ machine: InstallationMachineConfiguration) {
+        machineSelection = .existing(machine.id)
+        hostname = machine.id
+        machineName = machine.machineName
+        username = machine.username
+        machineType = machine.machineType
+        selectedProfiles = Set(machine.profiles)
+        appStateEnabled = false
+    }
+
+    func selectNewMachine() {
+        machineSelection = .createNew
+        hostname = detectedHostname
+        machineName = detectedMachineName
+        username = detectedUsername
+        machineType = detectedMachineType
+        selectedProfiles = []
+        appStateEnabled = false
     }
 
     func continueFromWelcome() {
@@ -199,6 +278,8 @@ final class FirstInstallationStore: ObservableObject {
     }
 
     private func createMachineConfiguration() async throws {
+        guard !configurationExists else { return }
+
         let script = configurationDirectory
             .appendingPathComponent("tools/installation/create-machine.sh")
         guard FileManager.default.isExecutableFile(atPath: script.path) else {
@@ -317,6 +398,147 @@ final class FirstInstallationStore: ObservableObject {
         if model.localizedCaseInsensitiveContains("MacBookPro") { return "macbook-pro" }
         if model.localizedCaseInsensitiveContains("Macmini") { return "macmini" }
         return "macbook"
+    }
+
+    nonisolated static func suggestedMachineID(
+        in machines: [InstallationMachineConfiguration],
+        detectedHostname: String
+    ) -> String? {
+        machines.first(where: { $0.id == detectedHostname })?.id
+    }
+
+    nonisolated static func machineConfigurations(
+        in configurationDirectory: URL,
+        fallbackUsername: String
+    ) -> [InstallationMachineConfiguration] {
+        let flakeURL = configurationDirectory.appendingPathComponent("flake.nix")
+        guard let source = try? String(contentsOf: flakeURL, encoding: .utf8) else { return [] }
+
+        let defaultUsername = firstCapture(
+            "(?m)^\\s*defaultUsername\\s*=\\s*\"([^\"]+)\"",
+            in: source
+        ) ?? fallbackUsername
+        let hostPattern = "(?m)^\\s*\"([^\"]+)\"\\s*=\\s*mkDarwinSystem\\s*\\{"
+        guard let hostExpression = try? NSRegularExpression(pattern: hostPattern) else { return [] }
+        let sourceRange = NSRange(source.startIndex..., in: source)
+        let sourceString = source as NSString
+
+        return hostExpression.matches(in: source, range: sourceRange).compactMap { match in
+            guard match.numberOfRanges == 2,
+                  let idRange = Range(match.range(at: 1), in: source),
+                  let block = balancedBlock(
+                    in: sourceString,
+                    openingBraceLocation: NSMaxRange(match.range) - 1
+                  )
+            else { return nil }
+
+            let id = String(source[idRange])
+            let hostname = firstCapture(
+                "(?m)^\\s*hostname\\s*=\\s*\"([^\"]+)\"",
+                in: block
+            ) ?? id
+            let machineName = firstCapture(
+                "(?m)^\\s*machineName\\s*=\\s*\"([^\"]+)\"",
+                in: block
+            ) ?? hostname
+            let machineType = firstCapture(
+                "(?m)^\\s*machineType\\s*=\\s*\"([^\"]+)\"",
+                in: block
+            ) ?? "macbook"
+            let explicitUsername = firstCapture(
+                "(?m)^\\s*username\\s*=\\s*\"([^\"]+)\"",
+                in: block
+            )
+            let usesEnvironmentUsername = block.range(
+                of: "(?m)^\\s*username\\s*=\\s*username\\s*;",
+                options: .regularExpression
+            ) != nil
+            let username = explicitUsername
+                ?? (usesEnvironmentUsername ? fallbackUsername : defaultUsername)
+
+            return InstallationMachineConfiguration(
+                id: id,
+                hostname: hostname,
+                machineName: machineName,
+                username: username,
+                machineType: machineType,
+                profiles: profileNames(in: block)
+            )
+        }
+        .sorted { $0.id.localizedStandardCompare($1.id) == .orderedAscending }
+    }
+
+    private nonisolated static func firstCapture(_ pattern: String, in source: String) -> String? {
+        guard let expression = try? NSRegularExpression(pattern: pattern),
+              let match = expression.firstMatch(
+                in: source,
+                range: NSRange(source.startIndex..., in: source)
+              ),
+              match.numberOfRanges > 1,
+              let range = Range(match.range(at: 1), in: source)
+        else { return nil }
+        return String(source[range])
+    }
+
+    private nonisolated static func profileNames(in block: String) -> [String] {
+        let pattern = "\\./nix/hosts/profiles/([A-Za-z0-9_-]+)\\.nix"
+        guard let expression = try? NSRegularExpression(pattern: pattern) else { return [] }
+        var seen = Set<String>()
+        return expression.matches(
+            in: block,
+            range: NSRange(block.startIndex..., in: block)
+        ).compactMap { match in
+            guard let range = Range(match.range(at: 1), in: block) else { return nil }
+            let name = String(block[range])
+            return seen.insert(name).inserted ? name : nil
+        }
+    }
+
+    private nonisolated static func balancedBlock(
+        in source: NSString,
+        openingBraceLocation: Int
+    ) -> String? {
+        guard openingBraceLocation >= 0, openingBraceLocation < source.length else { return nil }
+        var depth = 0
+        var inString = false
+        var escaped = false
+        var inComment = false
+
+        for location in openingBraceLocation..<source.length {
+            let character = source.character(at: location)
+            if inComment {
+                if character == 10 || character == 13 { inComment = false }
+                continue
+            }
+            if inString {
+                if escaped {
+                    escaped = false
+                } else if character == 92 {
+                    escaped = true
+                } else if character == 34 {
+                    inString = false
+                }
+                continue
+            }
+            if character == 35 {
+                inComment = true
+            } else if character == 34 {
+                inString = true
+            } else if character == 123 {
+                depth += 1
+            } else if character == 125 {
+                depth -= 1
+                if depth == 0 {
+                    return source.substring(
+                        with: NSRange(
+                            location: openingBraceLocation,
+                            length: location - openingBraceLocation + 1
+                        )
+                    )
+                }
+            }
+        }
+        return nil
     }
 
     nonisolated static func errorSummary(_ error: Error) -> String {

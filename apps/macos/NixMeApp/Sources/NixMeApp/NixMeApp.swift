@@ -68,9 +68,14 @@ struct NixMeApp: App {
     }
 
     private func openManagedApplication() {
-        let application = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Applications/Nix Me.app")
-        guard FileManager.default.fileExists(atPath: application.path) else {
+        let applications = [
+            URL(fileURLWithPath: "/Applications/Nix Me.app", isDirectory: true),
+            FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent("Applications/Nix Me.app", isDirectory: true),
+        ]
+        guard let application = applications.first(where: {
+            FileManager.default.fileExists(atPath: $0.path)
+        }) else {
             showDashboardInCurrentApplication()
             return
         }
