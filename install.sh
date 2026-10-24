@@ -294,6 +294,26 @@ xcode_cli_tools_ready() {
     xcode-select --print-path &>/dev/null
 }
 
+select_existing_xcode_developer_directory() {
+    local applications_dir="${XCODE_APPLICATIONS_DIR:-/Applications}"
+    local command_line_tools_dir="${XCODE_COMMAND_LINE_TOOLS_DIR:-/Library/Developer/CommandLineTools}"
+    local candidate
+
+    # A full Xcode installation is sufficient and avoids downloading CLT again.
+    for candidate in "$applications_dir"/Xcode*.app/Contents/Developer "$command_line_tools_dir"; do
+        if [ ! -d "$candidate" ]; then
+            continue
+        fi
+
+        log "Selecting existing developer tools at $candidate..."
+        if sudo xcode-select --switch "$candidate" >/dev/null 2>&1 && xcode_cli_tools_ready; then
+            return 0
+        fi
+    done
+
+    return 1
+}
+
 find_xcode_cli_tools_update() {
     local marker="${XCODE_CLI_UPDATE_MARKER:-/tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress}"
     local updates
@@ -307,6 +327,57 @@ find_xcode_cli_tools_update() {
         | tail -n 1
 }
 
+install_xcode_cli_tools_update() {
+    local update_label="$1"
+    local output_file
+    local status=0
+
+    output_file=$(mktemp -t nix-me-xcode-clt.XXXXXX)
+    sudo softwareupdate --install "$update_label" --verbose >"$output_file" 2>&1 || status=$?
+    cat "$output_file"
+    rm -f "$output_file"
+
+    if xcode_cli_tools_ready || select_existing_xcode_developer_directory; then
+        return 0
+    fi
+
+    if [ "$status" -ne 0 ]; then
+        warn "softwareupdate exited with code $status without installing Command Line Tools"
+    else
+        warn "softwareupdate finished, but Command Line Tools are still unavailable"
+    fi
+    return 1
+}
+
+request_xcode_cli_tools_interactively() {
+    local timeout_seconds=${XCODE_INSTALL_TIMEOUT_SECONDS:-1800}
+    local elapsed=0
+
+    log "Opening the Command Line Tools installer..."
+    xcode-select --install 2>/dev/null || true
+
+    echo ""
+    echo "    ╔════════════════════════════════════════════════════════════╗"
+    echo "    ║  A dialog will appear to install Command Line Tools.       ║"
+    echo "    ║  Please click 'Install' and wait for it to complete.       ║"
+    echo "    ╚════════════════════════════════════════════════════════════╝"
+    echo ""
+
+    log "Waiting up to ${timeout_seconds}s for installation to complete..."
+    while ! xcode_cli_tools_ready; do
+        if select_existing_xcode_developer_directory; then
+            return 0
+        fi
+        if [ "$elapsed" -ge "$timeout_seconds" ]; then
+            error "Timed out waiting for Command Line Tools after ${timeout_seconds}s"
+            error "Install them manually with 'xcode-select --install', then run the installer again"
+            return 1
+        fi
+        sleep 5
+        elapsed=$((elapsed + 5))
+    done
+}
+
 ensure_xcode_command_line_tools() {
     if xcode_cli_tools_ready; then
         return 0
@@ -317,46 +388,41 @@ ensure_xcode_command_line_tools() {
         return 0
     fi
 
+    if select_existing_xcode_developer_directory; then
+        return 0
+    fi
+
     local update_label
     update_label=$(find_xcode_cli_tools_update)
     if [ -n "$update_label" ]; then
         log "Installing $update_label with softwareupdate..."
-        if ! sudo softwareupdate --install "$update_label" --verbose; then
-            error "Command Line Tools installation failed"
-            return 1
+        if install_xcode_cli_tools_update "$update_label"; then
+            return 0
         fi
-    elif [ "$NON_INTERACTIVE" = "1" ]; then
-        error "Command Line Tools are not installed and macOS Software Update does not offer them"
+
+        # The software update catalog can change between listing and installing.
+        local refreshed_label
+        refreshed_label=$(find_xcode_cli_tools_update)
+        if [ -n "$refreshed_label" ] && [ "$refreshed_label" != "$update_label" ]; then
+            log "Retrying with refreshed update $refreshed_label..."
+            if install_xcode_cli_tools_update "$refreshed_label"; then
+                return 0
+            fi
+        fi
+    fi
+
+    if [ "$NON_INTERACTIVE" = "1" ]; then
+        if [ -n "$update_label" ]; then
+            error "macOS Software Update advertised '$update_label', but it could not be installed"
+        else
+            error "Command Line Tools are not installed and macOS Software Update does not offer them"
+        fi
         error "Update macOS or install Command Line Tools manually, then run the installer again"
         error "Disposable VMs may use SKIP_XCODE_CLT=1 together with SKIP_BREW_ON_VM=1"
         return 1
-    else
-        local timeout_seconds=${XCODE_INSTALL_TIMEOUT_SECONDS:-1800}
-        local elapsed=0
-
-        log "Opening the Command Line Tools installer..."
-        xcode-select --install 2>/dev/null || true
-
-        echo ""
-        echo "    ╔════════════════════════════════════════════════════════════╗"
-        echo "    ║  A dialog will appear to install Command Line Tools.       ║"
-        echo "    ║  Please click 'Install' and wait for it to complete.       ║"
-        echo "    ╚════════════════════════════════════════════════════════════╝"
-        echo ""
-
-        log "Waiting up to ${timeout_seconds}s for installation to complete..."
-        while ! xcode_cli_tools_ready; do
-            if [ "$elapsed" -ge "$timeout_seconds" ]; then
-                error "Timed out waiting for Command Line Tools after ${timeout_seconds}s"
-                error "Install them manually with 'xcode-select --install', then run the installer again"
-                return 1
-            fi
-            sleep 5
-            elapsed=$((elapsed + 5))
-        done
     fi
 
-    if ! xcode_cli_tools_ready; then
+    if ! request_xcode_cli_tools_interactively || ! xcode_cli_tools_ready; then
         error "Command Line Tools installation completed without an active developer directory"
         return 1
     fi
