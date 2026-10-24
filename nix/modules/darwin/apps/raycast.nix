@@ -40,13 +40,24 @@ in
     system.activationScripts.extraActivation.text = lib.mkAfter ''
     echo "Configuring Raycast as default launcher..." >&2
 
+    user_uid=$(/usr/bin/id -u ${lib.escapeShellArg username})
+    run_as_user() {
+      /bin/launchctl asuser "$user_uid" \
+        /usr/bin/sudo -u ${lib.escapeShellArg username} \
+        /usr/bin/env \
+          HOME=${lib.escapeShellArg userHome} \
+          USER=${lib.escapeShellArg username} \
+          LOGNAME=${lib.escapeShellArg username} \
+          "$@"
+    }
+
     # Disable Spotlight keyboard shortcuts (run as user, not root!)
     echo "  Disabling Spotlight hotkeys..." >&2
 
     # Use defaults write with dict-add for more reliable modification on modern macOS
     # Key 64 = Cmd+Space (Show Spotlight search)
     # Key 65 = Cmd+Option+Space (Show Finder search window)
-    sudo -u ${username} defaults write com.apple.symbolichotkeys AppleSymbolicHotKeys -dict-add 64 '
+    run_as_user /usr/bin/defaults write com.apple.symbolichotkeys AppleSymbolicHotKeys -dict-add 64 '
       <dict>
         <key>enabled</key>
         <false/>
@@ -63,7 +74,7 @@ in
         </dict>
       </dict>'
 
-    sudo -u ${username} defaults write com.apple.symbolichotkeys AppleSymbolicHotKeys -dict-add 65 '
+    run_as_user /usr/bin/defaults write com.apple.symbolichotkeys AppleSymbolicHotKeys -dict-add 65 '
       <dict>
         <key>enabled</key>
         <false/>
@@ -81,38 +92,38 @@ in
       </dict>'
 
     # Apply the changes immediately
-    sudo -u ${username} /System/Library/PrivateFrameworks/SystemAdministration.framework/Resources/activateSettings -u 2>/dev/null || true
+    run_as_user /System/Library/PrivateFrameworks/SystemAdministration.framework/Resources/activateSettings -u 2>/dev/null || true
 
     # Kill cfprefsd to force reload of preferences (both user and system)
-    sudo -u ${username} killall cfprefsd 2>/dev/null || true
-    sudo killall cfprefsd 2>/dev/null || true
+    run_as_user /usr/bin/killall cfprefsd 2>/dev/null || true
+    /usr/bin/killall cfprefsd 2>/dev/null || true
 
     # Configure Raycast settings
     echo "  Configuring Raycast preferences..." >&2
 
     # General settings
-    sudo -u ${username} defaults write com.raycast.macos raycastGlobalHotkey -string "Command-49"  # Cmd+Space (49 = space key)
-    sudo -u ${username} defaults write com.raycast.macos "NSStatusItem Visible raycastIcon" -bool true
+    run_as_user /usr/bin/defaults write com.raycast.macos raycastGlobalHotkey -string "Command-49"  # Cmd+Space (49 = space key)
+    run_as_user /usr/bin/defaults write com.raycast.macos "NSStatusItem Visible raycastIcon" -bool true
 
     # Appearance
-    sudo -u ${username} defaults write com.raycast.macos raycastPreferredWindowMode -string "default"
+    run_as_user /usr/bin/defaults write com.raycast.macos raycastPreferredWindowMode -string "default"
 
     # Launch at login (this sets Raycast's internal preference)
-    sudo -u ${username} defaults write com.raycast.macos openAtLogin -bool true
+    run_as_user /usr/bin/defaults write com.raycast.macos openAtLogin -bool true
 
     # Enable clipboard history
-    sudo -u ${username} defaults write com.raycast.macos "ToggleClipboardHistoryHotkey" -string "Command-Shift-86"  # Cmd+Shift+V
+    run_as_user /usr/bin/defaults write com.raycast.macos "ToggleClipboardHistoryHotkey" -string "Command-Shift-86"  # Cmd+Shift+V
 
     # Floating notes hotkey
-    sudo -u ${username} defaults write com.raycast.macos "ToggleFloatingNotesHotkey" -string "Command-Shift-78"  # Cmd+Shift+N
+    run_as_user /usr/bin/defaults write com.raycast.macos "ToggleFloatingNotesHotkey" -string "Command-Shift-78"  # Cmd+Shift+N
 
     # Window management hotkeys (like Rectangle but built-in)
-    sudo -u ${username} defaults write com.raycast.macos "WindowLeftHalfHotkey" -string "Control-Option-37"    # Ctrl+Opt+Left
-    sudo -u ${username} defaults write com.raycast.macos "WindowRightHalfHotkey" -string "Control-Option-39"   # Ctrl+Opt+Right
-    sudo -u ${username} defaults write com.raycast.macos "WindowMaximizeHotkey" -string "Control-Option-36"    # Ctrl+Opt+Return
+    run_as_user /usr/bin/defaults write com.raycast.macos "WindowLeftHalfHotkey" -string "Control-Option-37"    # Ctrl+Opt+Left
+    run_as_user /usr/bin/defaults write com.raycast.macos "WindowRightHalfHotkey" -string "Control-Option-39"   # Ctrl+Opt+Right
+    run_as_user /usr/bin/defaults write com.raycast.macos "WindowMaximizeHotkey" -string "Control-Option-36"    # Ctrl+Opt+Return
 
     # Confetti celebration (for fun!)
-    sudo -u ${username} defaults write com.raycast.macos showConfettiAnimationOnExtensionRun -bool true
+    run_as_user /usr/bin/defaults write com.raycast.macos showConfettiAnimationOnExtensionRun -bool true
 
     # Create LaunchAgent to ensure Raycast starts at login
     echo "  Installing Raycast LaunchAgent..." >&2
@@ -131,8 +142,8 @@ PLIST
     chmod 644 "${launchAgentPath}"
 
     # Load the LaunchAgent (unload first if already loaded)
-    sudo -u ${username} launchctl unload "${launchAgentPath}" 2>/dev/null || true
-    sudo -u ${username} launchctl load "${launchAgentPath}" 2>/dev/null || true
+    run_as_user /bin/launchctl unload "${launchAgentPath}" 2>/dev/null || true
+    run_as_user /bin/launchctl load "${launchAgentPath}" 2>/dev/null || true
 
     echo "  Raycast configured!" >&2
     echo "" >&2
