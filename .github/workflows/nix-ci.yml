@@ -45,11 +45,15 @@ jobs:
         run: tools/automation/check-nix-host-matrix.sh
       - name: Check flake outputs
         run: nix flake check --no-build
-      - name: Check beta profile boundary
+      - name: Check profile boundaries and app installation
         run: |
           test "$(nix eval .#darwinConfigurations.vm-test.config.apps.state.enable)" = "true"
           test "$(nix eval .#darwinConfigurations.minimal-mac.config.apps.state.enable)" = "false"
           test "$(nix eval .#darwinConfigurations.bellerofonte.config.apps.manager.enable)" = "true"
-          test "$(nix eval .#darwinConfigurations.nabucodonosor.config.apps.manager.enable)" = "false"
+          test "$(nix eval .#darwinConfigurations.nabucodonosor.config.apps.manager.enable)" = "true"
+          nix eval --raw .#darwinConfigurations.nabucodonosor.config.system.activationScripts.postActivation.text \
+            | grep -Fq '/Applications/Nix Me.app'
+          nix eval --raw .#darwinConfigurations.nabucodonosor.config.system.activationScripts.postActivation.text \
+            | grep -Fq '/usr/bin/ditto'
       - name: Build managed packages
         run: nix build .#nix-me-apps .#nix-me-tui .#nix-me-macos --no-link
