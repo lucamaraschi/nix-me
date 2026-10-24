@@ -204,9 +204,24 @@ safe_git_update() {
     log "Repository successfully updated to latest remote state"
 }
 
+cleanup_native_installer_copy() {
+    local setup_dir="$1"
+    local setup_app="$2"
+    local completion_marker="$3"
+    local lsregister
+
+    [ -f "$completion_marker" ] || return 0
+
+    lsregister=${NIX_ME_LSREGISTER:-/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister}
+    if [ -x "$lsregister" ]; then
+        "$lsregister" -u "$setup_app" >/dev/null 2>&1 || true
+    fi
+    rm -rf "$setup_dir"
+}
+
 launch_native_installer() {
     local repo_dir="$1"
-    local setup_output setup_app setup_log
+    local setup_output setup_app setup_dir setup_copy completion_marker setup_log launcher_pid
 
     print_header "Continue in Nix Me"
     print_info "Building a lightweight local setup app. This does not require notarization."
@@ -225,15 +240,37 @@ launch_native_installer() {
         return 1
     fi
 
+    setup_dir=$(mktemp -d "${TMPDIR:-/tmp}/nix-me-native-setup.XXXXXX")
+    setup_copy="$setup_dir/Nix Me Setup.app"
+    completion_marker="$setup_dir/installation-complete"
+    setup_log="$setup_dir/setup.log"
+    if ! /usr/bin/ditto "$setup_app" "$setup_copy"; then
+        error "Could not prepare the temporary Nix Me Setup app"
+        rm -rf "$setup_dir"
+        return 1
+    fi
+
     defaults write com.nix-me.manager NixMeConfigurationDirectory "$repo_dir"
-    if ! open "$setup_app" --args --first-install; then
+    (
+        trap '' HUP
+        /usr/bin/open -n -W \
+            --env "NIX_ME_SETUP_COMPLETION_MARKER=$completion_marker" \
+            "$setup_copy" --args --first-install || true
+        cleanup_native_installer_copy "$setup_dir" "$setup_copy" "$completion_marker"
+    ) </dev/null >"$setup_log" 2>&1 &
+    launcher_pid=$!
+    sleep 1
+    if ! kill -0 "$launcher_pid" 2>/dev/null; then
         error "macOS could not open Nix Me Setup"
+        [ -f "$setup_log" ] && tail -40 "$setup_log" >&2
+        print_info "The temporary setup app remains at $setup_copy"
         return 1
     fi
 
     echo ""
     print_success "Nix Me is open"
     print_info "Choose the profiles for this Mac, review the plan, and apply it from the app."
+    print_info "After a successful setup, the temporary installer app removes itself."
     print_info "You can close this terminal window."
 }
 
