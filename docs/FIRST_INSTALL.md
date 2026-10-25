@@ -44,6 +44,13 @@ The setup app owns choices and long-running feedback:
 - Use the same Oxide-inspired grid, square panels, status colors, monospaced
   labels, and control hierarchy as the managed Nix Me dashboard.
 
+The terminal bootstrap starts a scoped `caffeinate` assertion before requesting
+administrator access. The native setup application then replaces it with a
+`ProcessInfo` activity assertion that blocks idle system and display sleep until
+the app exits. Both stages tell the user that sleep prevention is active. Keep a
+MacBook lid open and connect power for long installations; macOS can still sleep
+when the lid is closed outside supported clamshell use.
+
 `nix-me-setup` excludes the Rust app-state engine and Sparkle. Its Info.plist
 records store paths for Git, jq, Nix, and Make so a Finder-launched app does not
 depend on shell initialization. It uses a separate `Nix Me Setup` bundle, then

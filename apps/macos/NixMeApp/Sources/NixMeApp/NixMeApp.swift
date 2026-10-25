@@ -9,6 +9,9 @@ struct NixMeApp: App {
 
     @StateObject private var store = DashboardStore()
     @StateObject private var updater = AppUpdater()
+    @StateObject private var installationPowerAssertion = InstallationPowerAssertion(
+        enabled: Self.launchesFirstInstallation
+    )
     @State private var isFirstInstallation = Self.launchesFirstInstallation
     @State private var isMenuBarExtraInserted = !Self.launchesFirstInstallation
 
@@ -16,7 +19,10 @@ struct NixMeApp: App {
         WindowGroup("Nix Me", id: "dashboard") {
             Group {
                 if isFirstInstallation {
-                    FirstInstallationView(openDashboard: openManagedApplication)
+                    FirstInstallationView(
+                        keepsMacAwake: installationPowerAssertion.isActive,
+                        openDashboard: openManagedApplication
+                    )
                 } else {
                     DashboardView(store: store)
                 }

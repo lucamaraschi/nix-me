@@ -73,6 +73,31 @@ ask_yes_no() {
     [[ -z $answer || $answer =~ ^[Yy] ]]
 }
 
+INSTALL_AWAKE_PID=""
+SUDO_REFRESH_PID=""
+
+cleanup_install_helpers() {
+    local helper_pid
+    for helper_pid in "${SUDO_REFRESH_PID:-}" "${INSTALL_AWAKE_PID:-}"; do
+        [ -n "$helper_pid" ] || continue
+        kill "$helper_pid" >/dev/null 2>&1 || true
+        wait "$helper_pid" 2>/dev/null || true
+    done
+}
+
+start_install_awake_guard() {
+    local caffeinate_bin
+    caffeinate_bin=${NIX_ME_CAFFEINATE_BIN:-/usr/bin/caffeinate}
+    if [ ! -x "$caffeinate_bin" ]; then
+        error "macOS sleep prevention is unavailable at $caffeinate_bin"
+        return 1
+    fi
+
+    "$caffeinate_bin" -dims -w "$$" >/dev/null 2>&1 &
+    INSTALL_AWAKE_PID=$!
+    trap cleanup_install_helpers EXIT
+}
+
 # Function to test if Nix installation is complete and functional
 test_nix_fully_functional() {
     log "Testing Nix installation completeness..."
@@ -767,6 +792,11 @@ main() {
         exit 1
     fi
 
+    start_install_awake_guard || exit 1
+    print_success "Sleep prevention is active for this installation"
+    print_warn "Keep the lid open and connect this Mac to power for long installations"
+    echo ""
+
     # Detect environment
     VM_TYPE=$(detect_vm_environment)
     log "Detected environment: ${VM_TYPE}"
@@ -781,7 +811,6 @@ main() {
     # Keep sudo alive in background
     ( while true; do sudo -n -v 2>/dev/null; sleep 30; done ) &
     SUDO_REFRESH_PID=$!
-    trap "kill $SUDO_REFRESH_PID 2>/dev/null || true" EXIT
     log "Sudo credentials will be kept alive during installation"
     print_success "Administrator access granted"
     echo ""
