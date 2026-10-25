@@ -2,6 +2,7 @@ import XCTest
 
 @testable import NixMeApp
 
+@MainActor
 final class FirstInstallationStoreTests: XCTestCase {
     func testMachineConfigurationsLoadSavedHostsAndTheirProfiles() throws {
         let directory = FileManager.default.temporaryDirectory
@@ -131,6 +132,142 @@ final class FirstInstallationStoreTests: XCTestCase {
         XCTAssertEqual(
             FirstInstallationStore.errorSummary(error),
             "ln: failed to create symbolic link '/etc/pam.d/sudo_local': Operation not permitted (1)"
+        )
+    }
+
+    func testInterruptedInstallationRestoresTheExplicitHostSelection() throws {
+        let directory = try makeConfigurationDirectory(hostname: "bellerofonte")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let (persistence, cleanup) = makeSessionPersistence()
+        defer { cleanup() }
+
+        persistence.save(session(
+            configurationDirectory: directory,
+            selection: .existing,
+            hostname: "bellerofonte",
+            installAttempted: true
+        ))
+
+        let store = FirstInstallationStore(
+            configurationDirectory: directory,
+            sessionPersistence: persistence
+        )
+
+        XCTAssertEqual(store.machineSelection, .existing("bellerofonte"))
+        XCTAssertEqual(store.hostname, "bellerofonte")
+        XCTAssertEqual(store.screen, .review)
+        XCTAssertTrue(store.resumeMessage?.contains("interrupted") == true)
+    }
+
+    func testCreatedHostBecomesAnExistingSelectionWhenSetupRestarts() throws {
+        let directory = try makeConfigurationDirectory(hostname: "bellerofonte")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let (persistence, cleanup) = makeSessionPersistence()
+        defer { cleanup() }
+
+        persistence.save(session(
+            configurationDirectory: directory,
+            selection: .createNew,
+            hostname: "bellerofonte",
+            installAttempted: true
+        ))
+
+        let store = FirstInstallationStore(
+            configurationDirectory: directory,
+            sessionPersistence: persistence
+        )
+
+        XCTAssertEqual(store.machineSelection, .existing("bellerofonte"))
+        XCTAssertTrue(store.configurationExists)
+        XCTAssertEqual(store.screen, .review)
+    }
+
+    func testSetupSessionDoesNotLeakAcrossConfigurationCheckouts() throws {
+        let firstDirectory = try makeConfigurationDirectory(hostname: "bellerofonte")
+        let secondDirectory = try makeConfigurationDirectory(
+            hostname: "unrelated-\(UUID().uuidString.lowercased())"
+        )
+        defer {
+            try? FileManager.default.removeItem(at: firstDirectory)
+            try? FileManager.default.removeItem(at: secondDirectory)
+        }
+        let (persistence, cleanup) = makeSessionPersistence()
+        defer { cleanup() }
+
+        persistence.save(session(
+            configurationDirectory: firstDirectory,
+            selection: .existing,
+            hostname: "bellerofonte",
+            installAttempted: true
+        ))
+
+        let store = FirstInstallationStore(
+            configurationDirectory: secondDirectory,
+            sessionPersistence: persistence
+        )
+
+        XCTAssertNil(store.resumeMessage)
+        XCTAssertEqual(store.machineSelection, nil)
+        XCTAssertEqual(store.screen, .welcome)
+    }
+
+    private func makeConfigurationDirectory(hostname: String) throws -> URL {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try """
+        {
+          outputs = inputs: {
+            darwinConfigurations = {
+              "\(hostname)" = mkDarwinSystem {
+                hostname = "\(hostname)";
+                machineType = "macbook-pro";
+                machineName = "Bellerofonte";
+                username = "batman";
+                extraModules = [ ./nix/hosts/profiles/dev.nix ];
+              };
+            };
+          };
+        }
+        """.write(
+            to: directory.appendingPathComponent("flake.nix"),
+            atomically: true,
+            encoding: .utf8
+        )
+        return directory
+    }
+
+    private func makeSessionPersistence() -> (
+        FirstInstallationSessionPersistence,
+        () -> Void
+    ) {
+        let suiteName = "FirstInstallationStoreTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        return (
+            FirstInstallationSessionPersistence(defaults: defaults),
+            { defaults.removePersistentDomain(forName: suiteName) }
+        )
+    }
+
+    private func session(
+        configurationDirectory: URL,
+        selection: FirstInstallationSessionSelection,
+        hostname: String,
+        installAttempted: Bool
+    ) -> FirstInstallationSession {
+        FirstInstallationSession(
+            schemaVersion: FirstInstallationSession.schemaVersion,
+            configurationDirectory: FirstInstallationSessionPersistence.normalizedPath(
+                configurationDirectory
+            ),
+            selection: selection,
+            hostname: hostname,
+            machineName: "Bellerofonte",
+            username: "batman",
+            machineType: "macbook-pro",
+            selectedProfiles: ["dev"],
+            appStateEnabled: true,
+            installAttempted: installAttempted
         )
     }
 }

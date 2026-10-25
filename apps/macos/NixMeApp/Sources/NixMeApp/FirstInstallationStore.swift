@@ -105,6 +105,7 @@ final class FirstInstallationStore: ObservableObject {
     @Published private(set) var isInstalling = false
     @Published private(set) var errorMessage: String?
     @Published private(set) var errorDetails: String?
+    @Published private(set) var resumeMessage: String?
 
     let configurationDirectory: URL
     let setupStatus: ConfigurationSetupStatus
@@ -114,11 +115,16 @@ final class FirstInstallationStore: ObservableObject {
     private let detectedMachineName: String
     private let detectedUsername: String
     private let detectedMachineType: String
+    private let sessionPersistence: FirstInstallationSessionPersistence
 
-    init(configurationDirectory: URL? = nil) {
+    init(
+        configurationDirectory: URL? = nil,
+        sessionPersistence: FirstInstallationSessionPersistence = FirstInstallationSessionPersistence()
+    ) {
         let status = ConfigurationBootstrap.inspect(configurationDirectory: configurationDirectory)
         setupStatus = status
         self.configurationDirectory = status.configurationDirectory ?? status.defaultCloneDestination
+        self.sessionPersistence = sessionPersistence
 
         let detectedHostname = Self.detectHostname()
         let detectedMachineName = Self.detectMachineName(fallback: detectedHostname)
@@ -134,6 +140,34 @@ final class FirstInstallationStore: ObservableObject {
         self.detectedUsername = detectedUsername
         self.detectedMachineType = detectedMachineType
         self.availableMachines = availableMachines
+
+        if let session = sessionPersistence.load(for: self.configurationDirectory),
+           session.selection == .createNew
+            || availableMachines.contains(where: { $0.id == session.hostname })
+        {
+            if let machine = availableMachines.first(where: { $0.id == session.hostname }) {
+                machineSelection = .existing(machine.id)
+                hostname = machine.id
+                machineName = machine.machineName
+                username = machine.username
+                machineType = machine.machineType
+                selectedProfiles = Set(machine.profiles)
+                appStateEnabled = session.appStateEnabled
+            } else {
+                machineSelection = .createNew
+                hostname = session.hostname
+                machineName = session.machineName
+                username = session.username
+                machineType = session.machineType
+                selectedProfiles = Set(session.selectedProfiles)
+                appStateEnabled = session.appStateEnabled
+            }
+            screen = .review
+            resumeMessage = session.installAttempted
+                ? "Setup was interrupted while applying \(session.hostname). Review the saved selection, then retry when ready."
+                : "Restored the saved setup selection for \(session.hostname)."
+            return
+        }
 
         if let suggestedID = Self.suggestedMachineID(
             in: availableMachines,
@@ -202,6 +236,8 @@ final class FirstInstallationStore: ObservableObject {
         machineType = machine.machineType
         selectedProfiles = Set(machine.profiles)
         appStateEnabled = false
+        resumeMessage = nil
+        persistSession(installAttempted: false)
     }
 
     func selectNewMachine() {
@@ -212,6 +248,8 @@ final class FirstInstallationStore: ObservableObject {
         machineType = detectedMachineType
         selectedProfiles = []
         appStateEnabled = false
+        resumeMessage = nil
+        persistSession(installAttempted: false)
     }
 
     func continueFromWelcome() {
@@ -220,6 +258,7 @@ final class FirstInstallationStore: ObservableObject {
 
     func continueFromConfiguration() {
         guard validationMessage == nil else { return }
+        persistSession(installAttempted: false)
         screen = .review
     }
 
@@ -234,6 +273,7 @@ final class FirstInstallationStore: ObservableObject {
 
     func install() async {
         guard !isInstalling, validationMessage == nil else { return }
+        persistSession(installAttempted: true)
         isInstalling = true
         errorMessage = nil
         errorDetails = nil
@@ -267,6 +307,7 @@ final class FirstInstallationStore: ObservableObject {
             phase = .verification
             phaseMessage = "Confirming the active host and system generation"
             try await verifyInstallation()
+            sessionPersistence.clear()
             Self.recordSuccessfulInstallation()
             phaseMessage = "The managed system is active and ready"
             isInstalling = false
@@ -276,6 +317,28 @@ final class FirstInstallationStore: ObservableObject {
             errorMessage = "\(phase.title) could not finish. \(Self.errorSummary(error))"
             errorDetails = error.localizedDescription
         }
+    }
+
+    private func persistSession(installAttempted: Bool) {
+        guard let machineSelection else { return }
+        let selection: FirstInstallationSessionSelection = switch machineSelection {
+        case .existing: .existing
+        case .createNew: .createNew
+        }
+        sessionPersistence.save(FirstInstallationSession(
+            schemaVersion: FirstInstallationSession.schemaVersion,
+            configurationDirectory: FirstInstallationSessionPersistence.normalizedPath(
+                configurationDirectory
+            ),
+            selection: selection,
+            hostname: hostname,
+            machineName: machineName,
+            username: username,
+            machineType: machineType,
+            selectedProfiles: selectedProfiles.sorted(),
+            appStateEnabled: appStateEnabled,
+            installAttempted: installAttempted
+        ))
     }
 
     private func createMachineConfiguration() async throws {
