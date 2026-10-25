@@ -216,6 +216,9 @@ cleanup_native_installer_copy() {
     if [ -x "$lsregister" ]; then
         "$lsregister" -u "$setup_app" >/dev/null 2>&1 || true
     fi
+    # ditto preserves the Nix store's read-only modes. Make only this disposable
+    # copy writable so rm can traverse and remove the completed setup bundle.
+    chmod -R u+w "$setup_dir" 2>/dev/null || true
     rm -rf "$setup_dir"
 }
 
@@ -265,6 +268,7 @@ cleanup_stale_native_installer_copies() {
         if [ -x "$lsregister" ] && [ -d "$stale_app" ]; then
             "$lsregister" -u "$stale_app" >/dev/null 2>&1 || true
         fi
+        chmod -R u+w "$stale_dir" 2>/dev/null || true
         rm -rf "$stale_dir"
     done
 }

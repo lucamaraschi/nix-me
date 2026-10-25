@@ -5,17 +5,18 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/nix-me-action-test.XXXXXX")"
-trap 'rm -rf "$TEMP_DIR"' EXIT
+pause_apply_pid=""
+trap '[[ -n "$pause_apply_pid" ]] && kill "$pause_apply_pid" >/dev/null 2>&1 || true; rm -rf "$TEMP_DIR"' EXIT
 
 export NIX_ME_CONFIG_DIR="$REPO_DIR"
 export NIX_ME_ACTION_DRY_RUN=1
 
 grep -Fq 'NIX_ME_USER_BUILD_APPLY=1' "$REPO_DIR/packages/management-api/bin/nix-me-action"
-grep -Fq 'build --json --no-link --impure "$flake_ref"' "$REPO_DIR/packages/management-api/bin/nix-me-action"
+grep -Fq 'build --json --no-link --impure --log-format internal-json "$flake_ref"' "$REPO_DIR/packages/management-api/bin/nix-me-action"
 grep -Fq 'flake_ref="path:$CONFIG_DIR#darwinConfigurations.$host_name.system"' "$REPO_DIR/packages/management-api/bin/nix-me-action"
 grep -Fq 'NIX_ME_SOURCE_REVISION=' "$REPO_DIR/packages/management-api/bin/nix-me-action"
 grep -Fq '" -p /nix/var/nix/profiles/system --set "' "$REPO_DIR/packages/management-api/bin/nix-me-action"
-grep -Fq 'quoted form of rebuildPath & " activate"' "$REPO_DIR/packages/management-api/bin/nix-me-action"
+grep -Fq 'quoted form of rebuildPath & " activate > "' "$REPO_DIR/packages/management-api/bin/nix-me-action"
 grep -Fq 'GIT_CONFIG_KEY_0=safe.directory' "$REPO_DIR/Makefile"
 grep -Fq 'GIT_CONFIG_VALUE_0="$(FLAKE_DIR)"' "$REPO_DIR/Makefile"
 
@@ -61,6 +62,7 @@ chmod +x "$APPLY_SYSTEM/sw/bin/darwin-rebuild"
 cat >"$TEMP_DIR/fake-nix" <<'SH'
 #!/bin/bash
 [[ " $* " == *" build --json --no-link --impure "* ]] || exit 64
+[[ " $* " == *" --log-format internal-json "* ]] || exit 76
 [[ "$*" == *"path:$NIX_ME_TEST_CONFIG#darwinConfigurations.test-host.system"* ]] || exit 65
 [[ "$HOSTNAME" == "test-host" ]] || exit 66
 [[ "$USERNAME" == "test-user" ]] || exit 67
@@ -69,6 +71,7 @@ cat >"$TEMP_DIR/fake-nix" <<'SH'
 [[ "$NIX_ME_SOURCE_REVISION" == "abc123" ]] || exit 70
 [[ "$SKIP_BREW_ON_VM" == "1" ]] || exit 74
 [[ "$SKIP_MAS_APPS" == "1" ]] || exit 75
+printf "building '/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-test-package-1.0.drv'...\n" >&2
 jq -n --arg out "$NIX_ME_TEST_SYSTEM" '[{outputs:{out:$out}}]'
 SH
 cat >"$TEMP_DIR/fake-nix-env" <<'SH'
@@ -80,6 +83,7 @@ cat >"$TEMP_DIR/fake-osascript" <<'SH'
 [[ "$*" == *'" -p /nix/var/nix/profiles/system --set "'* ]] || exit 71
 [[ "$*" == *'set rebuildPath to systemPath & "/sw/bin/darwin-rebuild"'* ]] || exit 72
 [[ " $* " == *" -- $NIX_ME_TEST_SYSTEM test-user $NIX_ME_NIX_ENV_BIN "* ]] || exit 73
+[[ -z "${NIX_ME_TEST_ACTIVATION_MARKER:-}" ]] || touch "$NIX_ME_TEST_ACTIVATION_MARKER"
 printf '%s\n' 'Configuration activated'
 SH
 chmod +x "$TEMP_DIR/fake-nix" "$TEMP_DIR/fake-nix-env" "$TEMP_DIR/fake-osascript"
@@ -108,6 +112,40 @@ jq -e '
 grep -Fq $'NIX_ME_PROGRESS\tpreparing\t' "$TEMP_DIR/apply-real-progress.log"
 grep -Fq $'NIX_ME_PROGRESS\tbuilding\t' "$TEMP_DIR/apply-real-progress.log"
 grep -Fq $'NIX_ME_PROGRESS\tactivating\t' "$TEMP_DIR/apply-real-progress.log"
+grep -Fq $'NIX_ME_COMMAND\tbuilding\t' "$TEMP_DIR/apply-real-progress.log"
+grep -Fq $'NIX_ME_COMMAND\tactivating\t' "$TEMP_DIR/apply-real-progress.log"
+grep -Fq 'test-package-1.0.drv' "$TEMP_DIR/apply-real-progress.log"
+
+printf 'pause\n' >"$TEMP_DIR/install-control"
+NIX_ME_CONFIG_DIR="$APPLY_REPO" \
+  NIX_ME_ACTION_DRY_RUN=0 \
+  NIX_ME_HOSTNAME=test-host \
+  NIX_ME_USERNAME=test-user \
+  NIX_ME_MACHINE_NAME='Test Mac' \
+  NIX_ME_MACHINE_TYPE=vm \
+  SKIP_BREW_ON_VM=1 \
+  NIX_ME_SOURCE_REVISION=abc123 \
+  NIX_ME_NIX_BIN="$TEMP_DIR/fake-nix" \
+  NIX_ME_NIX_ENV_BIN="$TEMP_DIR/fake-nix-env" \
+  NIX_ME_ADMINISTRATOR_RUNNER="$TEMP_DIR/fake-osascript" \
+  NIX_ME_TEST_CONFIG="$APPLY_REPO" \
+  NIX_ME_TEST_SYSTEM="$APPLY_SYSTEM" \
+  NIX_ME_TEST_ACTIVATION_MARKER="$TEMP_DIR/activation-started" \
+  NIX_ME_INSTALL_CONTROL_FILE="$TEMP_DIR/install-control" \
+  "$REPO_DIR/packages/management-api/bin/nix-me-action" apply \
+    >"$TEMP_DIR/apply-paused.json" 2>"$TEMP_DIR/apply-paused-progress.log" &
+pause_apply_pid=$!
+for _ in $(seq 1 100); do
+  grep -Fq 'Paused before privileged activation' "$TEMP_DIR/apply-paused-progress.log" && break
+  sleep 0.05
+done
+grep -Fq 'Paused before privileged activation' "$TEMP_DIR/apply-paused-progress.log"
+test ! -e "$TEMP_DIR/activation-started"
+printf 'running\n' >"$TEMP_DIR/install-control"
+wait "$pause_apply_pid"
+pause_apply_pid=""
+test -e "$TEMP_DIR/activation-started"
+jq -e '.success and .action == "apply"' "$TEMP_DIR/apply-paused.json" >/dev/null
 
 NIX_ME_HOSTNAME=test-host \
   "$REPO_DIR/apps/cli/bin/nix-me" action sync-projects >"$TEMP_DIR/projects.json"

@@ -47,7 +47,7 @@ struct DashboardView: View {
                 } else {
                     SidebarRow(section: .overview)
 
-                    Section("Software") {
+                    Section {
                         SidebarRow(section: .software, count: store.snapshot?.softwareItems.count)
                         SidebarRow(
                             section: .configurationChanges,
@@ -55,9 +55,11 @@ struct DashboardView: View {
                             needsAttention: store.snapshot.map { $0.configuration.applyState != "current" } ?? false
                         )
                         SidebarRow(section: .updates, count: store.snapshot?.softwareUpdateCount)
+                    } header: {
+                        Text("SOFTWARE").oxideLabel()
                     }
 
-                    Section("Workspace") {
+                    Section {
                         SidebarRow(section: .projects, count: store.snapshot?.projectAttentionCount)
                         SidebarRow(
                             section: .harness,
@@ -69,40 +71,50 @@ struct DashboardView: View {
                             count: store.snapshot?.localAI?.remediation.count,
                             needsAttention: store.snapshot?.localAI?.needsAttention ?? false
                         )
+                    } header: {
+                        Text("WORKSPACE").oxideLabel()
                     }
 
-                    Section("Advanced") {
+                    Section {
                         SidebarRow(section: .configuration, count: store.configurationGraph?.activeNodes.count)
+                    } header: {
+                        Text("ADVANCED").oxideLabel()
                     }
                 }
             }
             .navigationTitle("Nix Me")
             .navigationSplitViewColumnWidth(min: 180, ideal: 210)
+            .scrollContentBackground(.hidden)
+            .background(OxidePalette.sidebar)
         } detail: {
-            Group {
-                if let setupStatus = store.setupStatus, store.snapshot == nil {
-                    ConfigurationSetupView(
-                        status: setupStatus,
-                        errorMessage: store.errorMessage,
-                        isConfiguring: store.isConfiguring,
-                        chooseConfiguration: store.chooseConfigurationDirectory,
-                        cloneConfiguration: {
-                            Task { await store.cloneDefaultConfiguration() }
-                        },
-                        updateConfiguration: {
-                            Task { await store.updateConfigurationCheckout() }
-                        },
-                        openConfiguration: store.openConfiguration,
-                        openInstallationGuide: store.openInstallationGuide,
-                        recheck: {
-                            Task { await store.refresh() }
-                        }
-                    )
-                } else if let snapshot = store.snapshot {
-                    content(for: store.selectedSection, snapshot: snapshot)
-                } else {
-                    ProgressView("Reading this Mac…")
-                        .controlSize(.large)
+            ZStack {
+                OxideGridBackground()
+                Group {
+                    if let setupStatus = store.setupStatus, store.snapshot == nil {
+                        ConfigurationSetupView(
+                            status: setupStatus,
+                            errorMessage: store.errorMessage,
+                            isConfiguring: store.isConfiguring,
+                            chooseConfiguration: store.chooseConfigurationDirectory,
+                            cloneConfiguration: {
+                                Task { await store.cloneDefaultConfiguration() }
+                            },
+                            updateConfiguration: {
+                                Task { await store.updateConfigurationCheckout() }
+                            },
+                            openConfiguration: store.openConfiguration,
+                            openInstallationGuide: store.openInstallationGuide,
+                            recheck: {
+                                Task { await store.refresh() }
+                            }
+                        )
+                    } else if let snapshot = store.snapshot {
+                        content(for: store.selectedSection, snapshot: snapshot)
+                    } else {
+                        ProgressView("Reading this Mac…")
+                            .controlSize(.large)
+                            .foregroundStyle(OxidePalette.secondary)
+                    }
                 }
             }
             .toolbar {
@@ -152,6 +164,10 @@ struct DashboardView: View {
                 }
             }
         }
+        .preferredColorScheme(.dark)
+        .tint(OxidePalette.green)
+        .accentColor(OxidePalette.green)
+        .toolbarBackground(OxidePalette.sidebar, for: .windowToolbar)
         .task { store.startMonitoring() }
         .alert(
             "Nix Me",
@@ -534,6 +550,8 @@ private struct SidebarRow: View {
     var body: some View {
         HStack {
             Label(title ?? section.rawValue, systemImage: symbol ?? section.symbol)
+                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                .foregroundStyle(OxidePalette.primary)
             Spacer()
             if let count, count > 0 {
                 Text(count, format: .number)
@@ -541,10 +559,11 @@ private struct SidebarRow: View {
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 7)
                     .padding(.vertical, 2)
-                    .background(.quaternary, in: Capsule())
+                    .background(OxidePalette.panelRaised)
+                    .overlay(Rectangle().stroke(OxidePalette.border))
             } else if needsAttention {
                 Circle()
-                    .fill(.orange)
+                    .fill(OxidePalette.amber)
                     .frame(width: 7, height: 7)
             }
         }
@@ -567,10 +586,14 @@ private struct OverviewView: View {
             VStack(alignment: .leading, spacing: 22) {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 6) {
+                        Text("SYSTEM // \(snapshot.host.hostname.uppercased())")
+                            .oxideLabel(color: OxidePalette.green)
                         Text(snapshot.host.machineName)
-                            .font(.system(size: 38, weight: .bold, design: .rounded))
+                            .font(.system(size: 36, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(OxidePalette.primary)
                         Text("@\(snapshot.host.hostname) · generation \(snapshot.configuration.generation.map(String.init) ?? "unknown") · \(snapshot.configuration.git?.branch ?? "no branch")")
-                            .foregroundStyle(.secondary)
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(OxidePalette.secondary)
                     }
                 }
 
@@ -620,8 +643,9 @@ private struct OverviewStatusHero: View {
     var body: some View {
         HStack(spacing: 22) {
             ZStack {
-                Circle()
-                    .fill(.thinMaterial)
+                Rectangle()
+                    .fill(tint.opacity(0.12))
+                    .overlay(Rectangle().stroke(tint.opacity(0.48)))
                 Image(systemName: symbol)
                     .font(.system(size: 38, weight: .semibold))
                     .foregroundStyle(tint)
@@ -630,10 +654,11 @@ private struct OverviewStatusHero: View {
 
             VStack(alignment: .leading, spacing: 7) {
                 Text(title)
-                    .font(.system(size: 26, weight: .bold, design: .rounded))
+                    .font(.system(size: 24, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(OxidePalette.primary)
                 Text(summary)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(.system(.subheadline, design: .monospaced))
+                    .foregroundStyle(OxidePalette.secondary)
                 HStack(spacing: 8) {
                     HeroMetadataPill(symbol: "point.3.connected.trianglepath.dotted", text: snapshot.configuration.git?.branch ?? "No branch")
                     HeroMetadataPill(symbol: "clock.arrow.circlepath", text: "Generation \(snapshot.configuration.generation.map(String.init) ?? "unknown")")
@@ -652,29 +677,19 @@ private struct OverviewStatusHero: View {
                 }
             } else if snapshot.configuration.applyState == "unknown" {
                 Button("Establish Baseline", systemImage: "arrow.triangle.2.circlepath", action: applyConfiguration)
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(OxideButtonStyle(variant: .primary))
             } else if snapshot.configuration.applyState == "pending" {
                 HStack {
                     Button("Review Changes", action: reviewChanges)
-                        .buttonStyle(.bordered)
+                        .buttonStyle(OxideButtonStyle(variant: .secondary))
                     Button("Apply", systemImage: "checkmark.circle", action: applyConfiguration)
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(OxideButtonStyle(variant: .primary))
                 }
             }
         }
         .padding(24)
-        .background(
-            LinearGradient(
-                colors: [tint.opacity(0.18), Color.cyan.opacity(0.06), Color(nsColor: .controlBackgroundColor)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            ),
-            in: RoundedRectangle(cornerRadius: 22, style: .continuous)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(tint.opacity(0.35), lineWidth: 1)
-        }
+        .background(OxidePalette.panel.opacity(0.88))
+        .overlay(Rectangle().stroke(tint.opacity(0.4), lineWidth: 1))
     }
 
     private var title: String {
@@ -722,11 +737,12 @@ private struct HeroMetadataPill: View {
 
     var body: some View {
         Label(text, systemImage: symbol)
-            .font(.caption.weight(.medium))
-            .foregroundStyle(.secondary)
+            .font(.system(size: 10, weight: .medium, design: .monospaced))
+            .foregroundStyle(OxidePalette.secondary)
             .padding(.horizontal, 9)
             .padding(.vertical, 5)
-            .background(.thinMaterial, in: Capsule())
+            .background(OxidePalette.panelRaised)
+            .overlay(Rectangle().stroke(OxidePalette.border))
     }
 }
 
@@ -738,7 +754,7 @@ private struct SoftwareOverviewCard: View {
         OverviewPanel(title: "Software", symbol: "square.stack.3d.up.fill", tint: .cyan) {
             HStack(alignment: .firstTextBaseline) {
                 Text(snapshot.softwareItems.count, format: .number)
-                    .font(.system(size: 42, weight: .bold, design: .rounded))
+                    .font(.system(size: 42, weight: .semibold, design: .monospaced))
                 Text("apps and packages")
                     .foregroundStyle(.secondary)
             }
@@ -785,8 +801,7 @@ private struct SoftwareCompositionBar: View {
             }
         }
         .frame(height: 9)
-        .background(.quaternary)
-        .clipShape(Capsule())
+        .background(OxidePalette.panelRaised)
         .accessibilityLabel("\(managed) managed, \(separate) installed separately, \(missing) need installation")
     }
 
@@ -811,7 +826,7 @@ private struct UpdatesOverviewCard: View {
         ) {
             HStack(alignment: .firstTextBaseline) {
                 Text(snapshot.softwareUpdateCount, format: .number)
-                    .font(.system(size: 42, weight: .bold, design: .rounded))
+                    .font(.system(size: 42, weight: .semibold, design: .monospaced))
                 Text(snapshot.softwareUpdateCount == 0 ? "everything is current" : "updates available")
                     .foregroundStyle(.secondary)
             }
@@ -825,8 +840,7 @@ private struct UpdatesOverviewCard: View {
             Spacer(minLength: 8)
 
             Button(snapshot.softwareUpdateCount == 0 ? "Review update history" : "Review available updates", systemImage: "arrow.right", action: openUpdates)
-                .buttonStyle(.borderedProminent)
-                .tint(snapshot.softwareUpdateCount == 0 ? .green : .orange)
+                .buttonStyle(OxideButtonStyle(variant: .primary))
         }
     }
 }
@@ -838,14 +852,15 @@ private struct OverviewMiniStat: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(value, format: .number)
-                .font(.headline.monospacedDigit())
+                .font(.system(.headline, design: .monospaced).monospacedDigit())
             Text(label)
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
-        .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(OxidePalette.panelRaised.opacity(0.72))
+        .overlay(Rectangle().stroke(OxidePalette.border))
     }
 }
 
@@ -861,7 +876,7 @@ private struct ProjectsOverviewCard: View {
         ) {
             HStack(alignment: .firstTextBaseline) {
                 Text(snapshot.projects.count, format: .number)
-                    .font(.system(size: 42, weight: .bold, design: .rounded))
+                    .font(.system(size: 42, weight: .semibold, design: .monospaced))
                 Text("configured repositories")
                     .foregroundStyle(.secondary)
             }
@@ -879,7 +894,7 @@ private struct ProjectsOverviewCard: View {
             Spacer(minLength: 8)
 
             Button("Open projects", systemImage: "arrow.right", action: openProjects)
-                .buttonStyle(.bordered)
+                .buttonStyle(OxideButtonStyle(variant: .secondary))
         }
     }
 }
@@ -969,17 +984,15 @@ private struct OverviewPanel<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 15) {
             Label(title, systemImage: symbol)
-                .font(.headline)
+                .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                .tracking(0.35)
                 .foregroundStyle(tint)
             content
         }
         .frame(maxWidth: .infinity, minHeight: 220, alignment: .topLeading)
         .padding(20)
-        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(tint.opacity(0.2), lineWidth: 1)
-        }
+        .background(OxidePalette.panel.opacity(0.86))
+        .overlay(Rectangle().stroke(tint.opacity(0.28), lineWidth: 1))
     }
 }
 
@@ -1014,7 +1027,8 @@ private struct ConfigurationDetailsCard: View {
             }
         }
         .padding(18)
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(OxidePalette.panel.opacity(0.84))
+        .overlay(Rectangle().stroke(OxidePalette.border))
     }
 
     private var applyLabel: String {
@@ -2532,10 +2546,10 @@ private enum SoftwareScope: String, CaseIterable, Identifiable {
 
     var tint: Color {
         switch self {
-        case .all: .cyan
-        case .managed: .blue
-        case .unmanaged: .orange
-        case .missing: .red
+        case .all: OxidePalette.cyan
+        case .managed: OxidePalette.green
+        case .unmanaged: OxidePalette.amber
+        case .missing: OxidePalette.red
         }
     }
 
@@ -2593,10 +2607,11 @@ private struct SoftwareInventoryHeader: View {
             HStack(alignment: .firstTextBaseline, spacing: 20) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Your software library")
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .font(.system(size: 24, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(OxidePalette.primary)
                     Text("Browse everything on this Mac and see at a glance who manages it.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .font(.system(.subheadline, design: .monospaced))
+                        .foregroundStyle(OxidePalette.secondary)
                 }
 
                 Spacer()
@@ -2637,25 +2652,21 @@ private struct SoftwareInventoryHeader: View {
 
             HStack(spacing: 8) {
                 Text("Show")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                    .oxideLabel()
 
                 ForEach(SoftwareFilter.allCases) { option in
                     Button {
                         filter = option
                     } label: {
                         Label(option.rawValue, systemImage: option.symbol)
-                            .font(.caption.weight(.semibold))
+                            .font(.system(size: 10, weight: .semibold, design: .monospaced))
                             .padding(.horizontal, 10)
                             .padding(.vertical, 6)
-                            .background(
-                                filter == option ? Color.accentColor.opacity(0.16) : Color.clear,
-                                in: Capsule()
-                            )
+                            .background(filter == option ? OxidePalette.green.opacity(0.14) : Color.clear)
                             .overlay {
-                                Capsule()
+                                Rectangle()
                                     .stroke(
-                                        filter == option ? Color.accentColor.opacity(0.5) : Color.secondary.opacity(0.22),
+                                        filter == option ? OxidePalette.green.opacity(0.52) : OxidePalette.border,
                                         lineWidth: 1
                                     )
                             }
@@ -2671,14 +2682,8 @@ private struct SoftwareInventoryHeader: View {
             }
         }
         .padding(22)
-        .background(
-            LinearGradient(
-                colors: [Color.accentColor.opacity(0.09), Color(nsColor: .controlBackgroundColor)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
-        .overlay(alignment: .bottom) { Divider() }
+        .background(OxidePalette.panel.opacity(0.88))
+        .overlay(alignment: .bottom) { Rectangle().fill(OxidePalette.border).frame(height: 1) }
     }
 
     private var countLabel: String {
@@ -2703,25 +2708,24 @@ private struct SoftwareScopeLens: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(scope.tint)
                 Text(scope.shortLabel)
-                    .font(.caption.weight(.semibold))
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
                 Text(count, format: .number)
                     .font(.caption.monospacedDigit().weight(.semibold))
                     .foregroundStyle(isSelected ? scope.tint : .secondary)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .background(scope.tint.opacity(isSelected ? 0.15 : 0.07), in: Capsule())
+                    .background(scope.tint.opacity(isSelected ? 0.15 : 0.07))
             }
             .padding(.horizontal, 11)
             .padding(.vertical, 8)
         }
         .buttonStyle(.plain)
-        .background(
-            isSelected || isHovered ? scope.tint.opacity(isSelected ? 0.12 : 0.06) : Color(nsColor: .controlBackgroundColor),
-            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
-        )
+        .background(isSelected || isHovered
+            ? scope.tint.opacity(isSelected ? 0.12 : 0.06)
+            : OxidePalette.panelRaised.opacity(0.72))
         .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(isSelected ? scope.tint.opacity(0.65) : Color.secondary.opacity(0.16), lineWidth: 1)
+            Rectangle()
+                .stroke(isSelected ? scope.tint.opacity(0.65) : OxidePalette.border, lineWidth: 1)
         }
         .onHover { isHovered = $0 }
         .accessibilityLabel("\(scope.rawValue), \(count)")
@@ -2751,11 +2755,12 @@ private struct SoftwareListSection: View {
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundStyle(tint)
                             .frame(width: 34, height: 34)
-                            .background(tint.opacity(0.13), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                            .background(tint.opacity(0.13))
+                            .overlay(Rectangle().stroke(tint.opacity(0.28)))
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text(title)
-                                .font(.headline)
+                                .font(.system(size: 12, weight: .semibold, design: .monospaced))
                             Text(subtitle)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -2768,7 +2773,8 @@ private struct SoftwareListSection: View {
                             .foregroundStyle(.secondary)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(.quaternary, in: Capsule())
+                            .background(OxidePalette.panelRaised)
+                            .overlay(Rectangle().stroke(OxidePalette.border))
 
                         Image(systemName: "chevron.down")
                             .font(.caption.weight(.bold))
@@ -2781,7 +2787,7 @@ private struct SoftwareListSection: View {
                 .buttonStyle(.plain)
 
                 if isExpanded {
-                    Divider()
+                    Rectangle().fill(OxidePalette.border).frame(height: 1)
 
                     ForEach(sortedItems) { item in
                         SoftwareLibraryRow(
@@ -2792,17 +2798,14 @@ private struct SoftwareListSection: View {
                         )
 
                         if item.id != sortedItems.last?.id {
-                            Divider()
+                            Rectangle().fill(OxidePalette.border).frame(height: 1)
                                 .padding(.leading, 72)
                         }
                     }
                 }
             }
-            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(tint.opacity(0.2), lineWidth: 1)
-            }
+            .background(OxidePalette.panel.opacity(0.86))
+            .overlay(Rectangle().stroke(tint.opacity(0.24), lineWidth: 1))
         }
     }
 
@@ -2827,7 +2830,7 @@ private struct SoftwareLibraryRow: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(item.libraryDisplayName)
-                        .font(.body.weight(.semibold))
+                        .font(.system(.body, design: .monospaced, weight: .semibold))
                         .lineLimit(1)
 
                     HStack(spacing: 5) {
@@ -2875,12 +2878,12 @@ private struct SoftwareLibraryRow: View {
 
     private var status: (label: String, color: Color) {
         if item.kind == .nix && !baselineAvailable {
-            return item.isDesired ? ("Managed", .blue) : ("Status unknown", .secondary)
+            return item.isDesired ? ("Managed", OxidePalette.green) : ("Status unknown", .secondary)
         }
         if item.isDesired {
-            return item.isInstalled ? ("Managed", .blue) : ("Needs installation", .red)
+            return item.isInstalled ? ("Managed", OxidePalette.green) : ("Needs installation", OxidePalette.red)
         }
-        return ("Installed separately", .orange)
+        return ("Installed separately", OxidePalette.amber)
     }
 
     private var kindColor: Color {
@@ -4882,27 +4885,23 @@ private struct MetricCard: View {
                         .foregroundStyle(isHovered ? tint : Color.secondary.opacity(0.45))
                 }
                 Text(value, format: .number)
-                    .font(.system(size: 30, weight: .semibold, design: .rounded))
+                    .font(.system(size: 30, weight: .semibold, design: .monospaced))
                 Text(title)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(OxidePalette.secondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(18)
         }
         .buttonStyle(.plain)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(isHovered ? tint.opacity(0.08) : Color(nsColor: .controlBackgroundColor))
-        )
+        .background(isHovered ? tint.opacity(0.1) : OxidePalette.panel.opacity(0.86))
         .overlay {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(isHovered ? tint.opacity(0.55) : Color(nsColor: .separatorColor).opacity(0.4), lineWidth: 1)
+            Rectangle()
+                .stroke(isHovered ? tint.opacity(0.62) : OxidePalette.border, lineWidth: 1)
                 .allowsHitTesting(false)
         }
-        .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .scaleEffect(isHovered ? 1.01 : 1)
+        .contentShape(Rectangle())
         .animation(.easeOut(duration: 0.15), value: isHovered)
         .onHover { isHovered = $0 }
         .accessibilityLabel("\(title), \(value)")
@@ -4923,23 +4922,20 @@ private struct HarnessMetricCard: View {
                 .foregroundStyle(tint)
             if let value {
                 Text(value, format: .number)
-                    .font(.system(size: 30, weight: .semibold, design: .rounded))
+                    .font(.system(size: 30, weight: .semibold, design: .monospaced))
             } else {
                 Text("Unavailable")
-                    .font(.system(size: 20, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 20, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(OxidePalette.secondary)
             }
             Text(title)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(OxidePalette.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(18)
-        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color(nsColor: .separatorColor).opacity(0.4), lineWidth: 1)
-        }
+        .background(OxidePalette.panel.opacity(0.86))
+        .overlay(Rectangle().stroke(OxidePalette.border, lineWidth: 1))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(title), \(value.map(String.init) ?? "unavailable")")
     }
@@ -4953,13 +4949,16 @@ private struct SectionCard<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Label(title, systemImage: symbol)
-                .font(.headline)
-            Divider()
+                .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                .tracking(0.35)
+                .foregroundStyle(OxidePalette.primary)
+            Rectangle().fill(OxidePalette.border).frame(height: 1)
             content
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(18)
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(OxidePalette.panel.opacity(0.84))
+        .overlay(Rectangle().stroke(OxidePalette.border))
     }
 }
 
@@ -5000,11 +4999,12 @@ private struct StatusBadge: View {
 
     var body: some View {
         Label(label, systemImage: symbol)
-            .font(.caption.weight(.semibold))
+            .font(.system(size: 10, weight: .semibold, design: .monospaced))
             .foregroundStyle(color)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(color.opacity(0.12), in: Capsule())
+            .background(color.opacity(0.12))
+            .overlay(Rectangle().stroke(color.opacity(0.32)))
     }
 }
 
@@ -5014,10 +5014,11 @@ private struct ApplicationPill: View {
 
     var body: some View {
         Text(label)
-            .font(.caption2.weight(.semibold))
+            .font(.system(size: 9, weight: .semibold, design: .monospaced))
             .foregroundStyle(color)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(color.opacity(0.12), in: Capsule())
+            .background(color.opacity(0.12))
+            .overlay(Rectangle().stroke(color.opacity(0.28)))
     }
 }

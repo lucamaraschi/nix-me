@@ -28,8 +28,21 @@ The setup app owns choices and long-running feedback:
 - Review the proposed machine before changing the checkout.
 - Build as the signed-in user, request native administrator approval only for
   activation, and verify completion.
-- Keep failures in the installation view with expandable diagnostics and a
-  retry path.
+- Expand the active deployment block, show every command and package operation,
+  mark each item complete, then collapse the block as setup advances. Nix and
+  Homebrew percentages are shown when their tools report determinate progress,
+  while the header reports weighted progress across the complete deployment.
+- Pause cooperatively after the current operation and before privileged
+  activation, or stop pre-activation work without discarding completed Nix
+  store paths. Pause and stop are intentionally locked while activation is
+  being committed and verified; interrupting that boundary is not safe.
+- Provide an execution terminal that records every command before it runs and
+  streams raw build and activation output. The complete log can be copied or
+  exported as an LLM-readable Markdown diagnostic with context and a timeline.
+- Keep failures inline, automatically reveal the failing command and output,
+  and provide a safe retry path.
+- Use the same Oxide-inspired grid, square panels, status colors, monospaced
+  labels, and control hierarchy as the managed Nix Me dashboard.
 
 `nix-me-setup` excludes the Rust app-state engine and Sparkle. Its Info.plist
 records store paths for Git, jq, Nix, and Make so a Finder-launched app does not

@@ -21,9 +21,15 @@ struct NixMeApp: App {
                     DashboardView(store: store)
                 }
             }
-            .frame(minWidth: 1040, minHeight: 680)
+            .frame(
+                minWidth: isFirstInstallation ? 1160 : 1040,
+                minHeight: isFirstInstallation ? 760 : 680
+            )
         }
-        .defaultSize(width: 1180, height: 760)
+        .defaultSize(
+            width: Self.launchesFirstInstallation ? 1280 : 1180,
+            height: Self.launchesFirstInstallation ? 840 : 760
+        )
         .windowToolbarStyle(.unified)
         .commands {
             CommandGroup(after: .appInfo) {

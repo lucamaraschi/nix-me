@@ -420,6 +420,112 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(progress.values.last?.message, "Activating test generation")
     }
 
+    func testApplyStreamsCommandsAndClassifiesPackageActivity() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try write(
+            #"""
+            #!/bin/bash
+            # NIX_ME_USER_BUILD_APPLY=1
+            printf 'NIX_ME_PROGRESS\tbuilding\tBuilding test generation\n' >&2
+            printf 'NIX_ME_COMMAND\tbuilding\tnix build --no-link test\n' >&2
+            printf '%s\n' '@nix {"action":"msg","level":3,"msg":"these derivations will be built:\n  /nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-hello-2.12.1.drv\n  /nix/store/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb-jq-1.8.1.drv"}' >&2
+            printf '%s\n' '@nix {"action":"start","id":44,"level":3,"type":105,"text":"building '\''/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-hello-2.12.1.drv'\''..."}' >&2
+            printf '%s\n' '@nix {"action":"result","id":44,"type":105,"fields":[3,10,1,0]}' >&2
+            printf '%s\n' '@nix {"action":"stop","id":44}' >&2
+            printf 'NIX_ME_PROGRESS\tactivating\tActivating test generation\n' >&2
+            printf '==> Installing ripgrep\n' >&2
+            printf '🍺  /opt/homebrew/Cellar/ripgrep/15.1.0: 14 files\n' >&2
+            printf '%s\n' '{"schemaVersion":1,"success":true,"message":"Applied"}'
+            """#,
+            to: root.appendingPathComponent("packages/management-api/bin/nix-me-action")
+        )
+
+        let events = ApplyEventRecorder()
+        let response = try await ManagementActionClient(configurationDirectory: root)
+            .apply(
+                hostname: "test-host",
+                username: "test-user",
+                onEvent: { events.append($0) }
+            )
+
+        XCTAssertTrue(response.success)
+        XCTAssertTrue(events.values.contains(where: {
+            $0.kind == .command && $0.message == "nix build --no-link test"
+        }))
+        XCTAssertTrue(events.values.contains(where: {
+            $0.kind == .output && $0.message.contains("hello-2.12.1.drv")
+        }))
+        XCTAssertTrue(events.values.contains(where: {
+            $0.package?.name == "jq-1.8.1" && $0.package?.state == .queued
+        }))
+        XCTAssertTrue(events.values.contains(where: {
+            $0.package?.name == "hello-2.12.1"
+                && $0.package?.state == .building
+                && $0.package?.fractionCompleted == 0.3
+        }))
+        XCTAssertTrue(events.values.contains(where: {
+            $0.package?.name == "hello-2.12.1"
+                && $0.package?.state == .complete
+                && $0.package?.fractionCompleted == 1
+        }))
+        XCTAssertTrue(events.values.contains(where: {
+            $0.package == ApplyPackageProgress(
+                manager: .homebrew,
+                name: "ripgrep",
+                state: .installing,
+                detail: "==> Installing ripgrep"
+            )
+        }))
+        XCTAssertTrue(events.values.contains(where: {
+            $0.package?.manager == .homebrew
+                && $0.package?.name == "ripgrep"
+                && $0.package?.state == .complete
+                && $0.package?.fractionCompleted == 1
+        }))
+    }
+
+    func testInstallerDiagnosticContainsTimelineAndCompleteRawLog() {
+        let generatedAt = Date(timeIntervalSince1970: 1_800_000_000)
+        let command = InstallerConsoleEntry(kind: .command, message: "nix build path:.#system")
+        let output = InstallerConsoleEntry(kind: .output, message: "builder failed with exit code 1")
+        let report = InstallerDiagnosticReport.render(
+            hostname: "test-host",
+            configurationDirectory: URL(fileURLWithPath: "/Users/test/.config/nixpkgs"),
+            phase: .build,
+            phaseMessage: "Building the system",
+            errorMessage: "Build software could not finish.",
+            errorDetails: "builder failed with exit code 1",
+            steps: [InstallerStepActivity(
+                phase: .build,
+                title: "Build system generation",
+                detail: "nix build path:.#system",
+                state: .failed,
+                sequence: 1
+            )],
+            packages: [InstallerPackageActivity(
+                id: "nix:hello",
+                phase: .build,
+                manager: .nix,
+                name: "hello",
+                state: .building,
+                detail: "building hello",
+                fractionCompleted: 0.4,
+                sequence: 1
+            )],
+            console: [command, output],
+            generatedAt: generatedAt
+        )
+
+        XCTAssertTrue(report.contains("# Nix Me installer diagnostic"))
+        XCTAssertTrue(report.contains("Host: `test-host`"))
+        XCTAssertTrue(report.contains("**FAILED** Build system generation"))
+        XCTAssertTrue(report.contains("Nix store / hello 40%"))
+        XCTAssertTrue(report.contains("$ nix build path:.#system"))
+        XCTAssertTrue(report.contains("| builder failed with exit code 1"))
+    }
+
     func testApplyDeliversProgressBeforeActionExits() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -710,6 +816,23 @@ private final class ApplyProgressRecorder: @unchecked Sendable {
     func append(_ progress: ApplyActionProgress) {
         lock.lock()
         storage.append(progress)
+        lock.unlock()
+    }
+}
+
+private final class ApplyEventRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [ApplyActionEvent] = []
+
+    var values: [ApplyActionEvent] {
+        lock.lock()
+        defer { lock.unlock() }
+        return storage
+    }
+
+    func append(_ event: ApplyActionEvent) {
+        lock.lock()
+        storage.append(event)
         lock.unlock()
     }
 }

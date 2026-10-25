@@ -22,6 +22,37 @@ emit_apply_progress() {
   printf 'NIX_ME_PROGRESS\t%s\t%s\n' "$phase" "$message" >&2
 }
 
+emit_apply_command() {
+  local phase="$1"
+  local command_text="$2"
+  printf 'NIX_ME_COMMAND\t%s\t%s\n' "$phase" "$command_text" >&2
+}
+
+wait_for_install_control() {
+  local control_file="${NIX_ME_INSTALL_CONTROL_FILE:-}"
+  local state="running"
+  local announced=false
+  [[ -z "$control_file" ]] && return 0
+
+  while [[ -r "$control_file" ]]; do
+    IFS= read -r state <"$control_file" || state="running"
+    case "$state" in
+      pause)
+        if [[ "$announced" != "true" ]]; then
+          emit_apply_progress "building" "Paused before privileged activation"
+          announced=true
+        fi
+        sleep 0.2
+        ;;
+      stop)
+        emit_apply_progress "building" "Installation stopped before privileged activation"
+        return 130
+        ;;
+      *) return 0 ;;
+    esac
+  done
+}
+
 resolve_app_state_engine() {
   local candidate
   if [[ -n "${NIX_ME_APP_STATE_ENGINE:-}" ]]; then
@@ -302,6 +333,16 @@ run_apply() {
   local host_name current_user machine_name machine_type source_revision flake_ref
   local nix_path nix_env_path administrator_runner build_output build_log activation_log
   local system_path rebuild_path message succeeded allow_non_store skip_homebrew skip_mas_apps
+  local build_command activation_command activation_tail_pid active_apply_pid
+  active_apply_pid=""
+  cancel_apply() {
+    if [[ -n "$active_apply_pid" ]]; then
+      kill -TERM "$active_apply_pid" >/dev/null 2>&1 || true
+      wait "$active_apply_pid" 2>/dev/null || true
+    fi
+    exit 130
+  }
+  trap cancel_apply INT TERM
   host_name="${NIX_ME_HOSTNAME:-$(hostname -s | tr '[:upper:]' '[:lower:]')}"
   current_user="${NIX_ME_USERNAME:-${USER:-$(id -un)}}"
   machine_name="${NIX_ME_MACHINE_NAME:-$host_name}"
@@ -357,7 +398,12 @@ run_apply() {
   build_output="$(mktemp "${TMPDIR:-/tmp}/nix-me-build-output.XXXXXX")"
   build_log="$(mktemp "${TMPDIR:-/tmp}/nix-me-build.XXXXXX")"
   emit_apply_progress "building" "Evaluating the configuration and building the new system generation"
-  if ! env \
+  printf -v build_command \
+    'env HOSTNAME=%q USERNAME=%q MACHINE_NAME=%q MACHINE_TYPE=%q NIX_ME_SOURCE_REVISION=%q SKIP_BREW_ON_VM=%q SKIP_MAS_APPS=%q %q --extra-experimental-features %q build --json --no-link --impure --log-format internal-json %q' \
+    "$host_name" "$current_user" "$machine_name" "$machine_type" "$source_revision" \
+    "$skip_homebrew" "$skip_mas_apps" "$nix_path" "nix-command flakes" "$flake_ref"
+  emit_apply_command "building" "$build_command"
+  env \
     HOSTNAME="$host_name" \
     USERNAME="$current_user" \
     MACHINE_NAME="$machine_name" \
@@ -366,7 +412,11 @@ run_apply() {
     SKIP_BREW_ON_VM="$skip_homebrew" \
     SKIP_MAS_APPS="$skip_mas_apps" \
     "$nix_path" --extra-experimental-features "nix-command flakes" \
-      build --json --no-link --impure "$flake_ref" >"$build_output" 2>"$build_log"; then
+      build --json --no-link --impure --log-format internal-json "$flake_ref" >"$build_output" \
+      2> >(tee "$build_log" >&2) &
+  active_apply_pid=$!
+  if ! wait "$active_apply_pid"; then
+    active_apply_pid=""
     message="$(tail -80 "$build_log" 2>/dev/null || true)"
     rm -f -- "$build_output" "$build_log"
     jq -n \
@@ -374,6 +424,7 @@ run_apply() {
       '{schemaVersion: 1, action: "apply", success: false, message: $message}'
     return
   fi
+  active_apply_pid=""
 
   if ! system_path="$(jq -er '.[0].outputs.out | select(type == "string")' "$build_output" 2>/dev/null)"; then
     rm -f -- "$build_output" "$build_log"
@@ -391,23 +442,43 @@ run_apply() {
     return
   fi
 
+  if ! wait_for_install_control; then
+    jq -n '{schemaVersion: 1, action: "apply", success: false, message: "Installation stopped before privileged activation"}'
+    return
+  fi
+
   activation_log="$(mktemp "${TMPDIR:-/tmp}/nix-me-activate.XXXXXX")"
   succeeded=true
   emit_apply_progress "activating" "Build complete; approve the macOS prompt to activate this generation"
+  printf -v activation_command \
+    'env HOME=/var/root USER=root LOGNAME=root PATH=%q %q -p /nix/var/nix/profiles/system --set %q && env HOME=/var/root USER=root LOGNAME=root PATH=%q SUDO_USER=%q USERNAME=%q %q activate' \
+    '/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin' \
+    "$nix_env_path" "$system_path" \
+    '/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin' \
+    "$current_user" "$current_user" "$rebuild_path"
+  emit_apply_command "activating" "$activation_command"
+
+  tail -n 0 -f "$activation_log" >&2 &
+  activation_tail_pid=$!
   if ! "$administrator_runner" \
     -e 'on run argv' \
     -e 'set systemPath to item 1 of argv' \
     -e 'set userName to item 2 of argv' \
     -e 'set nixEnvPath to item 3 of argv' \
+    -e 'set activationLog to item 4 of argv' \
     -e 'set rebuildPath to systemPath & "/sw/bin/darwin-rebuild"' \
-    -e 'set commandText to "env HOME=/var/root USER=root LOGNAME=root PATH=/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin " & quoted form of nixEnvPath & " -p /nix/var/nix/profiles/system --set " & quoted form of systemPath & " && env HOME=/var/root USER=root LOGNAME=root PATH=/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin SUDO_USER=" & quoted form of userName & " USERNAME=" & quoted form of userName & " " & quoted form of rebuildPath & " activate"' \
+    -e 'set commandText to "env HOME=/var/root USER=root LOGNAME=root PATH=/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin " & quoted form of nixEnvPath & " -p /nix/var/nix/profiles/system --set " & quoted form of systemPath & " && env HOME=/var/root USER=root LOGNAME=root PATH=/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin SUDO_USER=" & quoted form of userName & " USERNAME=" & quoted form of userName & " " & quoted form of rebuildPath & " activate > " & quoted form of activationLog & " 2>&1"' \
     -e 'with timeout of 86400 seconds' \
     -e 'do shell script commandText with administrator privileges' \
     -e 'end timeout' \
     -e 'end run' \
-    -- "$system_path" "$current_user" "$nix_env_path" >"$activation_log" 2>&1; then
+    -- "$system_path" "$current_user" "$nix_env_path" "$activation_log" >>"$activation_log" 2>&1; then
     succeeded=false
   fi
+
+  sleep 0.1
+  kill "$activation_tail_pid" >/dev/null 2>&1 || true
+  wait "$activation_tail_pid" 2>/dev/null || true
 
   message="$(tail -40 "$activation_log" 2>/dev/null || true)"
   rm -f -- "$activation_log"
