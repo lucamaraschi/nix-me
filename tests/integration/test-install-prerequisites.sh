@@ -156,8 +156,10 @@ fi
 # The native setup bundle is disposable only after the app verifies that the
 # selected configuration is active. Interrupted setup remains recoverable.
 SUCCESSFUL_SETUP_DIR="$TMP_DIR/successful-native-setup"
-mkdir -p "$SUCCESSFUL_SETUP_DIR/Nix Me Setup.app"
+mkdir -p "$SUCCESSFUL_SETUP_DIR/Nix Me Setup.app/Contents/MacOS"
+printf 'test bundle\n' >"$SUCCESSFUL_SETUP_DIR/Nix Me Setup.app/Contents/MacOS/NixMeApp"
 touch "$SUCCESSFUL_SETUP_DIR/installation-complete"
+chmod -R a-w "$SUCCESSFUL_SETUP_DIR/Nix Me Setup.app"
 NIX_ME_LSREGISTER=/usr/bin/true cleanup_native_installer_copy \
     "$SUCCESSFUL_SETUP_DIR" \
     "$SUCCESSFUL_SETUP_DIR/Nix Me Setup.app" \
@@ -180,8 +182,11 @@ fi
 
 STALE_SETUP_ROOT="$TMP_DIR/stale-native-setups"
 mkdir -p \
-    "$STALE_SETUP_ROOT/nix-me-native-setup.first/Nix Me Setup.app" \
-    "$STALE_SETUP_ROOT/nix-me-native-setup.second/Nix Me Setup.app"
+    "$STALE_SETUP_ROOT/nix-me-native-setup.first/Nix Me Setup.app/Contents/Resources" \
+    "$STALE_SETUP_ROOT/nix-me-native-setup.second/Nix Me Setup.app/Contents/Resources"
+printf 'stale bundle\n' >"$STALE_SETUP_ROOT/nix-me-native-setup.first/Nix Me Setup.app/Contents/Resources/state"
+printf 'stale bundle\n' >"$STALE_SETUP_ROOT/nix-me-native-setup.second/Nix Me Setup.app/Contents/Resources/state"
+chmod -R a-w "$STALE_SETUP_ROOT"/nix-me-native-setup.*/Nix\ Me\ Setup.app
 NIX_ME_NATIVE_SETUP_ROOT="$STALE_SETUP_ROOT" \
     NIX_ME_LSREGISTER=/usr/bin/true \
     cleanup_stale_native_installer_copies

@@ -313,12 +313,18 @@ struct ManagementActionClient {
         machineName: String = "",
         machineType: String? = nil,
         sourceRevision: String? = nil,
-        onProgress: @escaping @Sendable (ApplyActionProgress) -> Void = { _ in }
+        control: InstallationRunControl? = nil,
+        onProgress: @escaping @Sendable (ApplyActionProgress) -> Void = { _ in },
+        onEvent: @escaping @Sendable (ApplyActionEvent) -> Void = { _ in }
     ) async throws -> ApplyActionResponse {
         let action = actionExecutable
         onProgress(ApplyActionProgress(
             phase: .preparing,
             message: "Checking the host, configuration, and required tools"
+        ))
+        onEvent(.command(
+            InstallerShell.command(executable: "/bin/bash", arguments: [action.path, "apply"]),
+            phase: .preparing
         ))
         if !actionSupportsUserBuildApply(action) {
             return try await applyLegacyConfiguration(
@@ -327,24 +333,33 @@ struct ManagementActionClient {
                 machineName: machineName,
                 machineType: machineType,
                 sourceRevision: sourceRevision,
-                onProgress: onProgress
+                control: control,
+                onProgress: onProgress,
+                onEvent: onEvent
             )
+        }
+        let streamDecoder = ApplyActionStreamDecoder(
+            initialPhase: .preparing,
+            onProgress: onProgress,
+            onEvent: onEvent
+        )
+        var applyEnvironment = [
+            "NIX_ME_HOSTNAME": hostname,
+            "NIX_ME_USERNAME": username,
+            "NIX_ME_MACHINE_NAME": machineName,
+            "NIX_ME_MACHINE_TYPE": machineType ?? "",
+            "NIX_ME_SOURCE_REVISION": sourceRevision ?? ""
+        ]
+        if let control {
+            applyEnvironment["NIX_ME_INSTALL_CONTROL_FILE"] = control.controlFile.path
         }
         let data = try await run(
             action: action,
             command: "apply",
             request: Data(),
-            additionalEnvironment: [
-                "NIX_ME_HOSTNAME": hostname,
-                "NIX_ME_USERNAME": username,
-                "NIX_ME_MACHINE_NAME": machineName,
-                "NIX_ME_MACHINE_TYPE": machineType ?? "",
-                "NIX_ME_SOURCE_REVISION": sourceRevision ?? ""
-            ],
-            onStandardErrorLine: { line in
-                guard let progress = Self.applyProgress(from: line) else { return }
-                onProgress(progress)
-            }
+            additionalEnvironment: applyEnvironment,
+            control: control,
+            onStandardErrorLine: { line in streamDecoder.receive(line) }
         )
 
         do {
@@ -372,7 +387,9 @@ struct ManagementActionClient {
         machineName: String,
         machineType: String?,
         sourceRevision: String?,
-        onProgress: @escaping @Sendable (ApplyActionProgress) -> Void
+        control: InstallationRunControl?,
+        onProgress: @escaping @Sendable (ApplyActionProgress) -> Void,
+        onEvent: @escaping @Sendable (ApplyActionEvent) -> Void
     ) async throws -> ApplyActionResponse {
         onProgress(ApplyActionProgress(
             phase: .building,
@@ -383,13 +400,27 @@ struct ManagementActionClient {
             username: username,
             machineName: machineName,
             machineType: machineType,
-            sourceRevision: sourceRevision
+            sourceRevision: sourceRevision,
+            control: control,
+            onEvent: onEvent
         )
+        if control?.currentState.isPaused == true {
+            onProgress(ApplyActionProgress(
+                phase: .building,
+                message: "Paused before privileged activation"
+            ))
+            try await control?.waitIfPaused()
+        }
         onProgress(ApplyActionProgress(
             phase: .activating,
             message: "Build complete; approve the macOS prompt to activate this generation"
         ))
-        return try await activateLegacySystem(system, username: username)
+        return try await activateLegacySystem(
+            system,
+            username: username,
+            control: control,
+            onEvent: onEvent
+        )
     }
 
     static func applyProgress(from line: String) -> ApplyActionProgress? {
@@ -406,7 +437,9 @@ struct ManagementActionClient {
         username: String,
         machineName: String,
         machineType: String?,
-        sourceRevision: String?
+        sourceRevision: String?,
+        control: InstallationRunControl?,
+        onEvent: @escaping @Sendable (ApplyActionEvent) -> Void
     ) async throws -> URL {
         let fileManager = FileManager.default
         let nixCandidates = [nixOverride].compactMap { $0 } + [
@@ -421,31 +454,35 @@ struct ManagementActionClient {
             throw ManagementAPIError.invalidResponse("nix is unavailable")
         }
         let allowNonStorePath = nixOverride != nil
+        let arguments = [
+            "--extra-experimental-features", "nix-command flakes",
+            "build", "--json", "--no-link", "--impure", "--log-format", "internal-json",
+            "path:\(configurationDirectory.path)#darwinConfigurations.\(hostname).system",
+        ]
+        let environmentPrefix = [
+            "HOSTNAME=\(InstallerShell.quote(hostname))",
+            "USERNAME=\(InstallerShell.quote(username))",
+            "MACHINE_NAME=\(InstallerShell.quote(machineName))",
+            "MACHINE_TYPE=\(InstallerShell.quote(machineType ?? ""))",
+            "NIX_ME_SOURCE_REVISION=\(InstallerShell.quote(sourceRevision ?? ""))",
+        ].joined(separator: " ")
+        onEvent(.command(
+            "env \(environmentPrefix) \(InstallerShell.command(executable: nix.path, arguments: arguments))",
+            phase: .building
+        ))
 
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
-                let fileManager = FileManager.default
                 let process = Process()
                 let output = Pipe()
-                let errorURL = fileManager.temporaryDirectory
-                    .appendingPathComponent("nix-me-build-\(UUID().uuidString).log")
-                fileManager.createFile(atPath: errorURL.path, contents: nil)
+                let errors = Pipe()
 
                 do {
-                    let errorHandle = try FileHandle(forWritingTo: errorURL)
-                    defer {
-                        try? errorHandle.close()
-                        try? fileManager.removeItem(at: errorURL)
-                    }
                     process.executableURL = nix
-                    process.arguments = [
-                        "--extra-experimental-features", "nix-command flakes",
-                        "build", "--json", "--no-link", "--impure",
-                        "path:\(configurationDirectory.path)#darwinConfigurations.\(hostname).system",
-                    ]
+                    process.arguments = arguments
                     process.currentDirectoryURL = configurationDirectory
                     process.standardOutput = output
-                    process.standardError = errorHandle
+                    process.standardError = errors
                     var environment = RuntimeEnvironment.process
                     environment["HOSTNAME"] = hostname
                     environment["USERNAME"] = username
@@ -455,10 +492,35 @@ struct ManagementActionClient {
                     process.environment = environment
 
                     try process.run()
+                    try control?.register(process)
+                    let streamDecoder = ApplyActionStreamDecoder(
+                        initialPhase: .building,
+                        onProgress: { _ in },
+                        onEvent: onEvent
+                    )
+                    let errorCollector = ActionErrorCollector { line in
+                        streamDecoder.receive(line)
+                    }
+                    let errorDrain = DispatchGroup()
+                    errorDrain.enter()
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        while true {
+                            let data = errors.fileHandleForReading.availableData
+                            guard !data.isEmpty else { break }
+                            errorCollector.append(data)
+                        }
+                        errorCollector.finish()
+                        errorDrain.leave()
+                    }
                     let outputData = output.fileHandleForReading.readDataToEndOfFile()
                     process.waitUntilExit()
-                    try errorHandle.synchronize()
-                    let errorData = (try? Data(contentsOf: errorURL)) ?? Data()
+                    control?.unregister(process)
+                    errorDrain.wait()
+                    let errorData = errorCollector.data
+                    if control?.currentState == .stopping || control?.currentState == .stopped {
+                        continuation.resume(throwing: InstallationControlError.stopped)
+                        return
+                    }
                     guard process.terminationStatus == 0 else {
                         let message = String(data: errorData, encoding: .utf8)?
                             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -489,7 +551,7 @@ struct ManagementActionClient {
                     let rebuild = system.appendingPathComponent("sw/bin/darwin-rebuild")
                     guard
                         (allowNonStorePath || system.path.hasPrefix("/nix/store/")),
-                        fileManager.isExecutableFile(atPath: rebuild.path)
+                        FileManager.default.isExecutableFile(atPath: rebuild.path)
                     else {
                         continuation.resume(
                             throwing: ManagementAPIError.invalidResponse(
@@ -500,14 +562,18 @@ struct ManagementActionClient {
                     }
                     continuation.resume(returning: system)
                 } catch {
-                    try? fileManager.removeItem(at: errorURL)
                     continuation.resume(throwing: error)
                 }
             }
         }
     }
 
-    private func activateLegacySystem(_ system: URL, username: String) async throws -> ApplyActionResponse {
+    private func activateLegacySystem(
+        _ system: URL,
+        username: String,
+        control: InstallationRunControl?,
+        onEvent: @escaping @Sendable (ApplyActionEvent) -> Void
+    ) async throws -> ApplyActionResponse {
         let script = [
             "on run argv",
             "set systemPath to item 1 of argv",
@@ -519,6 +585,8 @@ struct ManagementActionClient {
             "end timeout",
             "end run",
         ]
+        let activationCommand = "env HOME=/var/root USER=root LOGNAME=root nix-env -p /nix/var/nix/profiles/system --set \(InstallerShell.quote(system.path)) && env HOME=/var/root USER=root LOGNAME=root SUDO_USER=\(InstallerShell.quote(username)) USERNAME=\(InstallerShell.quote(username)) \(InstallerShell.quote(system.appendingPathComponent("sw/bin/darwin-rebuild").path)) activate"
+        onEvent(.command(activationCommand, phase: .activating))
 
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
@@ -535,11 +603,24 @@ struct ManagementActionClient {
 
                 do {
                     try process.run()
+                    try control?.register(process)
                     let outputData = output.fileHandleForReading.readDataToEndOfFile()
                     process.waitUntilExit()
+                    control?.unregister(process)
+                    if control?.currentState == .stopping || control?.currentState == .stopped {
+                        continuation.resume(throwing: InstallationControlError.stopped)
+                        return
+                    }
                     let message = String(data: outputData, encoding: .utf8)?
                         .trimmingCharacters(in: .whitespacesAndNewlines)
                     let outputMessage = message.flatMap { $0.isEmpty ? nil : $0 }
+                    outputMessage?.split(separator: "\n", omittingEmptySubsequences: false).forEach { line in
+                        let value = String(line)
+                        onEvent(.output(value, phase: .activating))
+                        if let package = ApplyActionEventParser.package(from: value) {
+                            onEvent(.package(package, phase: .activating))
+                        }
+                    }
                     guard process.terminationStatus == 0 else {
                         continuation.resume(
                             throwing: ManagementAPIError.commandFailed(
@@ -748,6 +829,7 @@ struct ManagementActionClient {
         command: String,
         request: Data,
         additionalEnvironment: [String: String] = [:],
+        control: InstallationRunControl? = nil,
         onStandardErrorLine: (@Sendable (String) -> Void)? = nil
     ) async throws -> Data {
         try await withCheckedThrowingContinuation { continuation in
@@ -774,6 +856,7 @@ struct ManagementActionClient {
 
                 do {
                     try process.run()
+                    try control?.register(process)
                     input.fileHandleForWriting.write(request)
                     try input.fileHandleForWriting.close()
                     let errorCollector = ActionErrorCollector(onLine: onStandardErrorLine)
@@ -792,8 +875,14 @@ struct ManagementActionClient {
                     }
                     let outputData = output.fileHandleForReading.readDataToEndOfFile()
                     process.waitUntilExit()
+                    control?.unregister(process)
                     errorDrain.wait()
                     let errorData = errorCollector.data
+
+                    if control?.currentState == .stopping || control?.currentState == .stopped {
+                        continuation.resume(throwing: InstallationControlError.stopped)
+                        return
+                    }
 
                     guard process.terminationStatus == 0 else {
                         let stderrMessage = String(data: errorData, encoding: .utf8)?
@@ -812,6 +901,162 @@ struct ManagementActionClient {
                 }
             }
         }
+    }
+}
+
+private final class ApplyActionStreamDecoder: @unchecked Sendable {
+    private let lock = NSLock()
+    private let onProgress: @Sendable (ApplyActionProgress) -> Void
+    private let onEvent: @Sendable (ApplyActionEvent) -> Void
+    private var phase: ApplyActionPhase
+    private var nixActivities: [UInt64: ApplyPackageProgress] = [:]
+    private var activePackages: [ApplyPackageManager: ApplyPackageProgress] = [:]
+
+    init(
+        initialPhase: ApplyActionPhase,
+        onProgress: @escaping @Sendable (ApplyActionProgress) -> Void,
+        onEvent: @escaping @Sendable (ApplyActionEvent) -> Void
+    ) {
+        phase = initialPhase
+        self.onProgress = onProgress
+        self.onEvent = onEvent
+    }
+
+    func receive(_ line: String) {
+        if let progress = ManagementActionClient.applyProgress(from: line) {
+            lock.lock()
+            phase = progress.phase
+            lock.unlock()
+            onProgress(progress)
+            return
+        }
+        if let command = ApplyActionEventParser.command(from: line) {
+            onEvent(command)
+            return
+        }
+
+        lock.lock()
+        let currentPhase = phase
+        lock.unlock()
+        onEvent(.output(line, phase: currentPhase))
+
+        let nixEvents = nixPackageEvents(from: line)
+        if !nixEvents.isEmpty {
+            nixEvents.forEach { onEvent(.package($0, phase: currentPhase)) }
+            return
+        }
+        if let parsedPackage = ApplyActionEventParser.package(from: line) {
+            lock.lock()
+            let package: ApplyPackageProgress
+            if parsedPackage.manager == .homebrew,
+               parsedPackage.state == .complete,
+               let active = activePackages[.homebrew]
+            {
+                package = ApplyPackageProgress(
+                    manager: .homebrew,
+                    name: active.name,
+                    state: .complete,
+                    detail: parsedPackage.detail,
+                    fractionCompleted: 1
+                )
+            } else {
+                package = parsedPackage
+            }
+            if package.state == .complete || package.state == .failed {
+                activePackages.removeValue(forKey: package.manager)
+            } else {
+                activePackages[package.manager] = package
+            }
+            lock.unlock()
+            onEvent(.package(package, phase: currentPhase))
+            return
+        }
+        if let package = packagePercentageEvent(from: line) {
+            onEvent(.package(package, phase: currentPhase))
+        }
+    }
+
+    private func nixPackageEvents(from line: String) -> [ApplyPackageProgress] {
+        guard line.hasPrefix("@nix "),
+              let data = String(line.dropFirst(5)).data(using: .utf8),
+              let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let action = payload["action"] as? String
+        else { return [] }
+
+        if action == "msg", let message = payload["msg"] as? String {
+            return message.split(separator: "\n").compactMap {
+                ApplyActionEventParser.package(from: String($0))
+            }
+        }
+
+        guard let id = (payload["id"] as? NSNumber)?.uint64Value else { return [] }
+
+        lock.lock()
+        defer { lock.unlock() }
+
+        switch action {
+        case "start":
+            guard let text = payload["text"] as? String,
+                  let package = ApplyActionEventParser.package(from: text)
+            else { return [] }
+            nixActivities[id] = package
+            activePackages[.nix] = package
+            return [package]
+        case "result":
+            guard let package = nixActivities[id],
+                  (payload["type"] as? NSNumber)?.intValue == 105,
+                  let fields = payload["fields"] as? [Any],
+                  fields.count >= 2,
+                  let completed = fields[0] as? NSNumber,
+                  let expected = fields[1] as? NSNumber,
+                  expected.doubleValue > 0
+            else { return [] }
+            let updated = ApplyPackageProgress(
+                manager: package.manager,
+                name: package.name,
+                state: package.state,
+                detail: package.detail,
+                fractionCompleted: completed.doubleValue / expected.doubleValue
+            )
+            nixActivities[id] = updated
+            activePackages[.nix] = updated
+            return [updated]
+        case "stop":
+            guard let package = nixActivities.removeValue(forKey: id) else { return [] }
+            let completed = ApplyPackageProgress(
+                manager: package.manager,
+                name: package.name,
+                state: .complete,
+                detail: package.detail,
+                fractionCompleted: 1
+            )
+            if activePackages[.nix]?.id == package.id {
+                activePackages.removeValue(forKey: .nix)
+            }
+            return [completed]
+        default:
+            return []
+        }
+    }
+
+    private func packagePercentageEvent(from line: String) -> ApplyPackageProgress? {
+        guard let match = line.range(
+            of: #"(?<![0-9])[0-9]{1,3}(?:\.[0-9]+)?%"#,
+            options: .regularExpression
+        ), let percent = Double(line[match].dropLast()) else { return nil }
+
+        lock.lock()
+        defer { lock.unlock() }
+        guard let package = activePackages[.homebrew] ?? activePackages[.nix] else { return nil }
+        let updated = ApplyPackageProgress(
+            manager: package.manager,
+            name: package.name,
+            state: package.state,
+            detail: line,
+            fractionCompleted: percent / 100
+        )
+        activePackages[package.manager] = updated
+        return updated
     }
 }
 

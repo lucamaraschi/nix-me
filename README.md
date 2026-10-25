@@ -101,7 +101,7 @@ guides you through:
 2. **Load or create** - Reuse an existing machine definition without rewriting it, or create a new one
 3. **Select profiles** - Choose development, work, personal, local AI, or any combination
 4. **Review the plan** - See exactly what will be written and activated
-5. **Build and verify** - Follow visible progress, approve activation once, and get inline recovery if anything fails
+5. **Build and verify** - Follow overall and per-package progress, pause at safe boundaries or stop before activation, inspect exact commands in the live execution terminal, approve activation once, and export a complete Markdown diagnostic if anything fails
 
 The setup app is compiled locally through Nix, so first installation does not
 depend on a notarized download. It runs from a temporary copy that is removed

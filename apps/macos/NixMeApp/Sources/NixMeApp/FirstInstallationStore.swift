@@ -103,9 +103,14 @@ final class FirstInstallationStore: ObservableObject {
     @Published private(set) var phase: FirstInstallationPhase = .configuration
     @Published private(set) var phaseMessage = ""
     @Published private(set) var isInstalling = false
+    @Published private(set) var runState: InstallationRunState = .idle
     @Published private(set) var errorMessage: String?
     @Published private(set) var errorDetails: String?
     @Published private(set) var resumeMessage: String?
+    @Published private(set) var consoleEntries: [InstallerConsoleEntry] = []
+    @Published private(set) var stepActivities: [InstallerStepActivity] = []
+    @Published private(set) var packageActivities: [InstallerPackageActivity] = []
+    @Published var isTerminalVisible = false
 
     let configurationDirectory: URL
     let setupStatus: ConfigurationSetupStatus
@@ -116,6 +121,9 @@ final class FirstInstallationStore: ObservableObject {
     private let detectedUsername: String
     private let detectedMachineType: String
     private let sessionPersistence: FirstInstallationSessionPersistence
+    private var activitySequence = 0
+    private var packageSequence = 0
+    private var runControl: InstallationRunControl?
 
     init(
         configurationDirectory: URL? = nil,
@@ -201,6 +209,24 @@ final class FirstInstallationStore: ObservableObject {
         selectedExistingMachine != nil
     }
 
+    var overallProgress: Double {
+        InstallerProgressCalculator.fraction(
+            phase: phase,
+            isRunning: isInstalling,
+            isComplete: screen == .complete,
+            steps: stepActivities,
+            packages: packageActivities
+        )
+    }
+
+    var canPauseInstallation: Bool {
+        isInstalling && ![.activation, .verification].contains(phase) && runState != .stopping
+    }
+
+    var canStopInstallation: Bool {
+        isInstalling && ![.activation, .verification].contains(phase) && runState != .stopping
+    }
+
     var validationMessage: String? {
         guard machineSelection != nil else {
             return "Choose a saved machine configuration or create a new one."
@@ -271,20 +297,91 @@ final class FirstInstallationStore: ObservableObject {
         }
     }
 
+    func toggleTerminal() {
+        isTerminalVisible.toggle()
+    }
+
+    func toggleInstallationPause() {
+        guard canPauseInstallation, let runControl else { return }
+        do {
+            if runState.isPaused {
+                try runControl.resume()
+                runState = .running
+                phaseMessage = "Resuming \(phase.title.lowercased())"
+                appendConsole(.status, "Installation resumed")
+            } else {
+                try runControl.requestPause()
+                runState = .pauseRequested
+                phaseMessage = "Pause requested; the current operation will finish safely"
+                appendConsole(.status, "Pause requested after the current operation")
+            }
+        } catch {
+            errorMessage = "Could not update the installation controls."
+            errorDetails = error.localizedDescription
+        }
+    }
+
+    func stopInstallation() {
+        guard canStopInstallation, let runControl else { return }
+        runState = .stopping
+        phaseMessage = "Stopping the active operation safely"
+        appendConsole(.status, "Stop requested; terminating the active pre-activation operation")
+        runControl.requestStop()
+    }
+
+    func diagnosticReport() -> String {
+        InstallerDiagnosticReport.render(
+            hostname: hostname,
+            configurationDirectory: configurationDirectory,
+            phase: phase,
+            phaseMessage: phaseMessage,
+            errorMessage: errorMessage,
+            errorDetails: errorDetails,
+            steps: stepActivities,
+            packages: packageActivities,
+            console: consoleEntries
+        )
+    }
+
     func install() async {
         guard !isInstalling, validationMessage == nil else { return }
         persistSession(installAttempted: true)
         isInstalling = true
         errorMessage = nil
         errorDetails = nil
+        consoleEntries.removeAll()
+        stepActivities.removeAll()
+        packageActivities.removeAll()
+        activitySequence = 0
+        packageSequence = 0
+        let control = InstallationRunControl()
+        runControl = control
+        do {
+            try control.start()
+            runState = .running
+        } catch {
+            isInstalling = false
+            runState = .stopped
+            errorMessage = "Could not initialize installation controls."
+            errorDetails = error.localizedDescription
+            return
+        }
         phase = .configuration
         phaseMessage = configurationExists
             ? "Using the existing configuration for \(hostname)"
             : "Creating the machine and profile configuration"
         screen = .install
+        appendConsole(.status, "Starting first-install deployment for \(hostname)")
+        startStep(
+            configurationExists ? "Load machine configuration" : "Write machine configuration",
+            detail: configurationExists ? hostname : "nix/hosts/machines/\(hostname)",
+            phase: .configuration
+        )
 
         do {
-            try await createMachineConfiguration()
+            try await createMachineConfiguration(control: control)
+            try await pauseAtSafeBoundary(control, before: "system preparation")
+            completeActivities(before: .preparation)
             phase = .preparation
             phaseMessage = "Checking the generated configuration and required tools"
 
@@ -294,28 +391,60 @@ final class FirstInstallationStore: ObservableObject {
                 username: username,
                 machineName: machineName,
                 machineType: machineType,
+                control: control,
                 onProgress: { [weak self] progress in
                     Task { @MainActor [weak self] in
                         self?.record(progress)
                     }
+                },
+                onEvent: { [weak self] event in
+                    Task { @MainActor [weak self] in
+                        self?.record(event)
+                    }
                 }
             )
+            await Task.yield()
             guard response.success else {
                 throw FirstInstallationError.failed(response.message)
             }
 
-            phase = .verification
-            phaseMessage = "Confirming the active host and system generation"
+            transition(to: .verification, message: "Confirming the active host and system generation")
+            appendConsole(.status, response.message)
+            startStep(
+                "Verify active generation",
+                detail: "Read the live management snapshot",
+                phase: .verification
+            )
             try await verifyInstallation()
+            completeActivities(before: nil)
             sessionPersistence.clear()
             Self.recordSuccessfulInstallation()
             phaseMessage = "The managed system is active and ready"
+            appendConsole(.status, "Verification complete. The managed system is active.")
             isInstalling = false
+            runState = .idle
+            runControl = nil
             screen = .complete
         } catch {
+            await Task.yield()
             isInstalling = false
-            errorMessage = "\(phase.title) could not finish. \(Self.errorSummary(error))"
-            errorDetails = error.localizedDescription
+            if control.currentState == .stopping || control.currentState == .stopped
+                || error is InstallationControlError
+            {
+                control.markStopped()
+                runState = .stopped
+                phaseMessage = "Installation stopped before the next system change"
+                appendConsole(.status, "Installation stopped by the user")
+                cancelActiveActivities()
+            } else {
+                runState = .idle
+                errorMessage = "\(phase.title) could not finish. \(Self.errorSummary(error))"
+                errorDetails = error.localizedDescription
+                appendConsole(.error, error.localizedDescription)
+                failActiveActivities()
+                isTerminalVisible = true
+            }
+            runControl = nil
         }
     }
 
@@ -341,8 +470,11 @@ final class FirstInstallationStore: ObservableObject {
         ))
     }
 
-    private func createMachineConfiguration() async throws {
-        guard !configurationExists else { return }
+    private func createMachineConfiguration(control: InstallationRunControl) async throws {
+        guard !configurationExists else {
+            appendConsole(.status, "Using existing machine configuration \(hostname)")
+            return
+        }
 
         let script = configurationDirectory
             .appendingPathComponent("tools/installation/create-machine.sh")
@@ -360,8 +492,10 @@ final class FirstInstallationStore: ObservableObject {
             username,
             appStateEnabled ? "true" : "false",
         ] + profiles
+        appendConsole(.command, InstallerShell.command(executable: "/bin/bash", arguments: arguments))
 
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+        let result = try await withCheckedThrowingContinuation {
+            (continuation: CheckedContinuation<(Int32, String), Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 let process = Process()
                 let output = Pipe()
@@ -376,26 +510,44 @@ final class FirstInstallationStore: ObservableObject {
 
                 do {
                     try process.run()
+                    try control.register(process)
                     let data = output.fileHandleForReading.readDataToEndOfFile()
                     process.waitUntilExit()
-                    guard process.terminationStatus == 0 else {
-                        let message = String(data: data, encoding: .utf8)?
-                            .trimmingCharacters(in: .whitespacesAndNewlines)
-                        continuation.resume(throwing: ManagementAPIError.commandFailed(
-                            process.terminationStatus,
-                            message.flatMap { $0.isEmpty ? nil : $0 } ?? "Could not create the machine configuration"
-                        ))
-                        return
+                    control.unregister(process)
+                    if control.currentState == .stopping || control.currentState == .stopped {
+                        throw InstallationControlError.stopped
                     }
-                    continuation.resume(returning: ())
+                    continuation.resume(returning: (
+                        process.terminationStatus,
+                        String(data: data, encoding: .utf8) ?? ""
+                    ))
                 } catch {
                     continuation.resume(throwing: error)
                 }
             }
         }
+        result.1.split(separator: "\n", omittingEmptySubsequences: false)
+            .map(String.init)
+            .filter { !$0.isEmpty }
+            .forEach { appendConsole(.output, $0) }
+        guard result.0 == 0 else {
+            let message = result.1.trimmingCharacters(in: .whitespacesAndNewlines)
+            throw ManagementAPIError.commandFailed(
+                result.0,
+                message.isEmpty ? "Could not create the machine configuration" : message
+            )
+        }
     }
 
     private func verifyInstallation() async throws {
+        let api = ManagementBackend.executable(
+            named: "nix-me-api",
+            configurationDirectory: configurationDirectory
+        )
+        appendConsole(.command, InstallerShell.command(
+            executable: "/bin/bash",
+            arguments: [api.path, "snapshot"]
+        ))
         let snapshot = try await ManagementAPIClient(
             configurationDirectory: configurationDirectory
         ).snapshot()
@@ -415,17 +567,216 @@ final class FirstInstallationStore: ObservableObject {
                 "Activation finished, but Nix or nix-darwin is not available in the active system."
             )
         }
+        appendConsole(.output, "Active host \(snapshot.host.hostname); Nix and nix-darwin are available")
     }
 
     private func record(_ progress: ApplyActionProgress) {
         guard progress.phase.order + 1 >= phase.rawValue else { return }
-        switch progress.phase {
-        case .preparing: phase = .preparation
-        case .building: phase = .build
-        case .activating: phase = .activation
-        case .verifying: phase = .verification
+        transition(to: installationPhase(for: progress.phase), message: progress.message)
+        appendConsole(.status, progress.message)
+        if progress.message.hasPrefix("Paused before") {
+            runControl?.markPaused()
+            runState = .paused
+        } else if runState == .paused && progress.phase == .activating {
+            runState = .running
         }
-        phaseMessage = progress.message
+    }
+
+    private func record(_ event: ApplyActionEvent) {
+        switch event.kind {
+        case .command:
+            appendConsole(.command, event.message)
+            let commandPhase = event.phase.map(installationPhase(for:)) ?? phase
+            completeRunningSteps(in: commandPhase)
+            startStep(commandTitle(event.message), detail: event.message, phase: commandPhase)
+        case .output:
+            appendConsole(.output, event.message)
+        case .package:
+            guard let package = event.package else { return }
+            let packagePhase = event.phase.map(installationPhase(for:)) ?? phase
+            packageSequence += 1
+            packageActivities.removeAll { $0.id == package.id }
+            packageActivities.append(InstallerPackageActivity(
+                id: package.id,
+                phase: packagePhase,
+                manager: package.manager,
+                name: package.name,
+                state: package.state,
+                detail: package.detail,
+                fractionCompleted: package.fractionCompleted,
+                sequence: packageSequence
+            ))
+        }
+    }
+
+    private func appendConsole(_ kind: InstallerConsoleEntryKind, _ message: String) {
+        guard !message.isEmpty else { return }
+        consoleEntries.append(InstallerConsoleEntry(kind: kind, message: message))
+    }
+
+    private func installationPhase(for phase: ApplyActionPhase) -> FirstInstallationPhase {
+        switch phase {
+        case .preparing: .preparation
+        case .building: .build
+        case .activating: .activation
+        case .verifying: .verification
+        }
+    }
+
+    private func transition(to newPhase: FirstInstallationPhase, message: String) {
+        guard newPhase.rawValue >= phase.rawValue else { return }
+        if newPhase != phase {
+            completeActivities(before: newPhase)
+            phase = newPhase
+        }
+        phaseMessage = message
+    }
+
+    private func startStep(_ title: String, detail: String, phase: FirstInstallationPhase) {
+        activitySequence += 1
+        stepActivities.append(InstallerStepActivity(
+            phase: phase,
+            title: title,
+            detail: detail,
+            state: .running,
+            sequence: activitySequence
+        ))
+    }
+
+    private func completeRunningSteps(in phase: FirstInstallationPhase) {
+        stepActivities = stepActivities.map { activity in
+            guard activity.phase == phase, activity.state == .running else { return activity }
+            return InstallerStepActivity(
+                id: activity.id,
+                phase: activity.phase,
+                title: activity.title,
+                detail: activity.detail,
+                state: .complete,
+                sequence: activity.sequence
+            )
+        }
+    }
+
+    private func completeActivities(before phase: FirstInstallationPhase?) {
+        stepActivities = stepActivities.map { activity in
+            let shouldComplete = phase.map { activity.phase.rawValue < $0.rawValue } ?? true
+            guard shouldComplete,
+                  activity.state != .failed,
+                  activity.state != .cancelled
+            else { return activity }
+            return InstallerStepActivity(
+                id: activity.id,
+                phase: activity.phase,
+                title: activity.title,
+                detail: activity.detail,
+                state: .complete,
+                sequence: activity.sequence
+            )
+        }
+        packageActivities = packageActivities.map { activity in
+            let shouldComplete = phase.map { activity.phase.rawValue < $0.rawValue } ?? true
+            guard shouldComplete,
+                  activity.state != .failed,
+                  activity.state != .cancelled
+            else { return activity }
+            return InstallerPackageActivity(
+                id: activity.id,
+                phase: activity.phase,
+                manager: activity.manager,
+                name: activity.name,
+                state: .complete,
+                detail: activity.detail,
+                fractionCompleted: 1,
+                sequence: activity.sequence
+            )
+        }
+    }
+
+    private func failActiveActivities() {
+        stepActivities = stepActivities.map { activity in
+            guard activity.phase == phase, activity.state == .running else { return activity }
+            return InstallerStepActivity(
+                id: activity.id,
+                phase: activity.phase,
+                title: activity.title,
+                detail: activity.detail,
+                state: .failed,
+                sequence: activity.sequence
+            )
+        }
+        packageActivities = packageActivities.map { activity in
+            guard activity.phase == phase,
+                  [.downloading, .building, .installing].contains(activity.state)
+            else { return activity }
+            return InstallerPackageActivity(
+                id: activity.id,
+                phase: activity.phase,
+                manager: activity.manager,
+                name: activity.name,
+                state: .failed,
+                detail: activity.detail,
+                fractionCompleted: activity.fractionCompleted,
+                sequence: activity.sequence
+            )
+        }
+    }
+
+    private func cancelActiveActivities() {
+        stepActivities = stepActivities.map { activity in
+            guard activity.phase == phase, activity.state == .running else { return activity }
+            return InstallerStepActivity(
+                id: activity.id,
+                phase: activity.phase,
+                title: activity.title,
+                detail: activity.detail,
+                state: .cancelled,
+                sequence: activity.sequence
+            )
+        }
+        packageActivities = packageActivities.map { activity in
+            guard activity.phase == phase,
+                  [.downloading, .building, .installing].contains(activity.state)
+            else { return activity }
+            return InstallerPackageActivity(
+                id: activity.id,
+                phase: activity.phase,
+                manager: activity.manager,
+                name: activity.name,
+                state: .cancelled,
+                detail: activity.detail,
+                fractionCompleted: activity.fractionCompleted,
+                sequence: activity.sequence
+            )
+        }
+    }
+
+    private func pauseAtSafeBoundary(
+        _ control: InstallationRunControl,
+        before nextOperation: String
+    ) async throws {
+        guard control.currentState.isPaused else { return }
+        control.markPaused()
+        runState = .paused
+        phaseMessage = "Paused before \(nextOperation)"
+        appendConsole(.status, phaseMessage)
+        try await control.waitIfPaused()
+        runState = .running
+        phaseMessage = "Resuming \(nextOperation)"
+    }
+
+    private func commandTitle(_ command: String) -> String {
+        if command.contains("create-machine.sh") { return "Write machine configuration" }
+        if command.contains("nix-me-action") { return "Start management action" }
+        if command.contains("nix build") || command.contains("/nix") && command.contains(" build ") {
+            return "Build system generation"
+        }
+        if command.contains("darwin-rebuild") || command.contains("nix-env") {
+            return "Activate system generation"
+        }
+        if command.contains("nix-me-api") && command.contains("snapshot") {
+            return "Verify active generation"
+        }
+        return "Run command"
     }
 
     private static func detectHostname() -> String {
