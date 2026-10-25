@@ -8,6 +8,7 @@ struct FirstInstallationView: View {
     @StateObject private var installer = FirstInstallationStore()
     @State private var expandedPhases: Set<FirstInstallationPhase> = []
     @State private var diagnosticExportMessage: String?
+    let keepsMacAwake: Bool
     let openDashboard: () -> Void
 
     var body: some View {
@@ -53,15 +54,15 @@ struct FirstInstallationView: View {
                     .foregroundStyle(InstallerPalette.secondary)
             }
             Spacer(minLength: 24)
-            VStack(alignment: .trailing, spacing: 3) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text("CONFIGURATION CHECKOUT").installerLabel()
                 Text(installer.configurationDirectory.path)
                     .font(.system(.caption2, design: .monospaced))
                     .foregroundStyle(InstallerPalette.secondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
-                    .frame(maxWidth: 360)
             }
+            .frame(width: 360, alignment: .leading)
             Button(action: installer.toggleTerminal) {
                 HStack(spacing: 8) {
                     Circle()
@@ -114,6 +115,7 @@ struct FirstInstallationView: View {
                 statusLine("CHECKOUT", value: installer.setupStatus.checkoutState == .ready ? "READY" : "ATTENTION")
                 statusLine("NIX", value: dependencyReady("nix") ? "ONLINE" : "MISSING")
                 statusLine("BREW", value: dependencyReady("brew") ? "ONLINE" : "MISSING")
+                statusLine("SLEEP", value: keepsMacAwake ? "BLOCKED" : "SYSTEM")
             }
             .padding(12)
             .installerPanel(padding: 0)
@@ -147,6 +149,7 @@ struct FirstInstallationView: View {
                     title: "Bring this Mac under control.",
                     description: "The trusted command-line tools are ready. Choose a saved host or define a new one, then watch every build and activation step from this console."
                 )
+                awakeNotice
                 HStack(spacing: 12) {
                     readinessCard(
                         "Configuration",
@@ -178,6 +181,29 @@ struct FirstInstallationView: View {
             }
             .padding(34)
         }
+    }
+
+    private var awakeNotice: some View {
+        HStack(alignment: .top, spacing: 14) {
+            Image(systemName: keepsMacAwake ? "bolt.shield.fill" : "exclamationmark.triangle.fill")
+                .font(.system(size: 22, weight: .medium))
+                .foregroundStyle(keepsMacAwake ? InstallerPalette.green : InstallerPalette.amber)
+                .frame(width: 28)
+            VStack(alignment: .leading, spacing: 5) {
+                Text(keepsMacAwake ? "SLEEP PREVENTION ACTIVE" : "SLEEP PREVENTION UNAVAILABLE")
+                    .font(.system(size: 12, weight: .bold, design: .monospaced))
+                    .tracking(0.8)
+                    .foregroundStyle(InstallerPalette.primary)
+                Text(keepsMacAwake
+                    ? "Nix Me will keep this Mac and its display awake until setup finishes or the app closes. Keep the lid open and connect power for long installations."
+                    : "Keep this Mac awake manually until setup finishes. Keep the lid open and connect power for long installations.")
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(InstallerPalette.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+        }
+        .installerPanel()
     }
 
     private var configuration: some View {

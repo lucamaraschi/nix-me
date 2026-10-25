@@ -65,7 +65,18 @@ cat >"$TMP_DIR/lsregister" <<'EOF'
 printf '%s\n' "$*" >>"$TEST_STATE/lsregister.log"
 EOF
 
-chmod +x "$TMP_DIR/sudo" "$TMP_DIR/xcode-select" "$TMP_DIR/softwareupdate" "$TMP_DIR/lsregister"
+cat >"$TMP_DIR/caffeinate" <<'EOF'
+#!/bin/bash
+printf '%s\n' "$*" >"$TEST_STATE/caffeinate.args"
+sleep 30
+EOF
+
+chmod +x \
+    "$TMP_DIR/sudo" \
+    "$TMP_DIR/xcode-select" \
+    "$TMP_DIR/softwareupdate" \
+    "$TMP_DIR/lsregister" \
+    "$TMP_DIR/caffeinate"
 
 export PATH="$TMP_DIR:$PATH"
 export TEST_STATE="$TMP_DIR/state"
@@ -77,6 +88,24 @@ mkdir -p "$TEST_STATE"
 
 # shellcheck source=../../install.sh
 source "$REPO_DIR/install.sh"
+
+NIX_ME_CAFFEINATE_BIN="$TMP_DIR/caffeinate"
+export NIX_ME_CAFFEINATE_BIN
+start_install_awake_guard
+AWAKE_TEST_PID=$INSTALL_AWAKE_PID
+for _ in {1..50}; do
+    [ -f "$TEST_STATE/caffeinate.args" ] && break
+    sleep 0.02
+done
+grep -Eq -- '^-dims -w [0-9]+$' "$TEST_STATE/caffeinate.args"
+kill -0 "$AWAKE_TEST_PID"
+cleanup_install_helpers
+if kill -0 "$AWAKE_TEST_PID" 2>/dev/null; then
+    echo "installer sleep-prevention helper was not stopped" >&2
+    exit 1
+fi
+INSTALL_AWAKE_PID=""
+trap 'rm -rf "$TMP_DIR"' EXIT
 
 VM_TYPE=traditional-vm
 NON_INTERACTIVE=1
