@@ -310,9 +310,11 @@ launch_native_installer() {
     fi
 
     defaults write com.nix-me.manager NixMeConfigurationDirectory "$repo_dir"
+    defaults write com.nix-me.setup NixMeConfigurationDirectory "$repo_dir"
     (
         trap '' HUP
         /usr/bin/open -n -W \
+            --env "NIX_ME_CONFIG_DIR=$repo_dir" \
             --env "NIX_ME_SETUP_COMPLETION_MARKER=$completion_marker" \
             "$setup_copy" --args --first-install || true
         cleanup_native_installer_copy "$setup_dir" "$setup_copy" "$completion_marker"

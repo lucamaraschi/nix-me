@@ -34,8 +34,10 @@
     };
   };
   
-  # Security settings
-  security.pam.services.sudo_local.touchIdAuth = true;
+  # macOS 27 can reject creation of /etc/pam.d/sudo_local under SIP, even
+  # during an administrator activation. Keep this optional integration out of
+  # the managed /etc tree so it can never block a system installation.
+  security.pam.services.sudo_local.enable = lib.mkDefault false;
   
   # Common fonts
   fonts.packages = with pkgs; [

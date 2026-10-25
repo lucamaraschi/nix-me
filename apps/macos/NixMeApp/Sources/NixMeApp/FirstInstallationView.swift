@@ -264,6 +264,14 @@ struct FirstInstallationView: View {
                 : "Nix Me will add this machine to the checkout, build the complete system, and then ask to activate it.")
                 .foregroundStyle(.secondary)
 
+            if let resumeMessage = installer.resumeMessage {
+                Label(resumeMessage, systemImage: "arrow.clockwise.circle.fill")
+                    .foregroundStyle(.orange)
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+            }
+
             GroupBox {
                 VStack(spacing: 0) {
                     reviewRow(
@@ -302,7 +310,11 @@ struct FirstInstallationView: View {
             HStack {
                 Button("Back", action: installer.goBack)
                 Spacer()
-                Button(installer.configurationExists ? "Apply Existing Configuration" : "Create and Apply") {
+                Button(installer.resumeMessage != nil
+                    ? "Review Complete, Retry"
+                    : installer.configurationExists
+                        ? "Apply Existing Configuration"
+                        : "Create and Apply") {
                     Task { await installer.install() }
                 }
                 .buttonStyle(.borderedProminent)
