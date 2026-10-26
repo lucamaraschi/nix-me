@@ -17,13 +17,13 @@
 
       # CAD & 3D Modeling
       "autodesk-fusion" # Fusion 360
-      "openscad" # Programmatic CAD
       "blender" # 3D modeling & rendering
       "freecad" # Open source parametric CAD
     ];
 
     # Maker packages via Nix
     systemPackagesToAdd = [
+      "openscad" # Homebrew disabled the cask after it failed Gatekeeper
       # meshlab removed - broken in nixpkgs (patch fails on 2025.07)
       # Install via: brew install --cask meshlab
     ];

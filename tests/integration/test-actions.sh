@@ -15,8 +15,12 @@ grep -Fq 'NIX_ME_USER_BUILD_APPLY=1' "$REPO_DIR/packages/management-api/bin/nix-
 grep -Fq 'build --json --no-link --impure --log-format internal-json "$flake_ref"' "$REPO_DIR/packages/management-api/bin/nix-me-action"
 grep -Fq 'flake_ref="path:$CONFIG_DIR#darwinConfigurations.$host_name.system"' "$REPO_DIR/packages/management-api/bin/nix-me-action"
 grep -Fq 'NIX_ME_SOURCE_REVISION=' "$REPO_DIR/packages/management-api/bin/nix-me-action"
-grep -Fq '" -p /nix/var/nix/profiles/system --set "' "$REPO_DIR/packages/management-api/bin/nix-me-action"
-grep -Fq 'quoted form of rebuildPath & " activate > "' "$REPO_DIR/packages/management-api/bin/nix-me-action"
+grep -Fq 'activation_runner="$system_path/etc/nix-me/activate-system"' "$REPO_DIR/packages/management-api/bin/nix-me-action"
+grep -Fq 'quoted form of activationRunner & " " & quoted form of systemPath' "$REPO_DIR/packages/management-api/bin/nix-me-action"
+grep -Fq 'trap cleanup EXIT' "$REPO_DIR/packages/management-api/bin/nix-me-activate-system"
+grep -Fq "trap 'exit 130' INT TERM HUP" "$REPO_DIR/packages/management-api/bin/nix-me-activate-system"
+grep -Fq '/usr/sbin/visudo -cf /etc/sudoers' "$REPO_DIR/packages/management-api/bin/nix-me-activate-system"
+grep -Fq '/usr/bin/sudo -K' "$REPO_DIR/packages/management-api/bin/nix-me-activate-system"
 grep -Fq 'GIT_CONFIG_KEY_0=safe.directory' "$REPO_DIR/Makefile"
 grep -Fq 'GIT_CONFIG_VALUE_0="$(FLAKE_DIR)"' "$REPO_DIR/Makefile"
 
@@ -54,10 +58,11 @@ grep -Fq $'NIX_ME_PROGRESS\tpreparing\t' "$TEMP_DIR/apply-progress.log"
 
 APPLY_REPO="$TEMP_DIR/apply-repo"
 APPLY_SYSTEM="$TEMP_DIR/built-system"
-mkdir -p "$APPLY_REPO" "$APPLY_SYSTEM/sw/bin"
+mkdir -p "$APPLY_REPO" "$APPLY_SYSTEM/sw/bin" "$APPLY_SYSTEM/etc/nix-me"
 printf '{}\n' >"$APPLY_REPO/flake.nix"
 printf '#!/bin/bash\n' >"$APPLY_SYSTEM/sw/bin/darwin-rebuild"
-chmod +x "$APPLY_SYSTEM/sw/bin/darwin-rebuild"
+printf '#!/bin/bash\n' >"$APPLY_SYSTEM/etc/nix-me/activate-system"
+chmod +x "$APPLY_SYSTEM/sw/bin/darwin-rebuild" "$APPLY_SYSTEM/etc/nix-me/activate-system"
 
 cat >"$TEMP_DIR/fake-nix" <<'SH'
 #!/bin/bash
@@ -74,19 +79,15 @@ cat >"$TEMP_DIR/fake-nix" <<'SH'
 printf "building '/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-test-package-1.0.drv'...\n" >&2
 jq -n --arg out "$NIX_ME_TEST_SYSTEM" '[{outputs:{out:$out}}]'
 SH
-cat >"$TEMP_DIR/fake-nix-env" <<'SH'
-#!/bin/bash
-exit 1
-SH
 cat >"$TEMP_DIR/fake-osascript" <<'SH'
 #!/bin/bash
-[[ "$*" == *'" -p /nix/var/nix/profiles/system --set "'* ]] || exit 71
-[[ "$*" == *'set rebuildPath to systemPath & "/sw/bin/darwin-rebuild"'* ]] || exit 72
-[[ " $* " == *" -- $NIX_ME_TEST_SYSTEM test-user $NIX_ME_NIX_ENV_BIN "* ]] || exit 73
+[[ "$*" == *'set activationRunner to systemPath & "/etc/nix-me/activate-system"'* ]] || exit 71
+[[ "$*" == *'quoted form of activationRunner & " " & quoted form of systemPath'* ]] || exit 72
+[[ " $* " == *" -- $NIX_ME_TEST_SYSTEM test-user "* ]] || exit 73
 [[ -z "${NIX_ME_TEST_ACTIVATION_MARKER:-}" ]] || touch "$NIX_ME_TEST_ACTIVATION_MARKER"
 printf '%s\n' 'Configuration activated'
 SH
-chmod +x "$TEMP_DIR/fake-nix" "$TEMP_DIR/fake-nix-env" "$TEMP_DIR/fake-osascript"
+chmod +x "$TEMP_DIR/fake-nix" "$TEMP_DIR/fake-osascript"
 
 NIX_ME_CONFIG_DIR="$APPLY_REPO" \
   NIX_ME_ACTION_DRY_RUN=0 \
@@ -97,7 +98,6 @@ NIX_ME_CONFIG_DIR="$APPLY_REPO" \
   SKIP_BREW_ON_VM=1 \
   NIX_ME_SOURCE_REVISION=abc123 \
   NIX_ME_NIX_BIN="$TEMP_DIR/fake-nix" \
-  NIX_ME_NIX_ENV_BIN="$TEMP_DIR/fake-nix-env" \
   NIX_ME_ADMINISTRATOR_RUNNER="$TEMP_DIR/fake-osascript" \
   NIX_ME_TEST_CONFIG="$APPLY_REPO" \
   NIX_ME_TEST_SYSTEM="$APPLY_SYSTEM" \
@@ -126,7 +126,6 @@ NIX_ME_CONFIG_DIR="$APPLY_REPO" \
   SKIP_BREW_ON_VM=1 \
   NIX_ME_SOURCE_REVISION=abc123 \
   NIX_ME_NIX_BIN="$TEMP_DIR/fake-nix" \
-  NIX_ME_NIX_ENV_BIN="$TEMP_DIR/fake-nix-env" \
   NIX_ME_ADMINISTRATOR_RUNNER="$TEMP_DIR/fake-osascript" \
   NIX_ME_TEST_CONFIG="$APPLY_REPO" \
   NIX_ME_TEST_SYSTEM="$APPLY_SYSTEM" \

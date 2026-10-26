@@ -3,9 +3,9 @@ id: openscad
 name: OpenSCAD
 bundle_id: org.openscad.OpenSCAD
 install:
-  cask: openscad
+  nixpkg: openscad
 detect:
-  app_path: /Applications/OpenSCAD-2021.01.app
+  command: test -d '/Applications/Nix Apps/OpenSCAD.app' || test -d '/Applications/OpenSCAD.app' || test -d '/Applications/OpenSCAD-2021.01.app'
 sandboxed: false
 requires: []
 config:

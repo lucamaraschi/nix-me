@@ -574,18 +574,37 @@ struct ManagementActionClient {
         control: InstallationRunControl?,
         onEvent: @escaping @Sendable (ApplyActionEvent) -> Void
     ) async throws -> ApplyActionResponse {
-        let script = [
-            "on run argv",
-            "set systemPath to item 1 of argv",
-            "set userName to item 2 of argv",
-            "set rebuildPath to systemPath & \"/sw/bin/darwin-rebuild\"",
-            ##"set commandText to "env HOME=/var/root USER=root LOGNAME=root PATH=/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin nix-env -p /nix/var/nix/profiles/system --set " & quoted form of systemPath & " && env HOME=/var/root USER=root LOGNAME=root PATH=/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin SUDO_USER=" & quoted form of userName & " USERNAME=" & quoted form of userName & " " & quoted form of rebuildPath & " activate""##,
-            "with timeout of 86400 seconds",
-            "do shell script commandText with administrator privileges",
-            "end timeout",
-            "end run",
-        ]
-        let activationCommand = "env HOME=/var/root USER=root LOGNAME=root nix-env -p /nix/var/nix/profiles/system --set \(InstallerShell.quote(system.path)) && env HOME=/var/root USER=root LOGNAME=root SUDO_USER=\(InstallerShell.quote(username)) USERNAME=\(InstallerShell.quote(username)) \(InstallerShell.quote(system.appendingPathComponent("sw/bin/darwin-rebuild").path)) activate"
+        let systemRunner = system.appendingPathComponent("etc/nix-me/activate-system")
+        let usesSystemRunner = FileManager.default.isExecutableFile(atPath: systemRunner.path)
+        let script: [String]
+        let activationCommand: String
+        if usesSystemRunner {
+            script = [
+                "on run argv",
+                "set systemPath to item 1 of argv",
+                "set userName to item 2 of argv",
+                "set activationRunner to systemPath & \"/etc/nix-me/activate-system\"",
+                ##"set commandText to quoted form of activationRunner & " " & quoted form of systemPath & " " & quoted form of userName"##,
+                "with timeout of 86400 seconds",
+                "do shell script commandText with administrator privileges",
+                "end timeout",
+                "end run",
+            ]
+            activationCommand = "\(InstallerShell.quote(systemRunner.path)) \(InstallerShell.quote(system.path)) \(InstallerShell.quote(username))"
+        } else {
+            script = [
+                "on run argv",
+                "set systemPath to item 1 of argv",
+                "set userName to item 2 of argv",
+                "set rebuildPath to systemPath & \"/sw/bin/darwin-rebuild\"",
+                ##"set commandText to "env HOME=/var/root USER=root LOGNAME=root PATH=/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin nix-env -p /nix/var/nix/profiles/system --set " & quoted form of systemPath & " && env HOME=/var/root USER=root LOGNAME=root PATH=/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin SUDO_USER=" & quoted form of userName & " USERNAME=" & quoted form of userName & " " & quoted form of rebuildPath & " activate""##,
+                "with timeout of 86400 seconds",
+                "do shell script commandText with administrator privileges",
+                "end timeout",
+                "end run",
+            ]
+            activationCommand = "env HOME=/var/root USER=root LOGNAME=root nix-env -p /nix/var/nix/profiles/system --set \(InstallerShell.quote(system.path)) && env HOME=/var/root USER=root LOGNAME=root SUDO_USER=\(InstallerShell.quote(username)) USERNAME=\(InstallerShell.quote(username)) \(InstallerShell.quote(system.appendingPathComponent("sw/bin/darwin-rebuild").path)) activate"
+        }
         onEvent(.command(activationCommand, phase: .activating))
 
         return try await withCheckedThrowingContinuation { continuation in

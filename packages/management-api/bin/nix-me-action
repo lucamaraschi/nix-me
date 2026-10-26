@@ -331,8 +331,8 @@ run_harness_enable() {
 
 run_apply() {
   local host_name current_user machine_name machine_type source_revision flake_ref
-  local nix_path nix_env_path administrator_runner build_output build_log activation_log
-  local system_path rebuild_path message succeeded allow_non_store skip_homebrew skip_mas_apps
+  local nix_path administrator_runner build_output build_log activation_log
+  local system_path activation_runner message succeeded allow_non_store skip_homebrew skip_mas_apps
   local build_command activation_command activation_tail_pid active_apply_pid
   active_apply_pid=""
   cancel_apply() {
@@ -383,9 +383,8 @@ run_apply() {
   fi
 
   nix_path="${NIX_ME_NIX_BIN:-$(command -v nix 2>/dev/null || true)}"
-  nix_env_path="${NIX_ME_NIX_ENV_BIN:-$(command -v nix-env 2>/dev/null || true)}"
   administrator_runner="${NIX_ME_ADMINISTRATOR_RUNNER:-/usr/bin/osascript}"
-  if [[ -z "$nix_path" || ! -x "$nix_path" || -z "$nix_env_path" || ! -x "$nix_env_path" ]]; then
+  if [[ -z "$nix_path" || ! -x "$nix_path" ]]; then
     jq -n '{schemaVersion: 1, action: "apply", success: false, message: "Nix is unavailable"}'
     return
   fi
@@ -435,9 +434,9 @@ run_apply() {
 
   allow_non_store=false
   [[ -n "${NIX_ME_NIX_BIN:-}" ]] && allow_non_store=true
-  rebuild_path="$system_path/sw/bin/darwin-rebuild"
+  activation_runner="$system_path/etc/nix-me/activate-system"
   if { [[ "$allow_non_store" != "true" && "$system_path" != /nix/store/* ]]; } ||
-    [[ ! -x "$rebuild_path" ]]; then
+    [[ ! -x "$activation_runner" ]]; then
     jq -n '{schemaVersion: 1, action: "apply", success: false, message: "Nix returned an invalid system path"}'
     return
   fi
@@ -451,11 +450,8 @@ run_apply() {
   succeeded=true
   emit_apply_progress "activating" "Build complete; approve the macOS prompt to activate this generation"
   printf -v activation_command \
-    'env HOME=/var/root USER=root LOGNAME=root PATH=%q %q -p /nix/var/nix/profiles/system --set %q && env HOME=/var/root USER=root LOGNAME=root PATH=%q SUDO_USER=%q USERNAME=%q %q activate' \
-    '/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin' \
-    "$nix_env_path" "$system_path" \
-    '/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin' \
-    "$current_user" "$current_user" "$rebuild_path"
+    '%q %q %q' \
+    "$activation_runner" "$system_path" "$current_user"
   emit_apply_command "activating" "$activation_command"
 
   tail -n 0 -f "$activation_log" >&2 &
@@ -464,15 +460,14 @@ run_apply() {
     -e 'on run argv' \
     -e 'set systemPath to item 1 of argv' \
     -e 'set userName to item 2 of argv' \
-    -e 'set nixEnvPath to item 3 of argv' \
-    -e 'set activationLog to item 4 of argv' \
-    -e 'set rebuildPath to systemPath & "/sw/bin/darwin-rebuild"' \
-    -e 'set commandText to "env HOME=/var/root USER=root LOGNAME=root PATH=/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin " & quoted form of nixEnvPath & " -p /nix/var/nix/profiles/system --set " & quoted form of systemPath & " && env HOME=/var/root USER=root LOGNAME=root PATH=/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin SUDO_USER=" & quoted form of userName & " USERNAME=" & quoted form of userName & " " & quoted form of rebuildPath & " activate > " & quoted form of activationLog & " 2>&1"' \
+    -e 'set activationLog to item 3 of argv' \
+    -e 'set activationRunner to systemPath & "/etc/nix-me/activate-system"' \
+    -e 'set commandText to quoted form of activationRunner & " " & quoted form of systemPath & " " & quoted form of userName & " > " & quoted form of activationLog & " 2>&1"' \
     -e 'with timeout of 86400 seconds' \
     -e 'do shell script commandText with administrator privileges' \
     -e 'end timeout' \
     -e 'end run' \
-    -- "$system_path" "$current_user" "$nix_env_path" "$activation_log" >>"$activation_log" 2>&1; then
+    -- "$system_path" "$current_user" "$activation_log" >>"$activation_log" 2>&1; then
     succeeded=false
   fi
 

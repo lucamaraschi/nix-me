@@ -23,7 +23,7 @@
       "microsoft-teams"
       "loom" # Video messaging
       "miro" # Whiteboarding
-      "linear-linear" # Project management
+      "linear" # Project management
 
       # Productivity
       "microsoft-office"
