@@ -1,0 +1,120 @@
+#!/bin/bash
+
+set -euo pipefail
+
+die() {
+  printf 'nix-me Mac App Store: %s\n' "$*" >&2
+  exit 1
+}
+
+if [[ "$#" -ne 1 || ! -f "$1" ]]; then
+  die "usage: nix-me-install-mas-apps MANIFEST"
+fi
+
+manifest="$1"
+timeout_seconds="${NIX_ME_MAS_TIMEOUT_SECONDS:-14400}"
+if [[ ! "$timeout_seconds" =~ ^[1-9][0-9]*$ ]]; then
+  die "NIX_ME_MAS_TIMEOUT_SECONDS must be a positive integer"
+fi
+
+map_file="$(mktemp "${TMPDIR:-/tmp}/nix-me-mas-apps.XXXXXX")"
+cleanup() {
+  rm -f -- "$map_file"
+}
+trap cleanup EXIT
+trap 'exit 130' INT TERM HUP
+
+jq -e '.software.homebrew.masApps | type == "object"' "$manifest" >/dev/null \
+  || die "the managed application list is invalid"
+jq -r '
+  .software.homebrew.masApps
+  | to_entries
+  | sort_by(.key)
+  | .[]
+  | [.key, (.value | tostring)]
+  | @tsv
+' "$manifest" >"$map_file"
+
+if [[ ! -s "$map_file" ]]; then
+  exit 0
+fi
+
+mas_bin="${NIX_ME_MAS_BIN:-}"
+if [[ -z "$mas_bin" ]]; then
+  for candidate in /opt/homebrew/bin/mas /usr/local/bin/mas "$(command -v mas || true)"; do
+    if [[ -n "$candidate" && -x "$candidate" ]]; then
+      mas_bin="$candidate"
+      break
+    fi
+  done
+fi
+[[ -n "$mas_bin" && -x "$mas_bin" ]] || die "mas is unavailable; install it and retry"
+
+timeout_bin="${NIX_ME_TIMEOUT_BIN:-$(command -v timeout || command -v gtimeout || true)}"
+[[ -n "$timeout_bin" && -x "$timeout_bin" ]] || die "a timeout command is unavailable"
+
+emit_package() {
+  local state="$1"
+  local name="$2"
+  local detail="$3"
+  detail="${detail//$'\t'/ }"
+  detail="${detail//$'\n'/ }"
+  printf 'NIX_ME_PACKAGE\tmacAppStore\t%s\t%s\t%s\n' \
+    "$state" "$name" "$detail" >&2
+}
+
+is_installed() {
+  local id="$1"
+  "$mas_bin" list 2>/dev/null \
+    | /usr/bin/awk -v expected="$id" '$1 == expected { found = 1 } END { exit !found }'
+}
+
+run_mas() {
+  "$timeout_bin" --signal=TERM --kill-after=30s "${timeout_seconds}s" \
+    "$mas_bin" "$@"
+}
+
+install_app() {
+  local name="$1"
+  local id="$2"
+  local status
+
+  if is_installed "$id"; then
+    emit_package complete "$name" "Already installed from the Mac App Store"
+    return 0
+  fi
+
+  emit_package installing "$name" \
+    "Installing from the Mac App Store; Apple does not expose download percentage and large apps can take over an hour"
+  printf 'NIX_ME_PROGRESS\tactivating\tInstalling %s from the Mac App Store\n' "$name" >&2
+
+  set +e
+  run_mas install "$id"
+  status=$?
+  if [[ "$status" -ne 0 && "$status" -ne 124 ]]; then
+    run_mas get "$id"
+    status=$?
+  fi
+  set -e
+
+  if [[ "$status" -eq 0 ]] || is_installed "$id"; then
+    emit_package complete "$name" "Installed from the Mac App Store"
+    return 0
+  fi
+
+  if [[ "$status" -eq 124 ]]; then
+    emit_package failed "$name" "Timed out after ${timeout_seconds} seconds"
+    die "$name timed out. Open the App Store to check the download, then retry."
+  fi
+
+  emit_package failed "$name" "Mac App Store installation failed with status $status"
+  die "could not install $name. Open the App Store, sign in under the macOS user, acquire the app if needed, then retry."
+}
+
+while IFS=$'\t' read -r name id; do
+  [[ -n "$name" && "$id" =~ ^[1-9][0-9]*$ ]] \
+    || die "the managed application list contains an invalid entry"
+  install_app "$name" "$id"
+done <"$map_file"
+
+printf 'NIX_ME_PROGRESS\tactivating\tMac App Store applications are ready\n' >&2

@@ -21,6 +21,8 @@ grep -Fq 'trap cleanup EXIT' "$REPO_DIR/packages/management-api/bin/nix-me-activ
 grep -Fq "trap 'exit 130' INT TERM HUP" "$REPO_DIR/packages/management-api/bin/nix-me-activate-system"
 grep -Fq '/usr/sbin/visudo -cf /etc/sudoers' "$REPO_DIR/packages/management-api/bin/nix-me-activate-system"
 grep -Fq '/usr/bin/sudo -K' "$REPO_DIR/packages/management-api/bin/nix-me-activate-system"
+grep -Fq 'install-mas-apps' "$REPO_DIR/packages/management-api/bin/nix-me-activate-system"
+grep -Fq '/bin/launchctl asuser "$user_id"' "$REPO_DIR/packages/management-api/bin/nix-me-activate-system"
 grep -Fq 'migrate_legacy_lock' "$REPO_DIR/packages/management-api/bin/nix-me-activate-system"
 grep -Fq '/usr/bin/lockf -t "$lock_timeout_seconds" 9' "$REPO_DIR/packages/management-api/bin/nix-me-activate-system"
 grep -Fq 'exec 9>&-' "$REPO_DIR/packages/management-api/bin/nix-me-activate-system"

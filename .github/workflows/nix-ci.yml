@@ -60,6 +60,11 @@ jobs:
           packages="$(nix eval --json .#darwinConfigurations.bellerofonte.config.nixMe.manifest.software.nixPackageDetails | jq -r '.[].name')"
           grep -Fxq 'openscad' <<<"$packages"
           grep -Fxq 'zenmap' <<<"$packages"
+          managed_mas="$(nix eval --json .#darwinConfigurations.bellerofonte.config.apps.managedMasApps)"
+          jq -e '.Xcode == 497799835 and .Tailscale == 1475387142' <<<"$managed_mas"
+          test "$(nix eval --json .#darwinConfigurations.bellerofonte.config.homebrew.masApps)" = '{}'
+          manifest_mas="$(nix eval --json .#darwinConfigurations.bellerofonte.config.nixMe.manifest.software.homebrew.masApps)"
+          test "$manifest_mas" = "$managed_mas"
           nix eval --raw .#darwinConfigurations.nabucodonosor.config.system.activationScripts.postActivation.text \
             | grep -Fq '/Applications/Nix Me.app'
           nix eval --raw .#darwinConfigurations.nabucodonosor.config.system.activationScripts.postActivation.text \

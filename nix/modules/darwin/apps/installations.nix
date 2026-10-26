@@ -77,6 +77,13 @@ let
     };
   };
 
+  resolvedMasApps =
+    if !config.homebrew.enable then { }
+    else if config.apps.useBaseLists then
+      (config.apps.baseMasApps // config.apps.masAppsToAdd)
+      // (lib.genAttrs config.apps.masAppsToRemove (_: null))
+    else config.apps.baseMasApps;
+
 in
 {
   # Export the base lists so other modules can reference them
@@ -121,6 +128,14 @@ in
       default = baseLists.masApps;
       readOnly = true;
       description = "Base list of MAS apps";
+    };
+
+    managedMasApps = lib.mkOption {
+      type = lib.types.attrsOf lib.types.int;
+      default = lib.filterAttrs (_name: id: id != null) resolvedMasApps;
+      readOnly = true;
+      internal = true;
+      description = "Resolved Mac App Store applications managed outside Homebrew Bundle.";
     };
 
     # Inheritance options
@@ -228,15 +243,9 @@ in
         else config.apps.baseBrews
       );
 
-      masApps = lib.mkDefault (
-        let
-          finalMasApps =
-            if config.apps.useBaseLists
-            then (config.apps.baseMasApps // config.apps.masAppsToAdd) // (lib.genAttrs config.apps.masAppsToRemove (_: null))
-            else config.apps.baseMasApps;
-        in
-        lib.filterAttrs (name: id: id != null) finalMasApps
-      );
+      # Homebrew Bundle batches every MAS entry into one opaque command. Nix Me
+      # installs the resolved list sequentially in the logged-in user session.
+      masApps = lib.mkDefault { };
     };
   };
 }
