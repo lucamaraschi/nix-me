@@ -21,6 +21,10 @@ grep -Fq 'trap cleanup EXIT' "$REPO_DIR/packages/management-api/bin/nix-me-activ
 grep -Fq "trap 'exit 130' INT TERM HUP" "$REPO_DIR/packages/management-api/bin/nix-me-activate-system"
 grep -Fq '/usr/sbin/visudo -cf /etc/sudoers' "$REPO_DIR/packages/management-api/bin/nix-me-activate-system"
 grep -Fq '/usr/bin/sudo -K' "$REPO_DIR/packages/management-api/bin/nix-me-activate-system"
+grep -Fq 'migrate_legacy_lock' "$REPO_DIR/packages/management-api/bin/nix-me-activate-system"
+grep -Fq '/usr/bin/lockf -t "$lock_timeout_seconds" 9' "$REPO_DIR/packages/management-api/bin/nix-me-activate-system"
+grep -Fq 'exec 9>&-' "$REPO_DIR/packages/management-api/bin/nix-me-activate-system"
+! grep -Fq 'another system activation is already running' "$REPO_DIR/packages/management-api/bin/nix-me-activate-system"
 grep -Fq 'GIT_CONFIG_KEY_0=safe.directory' "$REPO_DIR/Makefile"
 grep -Fq 'GIT_CONFIG_VALUE_0="$(FLAKE_DIR)"' "$REPO_DIR/Makefile"
 

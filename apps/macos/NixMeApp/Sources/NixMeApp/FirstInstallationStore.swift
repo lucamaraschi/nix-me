@@ -575,8 +575,17 @@ final class FirstInstallationStore: ObservableObject {
 
     private func record(_ progress: ApplyActionProgress) {
         guard progress.phase.order + 1 >= phase.rawValue else { return }
-        transition(to: installationPhase(for: progress.phase), message: progress.message)
-        appendConsole(.status, progress.message)
+        let nextPhase = installationPhase(for: progress.phase)
+        let shouldAppend = Self.shouldAppendProgress(
+            currentPhase: phase,
+            currentMessage: phaseMessage,
+            nextPhase: nextPhase,
+            nextMessage: progress.message
+        )
+        transition(to: nextPhase, message: progress.message)
+        if shouldAppend {
+            appendConsole(.status, progress.message)
+        }
         if progress.message.hasPrefix("Paused before") {
             runControl?.markPaused()
             runState = .paused
@@ -636,6 +645,15 @@ final class FirstInstallationStore: ObservableObject {
         case .activating: .activation
         case .verifying: .verification
         }
+    }
+
+    static func shouldAppendProgress(
+        currentPhase: FirstInstallationPhase,
+        currentMessage: String,
+        nextPhase: FirstInstallationPhase,
+        nextMessage: String
+    ) -> Bool {
+        currentPhase != nextPhase || currentMessage != nextMessage
     }
 
     private func transition(to newPhase: FirstInstallationPhase, message: String) {
