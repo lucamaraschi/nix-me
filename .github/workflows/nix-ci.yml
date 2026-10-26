@@ -51,6 +51,15 @@ jobs:
           test "$(nix eval .#darwinConfigurations.minimal-mac.config.apps.state.enable)" = "false"
           test "$(nix eval .#darwinConfigurations.bellerofonte.config.apps.manager.enable)" = "true"
           test "$(nix eval .#darwinConfigurations.nabucodonosor.config.apps.manager.enable)" = "true"
+          casks="$(nix eval --json .#darwinConfigurations.bellerofonte.config.homebrew.casks | jq -r '.[].name')"
+          grep -Fxq 'linear' <<<"$casks"
+          if grep -Fxq -e openscad -e zenmap -e linear-linear <<<"$casks"; then
+            echo 'Disabled or renamed casks remain in bellerofonte' >&2
+            exit 1
+          fi
+          packages="$(nix eval --json .#darwinConfigurations.bellerofonte.config.nixMe.manifest.software.nixPackageDetails | jq -r '.[].name')"
+          grep -Fxq 'openscad' <<<"$packages"
+          grep -Fxq 'zenmap' <<<"$packages"
           nix eval --raw .#darwinConfigurations.nabucodonosor.config.system.activationScripts.postActivation.text \
             | grep -Fq '/Applications/Nix Me.app'
           nix eval --raw .#darwinConfigurations.nabucodonosor.config.system.activationScripts.postActivation.text \

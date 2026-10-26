@@ -314,10 +314,15 @@ fn validate_loaded(catalog: &AppCatalog, recipes: &[Recipe]) -> Result<CatalogVa
                 .as_ref()
                 .and_then(|install| install.get("cask"))
                 .and_then(|value| value.as_str());
-            if recipe_cask != Some(app.cask.as_str()) {
+            let recipe_nixpkg = recipe
+                .install
+                .as_ref()
+                .and_then(|install| install.get("nixpkg"))
+                .and_then(|value| value.as_str());
+            if recipe_cask != Some(app.cask.as_str()) && recipe_nixpkg != Some(app.cask.as_str()) {
                 bail!(
-                    "local recipe {recipe_id} installs {:?}, not catalog cask {}",
-                    recipe_cask,
+                    "local recipe {recipe_id} installs {:?}, not catalog package {}",
+                    recipe.install,
                     app.cask
                 );
             }

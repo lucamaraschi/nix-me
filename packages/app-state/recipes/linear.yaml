@@ -3,7 +3,7 @@ id: linear
 name: Linear
 bundle_id: com.linear
 install:
-  cask: linear-linear
+  cask: linear
 detect:
   command: >-
     test "$(/usr/bin/plutil -extract CFBundleShortVersionString raw -o - '/Applications/Linear.app/Contents/Info.plist' 2>/dev/null)" = '1.28.13'

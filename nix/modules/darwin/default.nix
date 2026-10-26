@@ -2,7 +2,8 @@
 
 {
   imports = [
-    ./apps  # Uses apps/default.nix which imports all app modules
+    ./activation-runner.nix
+    ./apps # Uses apps/default.nix which imports all app modules
     ./core.nix
     ./display.nix
     ./fonts.nix

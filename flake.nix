@@ -99,6 +99,7 @@
             {
               nixpkgs.overlays = [
                 (import ./nix/overlays/airjack.nix)
+                (import ./nix/overlays/macos-apps.nix)
                 (_final: _prev: {
                   nodejs_latest = self.packages.${system}.nodejs-current;
                 })

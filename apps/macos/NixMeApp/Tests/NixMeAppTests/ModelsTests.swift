@@ -572,6 +572,7 @@ final class ModelsTests: XCTestCase {
         let nix = root.appendingPathComponent("nix")
         let system = root.appendingPathComponent("built-system", isDirectory: true)
         let rebuild = system.appendingPathComponent("sw/bin/darwin-rebuild")
+        let activationRunner = system.appendingPathComponent("etc/nix-me/activate-system")
         try write("#!/bin/bash\nexit 1\n", to: action)
         try write(
             """
@@ -590,14 +591,15 @@ final class ModelsTests: XCTestCase {
         try write(
             """
             #!/bin/bash
-            [[ "$*" == *"nix-env -p /nix/var/nix/profiles/system --set"* ]] || exit 71
-            [[ "$*" == *'set rebuildPath to systemPath & "/sw/bin/darwin-rebuild"'* ]] || exit 72
+            [[ "$*" == *'set activationRunner to systemPath & "/etc/nix-me/activate-system"'* ]] || exit 71
+            [[ "$*" == *'quoted form of activationRunner & " " & quoted form of systemPath'* ]] || exit 72
             [[ " $* " == *" -- \(system.path) test-user "* ]] || exit 73
             printf '%s\n' 'Compatibility apply succeeded'
             """,
             to: runner
         )
         try write("#!/bin/bash\n", to: rebuild)
+        try write("#!/bin/bash\n", to: activationRunner)
         try FileManager.default.setAttributes(
             [.posixPermissions: 0o755],
             ofItemAtPath: nix.path
@@ -609,6 +611,10 @@ final class ModelsTests: XCTestCase {
         try FileManager.default.setAttributes(
             [.posixPermissions: 0o755],
             ofItemAtPath: rebuild.path
+        )
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: activationRunner.path
         )
 
         let response = try await ManagementActionClient(

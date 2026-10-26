@@ -14,7 +14,6 @@
     casksToAdd = [
       # Network analysis
       "wireshark-app" # Network protocol analyzer
-      "zenmap" # Nmap GUI
 
       # Reverse engineering
       "hopper-disassembler" # macOS/iOS disassembler
@@ -60,6 +59,7 @@
       "socat"
       "tcpdump"
       "mitmproxy"
+      "zenmap" # Homebrew disabled the cask after it failed Gatekeeper
 
       # Reconnaissance
       "whois"

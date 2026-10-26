@@ -3,9 +3,9 @@ id: zenmap
 name: Zenmap
 bundle_id: org.insecure.Zenmap
 install:
-  cask: zenmap
+  nixpkg: zenmap
 detect:
-  app_path: /Applications/Zenmap.app
+  command: test -d '/Applications/Nix Apps/Zenmap.app' || test -d '/Applications/Zenmap.app'
 sandboxed: false
 requires: []
 app_version:
