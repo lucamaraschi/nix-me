@@ -985,7 +985,9 @@ private final class ApplyActionStreamDecoder: @unchecked Sendable {
         if let parsedPackage = ApplyActionEventParser.package(from: line) {
             lock.lock()
             let expectedPackage = expectedPackages[normalizedPackageName(parsedPackage.name)]
-            let requiresInventoryMatch = line.hasPrefix("Installing ") || line.hasPrefix("Upgrading ")
+            let normalizedDetail = parsedPackage.detail.trimmingCharacters(in: .whitespacesAndNewlines)
+            let requiresInventoryMatch = normalizedDetail.hasPrefix("Installing ")
+                || normalizedDetail.hasPrefix("Upgrading ")
             if requiresInventoryMatch, expectedPackage == nil {
                 lock.unlock()
                 return

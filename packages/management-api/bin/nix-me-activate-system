@@ -21,6 +21,8 @@ fi
 system_path="$1"
 username="$2"
 rebuild_path="$system_path/sw/bin/darwin-rebuild"
+mas_installer="$system_path/etc/nix-me/install-mas-apps"
+manifest_path="$system_path/etc/nix-me/manifest.json"
 lock_file="/var/run/nix-me-activation.lock"
 lock_timeout_seconds=1800
 sudoers_file="/etc/sudoers.d/nix-me-activation-$$"
@@ -178,3 +180,19 @@ export USERNAME="$username"
 printf 'Activating the built system as %s...\n' "$username"
 "$nix_env_path" -p /nix/var/nix/profiles/system --set "$system_path"
 "$rebuild_path" activate
+
+if [[ -x "$mas_installer" && -f "$manifest_path" ]]; then
+  user_home="$(/usr/bin/dscl . -read "/Users/$username" NFSHomeDirectory 2>/dev/null \
+    | /usr/bin/awk '{ print $2 }')"
+  if [[ -z "$user_home" || ! -d "$user_home" ]]; then
+    die "could not resolve the activation user's home directory"
+  fi
+  printf 'Installing configured Mac App Store applications as %s...\n' "$username"
+  /bin/launchctl asuser "$user_id" \
+    /usr/bin/sudo -H -u "$username" \
+    /usr/bin/env \
+      HOME="$user_home" \
+      USER="$username" \
+      LOGNAME="$username" \
+      "$mas_installer" "$manifest_path"
+fi

@@ -18,7 +18,7 @@ USERNAME := $(shell whoami)
 # Force hostname to lowercase in all commands
 FINAL_HOSTNAME := $(shell echo "$(HOSTNAME)" | tr '[:upper:]' '[:lower:]')
 
-.PHONY: switch switch-fast build clean update check check-host-matrix fmt help list-machines sync-projects reset-raycast-window api test-api test-actions test-details test-cli test-local-ai test-app-state app app-run app-package tui-build
+.PHONY: switch switch-fast build clean update check check-host-matrix fmt help list-machines sync-projects reset-raycast-window api test-api test-actions test-details test-mas test-cli test-local-ai test-app-state app app-run app-package tui-build
 
 # Default target
 help:
@@ -188,6 +188,9 @@ test-actions:
 test-details:
 	@./tests/integration/test-details.sh
 
+test-mas:
+	@./tests/integration/test-mas-install.sh
+
 test-cli:
 	@bash -n install.sh
 	@for script in apps/cli/bin/nix-me apps/cli/lib/*.sh packages/management-api/bin/* tools/installation/*.sh tools/local-ai/*.sh; do \
@@ -197,7 +200,7 @@ test-cli:
 	@./tests/integration/test-create-machine.sh
 	@$(MAKE) test-local-ai
 	@./apps/cli/tests/test-harness-status.sh
-	@$(MAKE) test-api test-actions test-details
+	@$(MAKE) test-api test-actions test-details test-mas
 
 test-local-ai:
 	@./tests/integration/test-local-ai-preflight.sh

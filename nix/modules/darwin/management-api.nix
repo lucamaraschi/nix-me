@@ -55,7 +55,7 @@ let
       homebrew = {
         casks = caskNames;
         formulae = formulaNames;
-        masApps = config.homebrew.masApps;
+        masApps = config.apps.managedMasApps;
       };
     };
     projects = config.projects.finalRepos;

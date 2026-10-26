@@ -22,7 +22,7 @@ host_names="$(nix eval --option warn-dirty false --impure --json "$REPO_DIR#darw
 while IFS= read -r host; do
   nix eval --option warn-dirty false --impure --json "$REPO_DIR#darwinConfigurations.$host.config.homebrew.casks" \
     | jq -r '.[].name' >>"$TEMP_DIR/configured-casks"
-  nix eval --option warn-dirty false --impure --json "$REPO_DIR#darwinConfigurations.$host.config.homebrew.masApps" \
+  nix eval --option warn-dirty false --impure --json "$REPO_DIR#darwinConfigurations.$host.config.apps.managedMasApps" \
     | jq -r '.[]' >>"$TEMP_DIR/configured-mas"
 done < <(jq -r '.[]' <<<"$host_names")
 

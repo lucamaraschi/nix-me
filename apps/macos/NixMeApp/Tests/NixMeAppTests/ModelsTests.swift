@@ -442,7 +442,7 @@ final class ModelsTests: XCTestCase {
             printf 'Installing Xcode\n' >&2
             printf 'Installing Xcode has failed!\n' >&2
             printf 'Installing PDF-Expert\n' >&2
-            printf 'Installing Raycast LaunchAgent...\n' >&2
+            printf '  Installing Raycast LaunchAgent...\n' >&2
             printf '%s\n' '{"schemaVersion":1,"success":true,"message":"Applied"}'
             """#,
             to: root.appendingPathComponent("packages/management-api/bin/nix-me-action")
