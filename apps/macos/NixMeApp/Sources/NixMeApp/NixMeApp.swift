@@ -50,24 +50,26 @@ struct NixMeApp: App {
         MenuBarExtra(isInserted: $isMenuBarExtraInserted) {
             MenuBarView(store: store, updater: updater)
         } label: {
-            if let snapshot = store.snapshot, snapshot.softwareUpdateCount > 0 {
-                HStack(spacing: 3) {
-                    Image(systemName: "arrow.down.circle.fill")
-                    Text("\(snapshot.softwareUpdateCount)")
-                }
-            } else if store.setupStatus?.isReady == false || store.errorMessage != nil {
-                Label("Nix Me", systemImage: "exclamationmark.triangle.fill")
-            } else if let snapshot = store.snapshot,
-                      snapshot.configuration.applyState != "current"
-                      || snapshot.projectAttentionCount > 0
-                      || snapshot.appState?.needsAttention == true
-                      || snapshot.localAI?.needsAttention == true {
-                Label("Nix Me", systemImage: "exclamationmark.circle.fill")
-            } else {
-                Label("Nix Me", systemImage: "checkmark.circle")
-            }
+            NixMeMenuBarIcon(indicator: menuBarIndicator)
         }
         .menuBarExtraStyle(.window)
+    }
+
+    private var menuBarIndicator: MenuBarIndicator {
+        let snapshot = store.snapshot
+        return MenuBarIndicator.resolve(
+            setupNeedsAttention: store.setupStatus?.isReady == false,
+            hasError: store.errorMessage != nil || store.applyOperation?.status == .failed,
+            isWorking: store.isLoading || store.isUpdating || store.isApplying || store.isSyncingProjects,
+            hasCriticalFailure: snapshot?.appState?.lastApply.status == "failed",
+            needsAttention: snapshot.map {
+                $0.configuration.applyState != "current"
+                    || $0.projectAttentionCount > 0
+                    || $0.appState?.needsAttention == true
+                    || $0.localAI?.needsAttention == true
+            } ?? false,
+            softwareUpdateCount: snapshot?.softwareUpdateCount ?? 0
+        )
     }
 
     private func openManagedApplication() {

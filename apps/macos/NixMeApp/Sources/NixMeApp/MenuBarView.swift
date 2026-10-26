@@ -102,8 +102,9 @@ struct MenuBarView: View {
 
     private var header: some View {
         HStack(spacing: 10) {
-            Image(systemName: "snowflake")
+            Image(systemName: "square.3.layers.3d.top.filled")
                 .font(.title2)
+                .symbolRenderingMode(.monochrome)
                 .foregroundStyle(Color.accentColor)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Nix Me")
