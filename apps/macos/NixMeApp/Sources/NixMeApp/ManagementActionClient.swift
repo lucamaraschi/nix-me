@@ -930,6 +930,7 @@ private final class ApplyActionStreamDecoder: @unchecked Sendable {
     private var phase: ApplyActionPhase
     private var nixActivities: [UInt64: ApplyPackageProgress] = [:]
     private var activePackages: [ApplyPackageManager: ApplyPackageProgress] = [:]
+    private var expectedPackages: [String: ApplyPackageProgress] = [:]
 
     init(
         initialPhase: ApplyActionPhase,
@@ -957,30 +958,45 @@ private final class ApplyActionStreamDecoder: @unchecked Sendable {
         lock.lock()
         let currentPhase = phase
         lock.unlock()
-        onEvent(.output(line, phase: currentPhase))
 
-        let nixEvents = nixPackageEvents(from: line)
-        if !nixEvents.isEmpty {
+        if ApplyActionEventParser.isNixInternalLog(line) {
+            onEvent(.rawOutput(line, phase: currentPhase))
+            let nixEvents = nixPackageEvents(from: line)
             nixEvents.forEach { onEvent(.package($0, phase: currentPhase)) }
+            nixReadableMessages(from: line).forEach {
+                onEvent(.output($0, phase: currentPhase))
+            }
             return
         }
+
+        if line.hasPrefix("NIX_ME_PACKAGE\t"),
+           let package = ApplyActionEventParser.package(from: line)
+        {
+            lock.lock()
+            expectedPackages[normalizedPackageName(package.name)] = package
+            lock.unlock()
+            onEvent(.rawOutput(line, phase: currentPhase))
+            onEvent(.package(package, phase: currentPhase))
+            return
+        }
+
+        onEvent(.output(line, phase: currentPhase))
+
         if let parsedPackage = ApplyActionEventParser.package(from: line) {
             lock.lock()
-            let package: ApplyPackageProgress
-            if parsedPackage.manager == .homebrew,
-               parsedPackage.state == .complete,
-               let active = activePackages[.homebrew]
-            {
-                package = ApplyPackageProgress(
-                    manager: .homebrew,
-                    name: active.name,
-                    state: .complete,
-                    detail: parsedPackage.detail,
-                    fractionCompleted: 1
-                )
-            } else {
-                package = parsedPackage
+            let expectedPackage = expectedPackages[normalizedPackageName(parsedPackage.name)]
+            let requiresInventoryMatch = line.hasPrefix("Installing ") || line.hasPrefix("Upgrading ")
+            if requiresInventoryMatch, expectedPackage == nil {
+                lock.unlock()
+                return
             }
+            let package = ApplyPackageProgress(
+                manager: expectedPackage?.manager ?? parsedPackage.manager,
+                name: expectedPackage?.name ?? parsedPackage.name,
+                state: parsedPackage.state,
+                detail: parsedPackage.detail,
+                fractionCompleted: parsedPackage.fractionCompleted
+            )
             if package.state == .complete || package.state == .failed {
                 activePackages.removeValue(forKey: package.manager)
             } else {
@@ -993,6 +1009,31 @@ private final class ApplyActionStreamDecoder: @unchecked Sendable {
         if let package = packagePercentageEvent(from: line) {
             onEvent(.package(package, phase: currentPhase))
         }
+    }
+
+    private func nixReadableMessages(from line: String) -> [String] {
+        guard let data = String(line.dropFirst(5)).data(using: .utf8),
+              let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              payload["action"] as? String == "msg",
+              let message = payload["msg"] as? String
+        else { return [] }
+
+        return message.split(separator: "\n").compactMap { rawLine in
+            let value = String(rawLine).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !value.isEmpty,
+                  ApplyActionEventParser.package(from: value) == nil,
+                  !value.hasPrefix("these derivations will be built"),
+                  !value.hasPrefix("these paths will be fetched")
+            else { return nil }
+            return value
+        }
+    }
+
+    private func normalizedPackageName(_ name: String) -> String {
+        name.lowercased().unicodeScalars
+            .filter { CharacterSet.alphanumerics.contains($0) }
+            .map(String.init)
+            .joined()
     }
 
     private func nixPackageEvents(from line: String) -> [ApplyPackageProgress] {
@@ -1066,7 +1107,10 @@ private final class ApplyActionStreamDecoder: @unchecked Sendable {
 
         lock.lock()
         defer { lock.unlock() }
-        guard let package = activePackages[.homebrew] ?? activePackages[.nix] else { return nil }
+        guard let package = activePackages[.homebrew]
+            ?? activePackages[.macAppStore]
+            ?? activePackages[.nix]
+        else { return nil }
         let updated = ApplyPackageProgress(
             manager: package.manager,
             name: package.name,

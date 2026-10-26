@@ -3,17 +3,20 @@ import Foundation
 enum ApplyActionEventKind: String, Sendable {
     case command
     case output
+    case rawOutput
     case package
 }
 
 enum ApplyPackageManager: String, CaseIterable, Sendable {
     case nix
     case homebrew
+    case macAppStore
 
     var title: String {
         switch self {
         case .nix: "Nix store"
         case .homebrew: "Homebrew"
+        case .macAppStore: "Mac App Store"
         }
     }
 }
@@ -78,6 +81,10 @@ struct ApplyActionEvent: Equatable, Sendable {
         Self(kind: .output, phase: phase, message: output, package: nil)
     }
 
+    static func rawOutput(_ output: String, phase: ApplyActionPhase?) -> Self {
+        Self(kind: .rawOutput, phase: phase, message: output, package: nil)
+    }
+
     static func package(_ package: ApplyPackageProgress, phase: ApplyActionPhase?) -> Self {
         Self(kind: .package, phase: phase, message: package.detail, package: package)
     }
@@ -97,10 +104,35 @@ enum ApplyActionEventParser {
         let line = stripANSI(rawLine).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !line.isEmpty else { return nil }
 
+        if let progress = structuredPackage(from: line) {
+            return progress
+        }
+
         if let progress = nixProgress(from: line) {
             return progress
         }
         return homebrewProgress(from: line)
+    }
+
+    static func isNixInternalLog(_ line: String) -> Bool {
+        line.hasPrefix("@nix ")
+    }
+
+    private static func structuredPackage(from line: String) -> ApplyPackageProgress? {
+        let fields = line.split(separator: "\t", maxSplits: 4, omittingEmptySubsequences: false)
+        guard fields.count == 5,
+              fields[0] == "NIX_ME_PACKAGE",
+              let manager = ApplyPackageManager(rawValue: String(fields[1])),
+              let state = ApplyPackageState(rawValue: String(fields[2]))
+        else { return nil }
+        let name = String(fields[3])
+        guard !name.isEmpty else { return nil }
+        return ApplyPackageProgress(
+            manager: manager,
+            name: name,
+            state: state,
+            detail: String(fields[4])
+        )
     }
 
     private static func nixProgress(from line: String) -> ApplyPackageProgress? {
@@ -140,6 +172,21 @@ enum ApplyActionEventParser {
     }
 
     private static func homebrewProgress(from line: String) -> ApplyPackageProgress? {
+        for prefix in ["Installing ", "Upgrading "] where line.hasPrefix(prefix) {
+            let rawName = String(line.dropFirst(prefix.count))
+            let failedSuffix = " has failed!"
+            let failed = rawName.hasSuffix(failedSuffix)
+            let value = failed ? String(rawName.dropLast(failedSuffix.count)) : rawName
+            let name = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty else { return nil }
+            return ApplyPackageProgress(
+                manager: .homebrew,
+                name: name,
+                state: failed ? .failed : .installing,
+                detail: line
+            )
+        }
+
         let prefixes: [(String, ApplyPackageState)] = [
             ("==> Installing Cask ", .installing),
             ("==> Upgrading Cask ", .installing),
@@ -157,6 +204,22 @@ enum ApplyActionEventParser {
             return ApplyPackageProgress(manager: .homebrew, name: name, state: state, detail: line)
         }
 
+        for prefix in ["✔︎ Cask ", "✔ Cask ", "✓ Cask ", "✔︎ Formula ", "✔ Formula ", "✓ Formula "]
+            where line.hasPrefix(prefix)
+        {
+            let rawName = String(line.dropFirst(prefix.count))
+            let name = rawName.components(separatedBy: " (").first?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !name.isEmpty else { return nil }
+            return ApplyPackageProgress(
+                manager: .homebrew,
+                name: name,
+                state: .complete,
+                detail: line,
+                fractionCompleted: 1
+            )
+        }
+
         if line.hasPrefix("🍺") {
             let value = line.dropFirst().trimmingCharacters(in: .whitespaces)
             let name: String
@@ -170,7 +233,13 @@ enum ApplyActionEventParser {
             } else {
                 name = value.split(separator: " ").first.map(String.init) ?? "Homebrew package"
             }
-            return ApplyPackageProgress(manager: .homebrew, name: name, state: .complete, detail: line)
+            return ApplyPackageProgress(
+                manager: .homebrew,
+                name: name,
+                state: .complete,
+                detail: line,
+                fractionCompleted: 1
+            )
         }
 
         return nil

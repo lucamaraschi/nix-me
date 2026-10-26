@@ -28,6 +28,43 @@ emit_apply_command() {
   printf 'NIX_ME_COMMAND\t%s\t%s\n' "$phase" "$command_text" >&2
 }
 
+emit_apply_package() {
+  local manager="$1"
+  local state="$2"
+  local name="$3"
+  local detail="$4"
+  printf 'NIX_ME_PACKAGE\t%s\t%s\t%s\t%s\n' \
+    "$manager" "$state" "$name" "$detail" >&2
+}
+
+emit_system_packages() {
+  local system_path="$1"
+  local skip_homebrew="$2"
+  local skip_mas_apps="$3"
+  local manifest="$system_path/etc/nix-me/manifest.json"
+  local name
+  [[ -r "$manifest" ]] || return 0
+
+  if [[ "$skip_homebrew" != "1" ]]; then
+    while IFS= read -r name; do
+      [[ -n "$name" ]] || continue
+      emit_apply_package "homebrew" "queued" "$name" "Homebrew formula queued by the configuration"
+    done < <(jq -r '.software.homebrew.formulae[]? // empty' "$manifest")
+
+    while IFS= read -r name; do
+      [[ -n "$name" ]] || continue
+      emit_apply_package "homebrew" "queued" "$name" "Homebrew application queued by the configuration"
+    done < <(jq -r '.software.homebrew.casks[]? // empty' "$manifest")
+  fi
+
+  if [[ "$skip_mas_apps" != "1" ]]; then
+    while IFS= read -r name; do
+      [[ -n "$name" ]] || continue
+      emit_apply_package "macAppStore" "queued" "$name" "Mac App Store application queued by the configuration"
+    done < <(jq -r '.software.homebrew.masApps | keys[]? // empty' "$manifest")
+  fi
+}
+
 wait_for_install_control() {
   local control_file="${NIX_ME_INSTALL_CONTROL_FILE:-}"
   local state="running"
@@ -441,6 +478,8 @@ run_apply() {
     return
   fi
 
+  emit_system_packages "$system_path" "$skip_homebrew" "$skip_mas_apps"
+
   if ! wait_for_install_control; then
     jq -n '{schemaVersion: 1, action: "apply", success: false, message: "Installation stopped before privileged activation"}'
     return
@@ -475,7 +514,11 @@ run_apply() {
   kill "$activation_tail_pid" >/dev/null 2>&1 || true
   wait "$activation_tail_pid" 2>/dev/null || true
 
-  message="$(tail -40 "$activation_log" 2>/dev/null || true)"
+  if [[ "$succeeded" == "true" ]]; then
+    message="Configuration applied successfully"
+  else
+    message="$(tail -80 "$activation_log" 2>/dev/null || true)"
+  fi
   rm -f -- "$activation_log"
   jq -n \
     --argjson success "$succeeded" \
