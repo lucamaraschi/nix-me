@@ -124,6 +124,8 @@ final class FirstInstallationStore: ObservableObject {
     private var activitySequence = 0
     private var packageSequence = 0
     private var runControl: InstallationRunControl?
+    private var diagnosticConsoleEntries: [InstallerConsoleEntry] = []
+    private static let visibleConsoleLimit = 600
 
     init(
         configurationDirectory: URL? = nil,
@@ -339,7 +341,7 @@ final class FirstInstallationStore: ObservableObject {
             errorDetails: errorDetails,
             steps: stepActivities,
             packages: packageActivities,
-            console: consoleEntries
+            console: diagnosticConsoleEntries
         )
     }
 
@@ -350,6 +352,7 @@ final class FirstInstallationStore: ObservableObject {
         errorMessage = nil
         errorDetails = nil
         consoleEntries.removeAll()
+        diagnosticConsoleEntries.removeAll()
         stepActivities.removeAll()
         packageActivities.removeAll()
         activitySequence = 0
@@ -440,7 +443,7 @@ final class FirstInstallationStore: ObservableObject {
                 runState = .idle
                 errorMessage = "\(phase.title) could not finish. \(Self.errorSummary(error))"
                 errorDetails = error.localizedDescription
-                appendConsole(.error, error.localizedDescription)
+                appendConsole(.error, Self.errorSummary(error))
                 failActiveActivities()
                 isTerminalVisible = true
             }
@@ -591,6 +594,8 @@ final class FirstInstallationStore: ObservableObject {
             startStep(commandTitle(event.message), detail: event.message, phase: commandPhase)
         case .output:
             appendConsole(.output, event.message)
+        case .rawOutput:
+            appendConsole(.output, event.message, visible: false)
         case .package:
             guard let package = event.package else { return }
             let packagePhase = event.phase.map(installationPhase(for:)) ?? phase
@@ -609,9 +614,19 @@ final class FirstInstallationStore: ObservableObject {
         }
     }
 
-    private func appendConsole(_ kind: InstallerConsoleEntryKind, _ message: String) {
+    private func appendConsole(
+        _ kind: InstallerConsoleEntryKind,
+        _ message: String,
+        visible: Bool = true
+    ) {
         guard !message.isEmpty else { return }
-        consoleEntries.append(InstallerConsoleEntry(kind: kind, message: message))
+        let entry = InstallerConsoleEntry(kind: kind, message: message)
+        diagnosticConsoleEntries.append(entry)
+        guard visible else { return }
+        consoleEntries.append(entry)
+        if consoleEntries.count > Self.visibleConsoleLimit {
+            consoleEntries.removeFirst(consoleEntries.count - Self.visibleConsoleLimit)
+        }
     }
 
     private func installationPhase(for phase: ApplyActionPhase) -> FirstInstallationPhase {

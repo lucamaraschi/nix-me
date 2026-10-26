@@ -435,8 +435,14 @@ final class ModelsTests: XCTestCase {
             printf '%s\n' '@nix {"action":"result","id":44,"type":105,"fields":[3,10,1,0]}' >&2
             printf '%s\n' '@nix {"action":"stop","id":44}' >&2
             printf 'NIX_ME_PROGRESS\tactivating\tActivating test generation\n' >&2
+            printf 'NIX_ME_PACKAGE\tmacAppStore\tqueued\tXcode\tMac App Store application queued by the configuration\n' >&2
+            printf 'NIX_ME_PACKAGE\tmacAppStore\tqueued\tPDF Expert\tMac App Store application queued by the configuration\n' >&2
             printf '==> Installing ripgrep\n' >&2
             printf '🍺  /opt/homebrew/Cellar/ripgrep/15.1.0: 14 files\n' >&2
+            printf 'Installing Xcode\n' >&2
+            printf 'Installing Xcode has failed!\n' >&2
+            printf 'Installing PDF-Expert\n' >&2
+            printf 'Installing Raycast LaunchAgent...\n' >&2
             printf '%s\n' '{"schemaVersion":1,"success":true,"message":"Applied"}'
             """#,
             to: root.appendingPathComponent("packages/management-api/bin/nix-me-action")
@@ -455,7 +461,7 @@ final class ModelsTests: XCTestCase {
             $0.kind == .command && $0.message == "nix build --no-link test"
         }))
         XCTAssertTrue(events.values.contains(where: {
-            $0.kind == .output && $0.message.contains("hello-2.12.1.drv")
+            $0.kind == .rawOutput && $0.message.contains("hello-2.12.1.drv")
         }))
         XCTAssertTrue(events.values.contains(where: {
             $0.package?.name == "jq-1.8.1" && $0.package?.state == .queued
@@ -483,7 +489,56 @@ final class ModelsTests: XCTestCase {
                 && $0.package?.name == "ripgrep"
                 && $0.package?.state == .complete
                 && $0.package?.fractionCompleted == 1
+        }), "Packages: \(events.values.compactMap(\.package))")
+        XCTAssertTrue(events.values.contains(where: {
+            $0.package?.manager == .macAppStore
+                && $0.package?.name == "Xcode"
+                && $0.package?.state == .installing
         }))
+        XCTAssertTrue(events.values.contains(where: {
+            $0.package?.manager == .macAppStore
+                && $0.package?.name == "Xcode"
+                && $0.package?.state == .failed
+        }))
+        XCTAssertTrue(events.values.contains(where: {
+            $0.package?.manager == .macAppStore
+                && $0.package?.name == "PDF Expert"
+                && $0.package?.state == .installing
+        }))
+        XCTAssertFalse(events.values.contains(where: {
+            $0.package?.name == "Raycast LaunchAgent..."
+        }))
+    }
+
+    func testHomebrewBundleOutputRecognizesPlainInstallsFailuresAndCaskCompletion() {
+        XCTAssertEqual(
+            ApplyActionEventParser.package(from: "Installing docker-desktop"),
+            ApplyPackageProgress(
+                manager: .homebrew,
+                name: "docker-desktop",
+                state: .installing,
+                detail: "Installing docker-desktop"
+            )
+        )
+        XCTAssertEqual(
+            ApplyActionEventParser.package(from: "Installing docker-desktop has failed!"),
+            ApplyPackageProgress(
+                manager: .homebrew,
+                name: "docker-desktop",
+                state: .failed,
+                detail: "Installing docker-desktop has failed!"
+            )
+        )
+        XCTAssertEqual(
+            ApplyActionEventParser.package(from: "✔︎ Cask zoom (7.2.2.88465)"),
+            ApplyPackageProgress(
+                manager: .homebrew,
+                name: "zoom",
+                state: .complete,
+                detail: "✔︎ Cask zoom (7.2.2.88465)",
+                fractionCompleted: 1
+            )
+        )
     }
 
     func testInstallerDiagnosticContainsTimelineAndCompleteRawLog() {

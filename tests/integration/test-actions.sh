@@ -62,6 +62,9 @@ mkdir -p "$APPLY_REPO" "$APPLY_SYSTEM/sw/bin" "$APPLY_SYSTEM/etc/nix-me"
 printf '{}\n' >"$APPLY_REPO/flake.nix"
 printf '#!/bin/bash\n' >"$APPLY_SYSTEM/sw/bin/darwin-rebuild"
 printf '#!/bin/bash\n' >"$APPLY_SYSTEM/etc/nix-me/activate-system"
+cat >"$APPLY_SYSTEM/etc/nix-me/manifest.json" <<'JSON'
+{"software":{"homebrew":{"formulae":["ripgrep"],"casks":["raycast"],"masApps":{"Xcode":497799835}}}}
+JSON
 chmod +x "$APPLY_SYSTEM/sw/bin/darwin-rebuild" "$APPLY_SYSTEM/etc/nix-me/activate-system"
 
 cat >"$TEMP_DIR/fake-nix" <<'SH'
@@ -72,10 +75,10 @@ cat >"$TEMP_DIR/fake-nix" <<'SH'
 [[ "$HOSTNAME" == "test-host" ]] || exit 66
 [[ "$USERNAME" == "test-user" ]] || exit 67
 [[ "$MACHINE_NAME" == "Test Mac" ]] || exit 68
-[[ "$MACHINE_TYPE" == "vm" ]] || exit 69
+[[ "$MACHINE_TYPE" == "${NIX_ME_TEST_MACHINE_TYPE:-vm}" ]] || exit 69
 [[ "$NIX_ME_SOURCE_REVISION" == "abc123" ]] || exit 70
-[[ "$SKIP_BREW_ON_VM" == "1" ]] || exit 74
-[[ "$SKIP_MAS_APPS" == "1" ]] || exit 75
+[[ "$SKIP_BREW_ON_VM" == "${NIX_ME_TEST_SKIP_BREW:-1}" ]] || exit 74
+[[ "$SKIP_MAS_APPS" == "${NIX_ME_TEST_SKIP_MAS:-1}" ]] || exit 75
 printf "building '/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-test-package-1.0.drv'...\n" >&2
 jq -n --arg out "$NIX_ME_TEST_SYSTEM" '[{outputs:{out:$out}}]'
 SH
@@ -107,7 +110,7 @@ jq -e '
   .schemaVersion == 1 and
   .action == "apply" and
   .success and
-  .message == "Configuration activated"
+  .message == "Configuration applied successfully"
 ' "$TEMP_DIR/apply-real.json" >/dev/null
 grep -Fq $'NIX_ME_PROGRESS\tpreparing\t' "$TEMP_DIR/apply-real-progress.log"
 grep -Fq $'NIX_ME_PROGRESS\tbuilding\t' "$TEMP_DIR/apply-real-progress.log"
@@ -115,6 +118,29 @@ grep -Fq $'NIX_ME_PROGRESS\tactivating\t' "$TEMP_DIR/apply-real-progress.log"
 grep -Fq $'NIX_ME_COMMAND\tbuilding\t' "$TEMP_DIR/apply-real-progress.log"
 grep -Fq $'NIX_ME_COMMAND\tactivating\t' "$TEMP_DIR/apply-real-progress.log"
 grep -Fq 'test-package-1.0.drv' "$TEMP_DIR/apply-real-progress.log"
+! grep -Fq $'NIX_ME_PACKAGE\t' "$TEMP_DIR/apply-real-progress.log"
+
+NIX_ME_CONFIG_DIR="$APPLY_REPO" \
+  NIX_ME_ACTION_DRY_RUN=0 \
+  NIX_ME_HOSTNAME=test-host \
+  NIX_ME_USERNAME=test-user \
+  NIX_ME_MACHINE_NAME='Test Mac' \
+  NIX_ME_MACHINE_TYPE=macbook-pro \
+  SKIP_BREW_ON_VM=0 \
+  SKIP_MAS_APPS=0 \
+  NIX_ME_SOURCE_REVISION=abc123 \
+  NIX_ME_NIX_BIN="$TEMP_DIR/fake-nix" \
+  NIX_ME_ADMINISTRATOR_RUNNER="$TEMP_DIR/fake-osascript" \
+  NIX_ME_TEST_CONFIG="$APPLY_REPO" \
+  NIX_ME_TEST_SYSTEM="$APPLY_SYSTEM" \
+  NIX_ME_TEST_MACHINE_TYPE=macbook-pro \
+  NIX_ME_TEST_SKIP_BREW=0 \
+  NIX_ME_TEST_SKIP_MAS=0 \
+  "$REPO_DIR/packages/management-api/bin/nix-me-action" apply \
+    >"$TEMP_DIR/apply-packages.json" 2>"$TEMP_DIR/apply-packages-progress.log"
+grep -Fq $'NIX_ME_PACKAGE\thomebrew\tqueued\tripgrep\t' "$TEMP_DIR/apply-packages-progress.log"
+grep -Fq $'NIX_ME_PACKAGE\thomebrew\tqueued\traycast\t' "$TEMP_DIR/apply-packages-progress.log"
+grep -Fq $'NIX_ME_PACKAGE\tmacAppStore\tqueued\tXcode\t' "$TEMP_DIR/apply-packages-progress.log"
 
 printf 'pause\n' >"$TEMP_DIR/install-control"
 NIX_ME_CONFIG_DIR="$APPLY_REPO" \

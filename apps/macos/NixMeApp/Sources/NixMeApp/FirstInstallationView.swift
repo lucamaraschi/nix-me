@@ -7,6 +7,7 @@ private typealias InstallerPalette = OxidePalette
 struct FirstInstallationView: View {
     @StateObject private var installer = FirstInstallationStore()
     @State private var expandedPhases: Set<FirstInstallationPhase> = []
+    @State private var expandedPackageGroups: Set<String> = []
     @State private var diagnosticExportMessage: String?
     let keepsMacAwake: Bool
     let openDashboard: () -> Void
@@ -481,9 +482,11 @@ struct FirstInstallationView: View {
                 }
                 Spacer()
                 packageCounter(.nix, symbol: "shippingbox.fill")
-                    .frame(width: 170)
+                    .frame(width: 150)
                 packageCounter(.homebrew, symbol: "mug.fill")
-                    .frame(width: 170)
+                    .frame(width: 150)
+                packageCounter(.macAppStore, symbol: "apple.logo")
+                    .frame(width: 150)
             }
             .padding(14)
             .background(InstallerPalette.panelRaised.opacity(0.65))
@@ -576,9 +579,11 @@ struct FirstInstallationView: View {
                 stepRow(activity)
                 Rectangle().fill(InstallerPalette.border.opacity(0.55)).frame(height: 1)
             }
-            ForEach(packages) { activity in
-                packageRow(activity)
-                Rectangle().fill(InstallerPalette.border.opacity(0.55)).frame(height: 1)
+            ForEach(ApplyPackageManager.allCases, id: \.rawValue) { manager in
+                let managedPackages = packages.filter { $0.manager == manager }
+                if !managedPackages.isEmpty {
+                    packageGroup(manager, phase: phase, packages: managedPackages)
+                }
             }
         }
         .background(InstallerPalette.background.opacity(0.48))
@@ -588,9 +593,13 @@ struct FirstInstallationView: View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
                 Image(systemName: "terminal.fill").foregroundStyle(InstallerPalette.green)
-                Text("EXECUTION LOG // RAW COMMAND STREAM")
-                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(InstallerPalette.primary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("EXECUTION LOG // THIS RUN")
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(InstallerPalette.primary)
+                    Text("COMMANDS AND USEFUL OUTPUT // FULL RAW PROTOCOL IN EXPORT")
+                        .installerLabel()
+                }
                 if installer.isInstalling {
                     Text("LIVE")
                         .installerLabel(color: InstallerPalette.green)
@@ -620,13 +629,15 @@ struct FirstInstallationView: View {
                         ForEach(installer.consoleEntries) { entry in
                             terminalRow(entry).id(entry.id)
                         }
+                        Color.clear.frame(height: 1).id("installer-terminal-bottom")
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(14)
                 }
-                .onChange(of: installer.consoleEntries.count) { _, _ in
-                    guard let last = installer.consoleEntries.last else { return }
-                    proxy.scrollTo(last.id, anchor: .bottom)
+                .onChange(of: installer.consoleEntries.last?.id) { _, _ in
+                    DispatchQueue.main.async {
+                        proxy.scrollTo("installer-terminal-bottom", anchor: .bottom)
+                    }
                 }
             }
         }
@@ -859,13 +870,14 @@ struct FirstInstallationView: View {
     }
 
     private func packageCounter(_ manager: ApplyPackageManager, symbol: String) -> some View {
-        let count = installer.packageActivities.filter { $0.manager == manager }.count
+        let packages = installer.packageActivities.filter { $0.manager == manager }
+        let completed = packages.filter { $0.state == .complete }.count
         return HStack(spacing: 11) {
             Image(systemName: symbol)
-                .foregroundStyle(manager == .nix ? InstallerPalette.cyan : InstallerPalette.amber)
+                .foregroundStyle(packageManagerColor(manager))
             VStack(alignment: .leading, spacing: 2) {
                 Text(manager.title.uppercased()).installerLabel()
-                Text("\(count) observed")
+                Text(packages.isEmpty ? "WAITING" : "\(completed) / \(packages.count) DONE")
                     .font(.system(size: 13, weight: .medium, design: .monospaced))
                     .foregroundStyle(InstallerPalette.primary)
             }
@@ -879,7 +891,7 @@ struct FirstInstallationView: View {
     private func packageRow(_ activity: InstallerPackageActivity) -> some View {
         HStack(alignment: .center, spacing: 11) {
             Rectangle()
-                .fill(activity.manager == .nix ? InstallerPalette.cyan : InstallerPalette.amber)
+                .fill(packageManagerColor(activity.manager))
                 .frame(width: 3, height: activity.fractionCompleted == nil ? 30 : 38)
             VStack(alignment: .leading, spacing: 3) {
                 Text(activity.name)
@@ -891,7 +903,7 @@ struct FirstInstallationView: View {
                     if let fraction = activity.fractionCompleted, activity.state != .complete {
                         ProgressView(value: fraction)
                             .progressViewStyle(.linear)
-                            .tint(activity.manager == .nix ? InstallerPalette.cyan : InstallerPalette.amber)
+                            .tint(packageManagerColor(activity.manager))
                             .frame(maxWidth: 190)
                         Text("\(Int(fraction * 100))%").installerLabel()
                     }
@@ -904,6 +916,62 @@ struct FirstInstallationView: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
         .help(activity.detail)
+    }
+
+    private func packageGroup(
+        _ manager: ApplyPackageManager,
+        phase: FirstInstallationPhase,
+        packages: [InstallerPackageActivity]
+    ) -> some View {
+        let active = packages.filter { $0.state != .complete && $0.state != .queued }
+        let queued = packages.filter { $0.state == .queued }
+        let completed = packages.filter { $0.state == .complete }
+        let key = "\(phase.rawValue):\(manager.rawValue)"
+        let expanded = expandedPackageGroups.contains(key)
+        let visibleCompleted = expanded ? completed : Array(completed.suffix(3))
+
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 9) {
+                Image(systemName: packageManagerSymbol(manager))
+                    .foregroundStyle(packageManagerColor(manager))
+                Text(manager.title.uppercased())
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(InstallerPalette.primary)
+                Text("\(completed.count) COMPLETE")
+                    .installerLabel(color: InstallerPalette.green)
+                if !active.isEmpty {
+                    Text("\(active.count) ACTIVE")
+                        .installerLabel(color: InstallerPalette.amber)
+                }
+                if !queued.isEmpty {
+                    Text("\(queued.count) QUEUED")
+                        .installerLabel()
+                }
+                Spacer()
+                if completed.count > 3 {
+                    Button(expanded ? "COLLAPSE HISTORY" : "SHOW \(completed.count) COMPLETED") {
+                        if expanded {
+                            expandedPackageGroups.remove(key)
+                        } else {
+                            expandedPackageGroups.insert(key)
+                        }
+                    }
+                    .buttonStyle(InstallerButtonStyle(variant: .ghost))
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 9)
+            .background(InstallerPalette.panelRaised.opacity(0.45))
+
+            ForEach(active) { activity in
+                packageRow(activity)
+                Rectangle().fill(InstallerPalette.border.opacity(0.55)).frame(height: 1)
+            }
+            ForEach(visibleCompleted) { activity in
+                packageRow(activity)
+                Rectangle().fill(InstallerPalette.border.opacity(0.55)).frame(height: 1)
+            }
+        }
     }
 
     private func stepRow(_ activity: InstallerStepActivity) -> some View {
@@ -1061,6 +1129,22 @@ struct FirstInstallationView: View {
         case .complete: InstallerPalette.green
         case .failed: InstallerPalette.amber
         case .cancelled: InstallerPalette.amber
+        }
+    }
+
+    private func packageManagerColor(_ manager: ApplyPackageManager) -> Color {
+        switch manager {
+        case .nix: InstallerPalette.cyan
+        case .homebrew: InstallerPalette.amber
+        case .macAppStore: InstallerPalette.green
+        }
+    }
+
+    private func packageManagerSymbol(_ manager: ApplyPackageManager) -> String {
+        switch manager {
+        case .nix: "shippingbox.fill"
+        case .homebrew: "mug.fill"
+        case .macAppStore: "apple.logo"
         }
     }
 
