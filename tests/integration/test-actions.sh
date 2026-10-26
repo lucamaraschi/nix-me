@@ -25,6 +25,7 @@ grep -Fq 'install-mas-apps' "$REPO_DIR/packages/management-api/bin/nix-me-activa
 grep -Fq '/bin/launchctl asuser "$user_id"' "$REPO_DIR/packages/management-api/bin/nix-me-activate-system"
 grep -Fq 'migrate_legacy_lock' "$REPO_DIR/packages/management-api/bin/nix-me-activate-system"
 grep -Fq '/usr/bin/lockf -t "$lock_timeout_seconds" 9' "$REPO_DIR/packages/management-api/bin/nix-me-activate-system"
+grep -Fq $'NIX_ME_PROGRESS\\tactivating\\tWaiting for another system activation' "$REPO_DIR/packages/management-api/bin/nix-me-activate-system"
 grep -Fq 'exec 9>&-' "$REPO_DIR/packages/management-api/bin/nix-me-activate-system"
 ! grep -Fq 'another system activation is already running' "$REPO_DIR/packages/management-api/bin/nix-me-activate-system"
 grep -Fq 'GIT_CONFIG_KEY_0=safe.directory' "$REPO_DIR/Makefile"
@@ -75,6 +76,7 @@ chmod +x "$APPLY_SYSTEM/sw/bin/darwin-rebuild" "$APPLY_SYSTEM/etc/nix-me/activat
 
 cat >"$TEMP_DIR/fake-nix" <<'SH'
 #!/bin/bash
+[[ -z "${NIX_ME_TEST_NIX_MARKER:-}" ]] || touch "$NIX_ME_TEST_NIX_MARKER"
 [[ " $* " == *" build --json --no-link --impure "* ]] || exit 64
 [[ " $* " == *" --log-format internal-json "* ]] || exit 76
 [[ "$*" == *"path:$NIX_ME_TEST_CONFIG#darwinConfigurations.test-host.system"* ]] || exit 65
@@ -147,6 +149,44 @@ NIX_ME_CONFIG_DIR="$APPLY_REPO" \
 grep -Fq $'NIX_ME_PACKAGE\thomebrew\tqueued\tripgrep\t' "$TEMP_DIR/apply-packages-progress.log"
 grep -Fq $'NIX_ME_PACKAGE\thomebrew\tqueued\traycast\t' "$TEMP_DIR/apply-packages-progress.log"
 grep -Fq $'NIX_ME_PACKAGE\tmacAppStore\tqueued\tXcode\t' "$TEMP_DIR/apply-packages-progress.log"
+activation_line="$(grep -nF $'NIX_ME_PROGRESS\tactivating\t' "$TEMP_DIR/apply-packages-progress.log" | head -1 | cut -d: -f1)"
+package_line="$(grep -nF $'NIX_ME_PACKAGE\t' "$TEMP_DIR/apply-packages-progress.log" | head -1 | cut -d: -f1)"
+((activation_line < package_line))
+
+ACTIVE_RUNNER="$TEMP_DIR/active-system/etc/nix-me/activate-system"
+mkdir -p "$(dirname "$ACTIVE_RUNNER")"
+cat >"$ACTIVE_RUNNER" <<'SH'
+#!/bin/bash
+sleep 30
+SH
+chmod +x "$ACTIVE_RUNNER"
+"$ACTIVE_RUNNER" &
+active_runner_pid=$!
+for _ in $(seq 1 100); do
+  /bin/ps -p "$active_runner_pid" >/dev/null 2>&1 && break
+  sleep 0.01
+done
+
+NIX_ME_CONFIG_DIR="$APPLY_REPO" \
+  NIX_ME_ACTION_DRY_RUN=0 \
+  NIX_ME_HOSTNAME=test-host \
+  NIX_ME_USERNAME=test-user \
+  NIX_ME_MACHINE_NAME='Test Mac' \
+  NIX_ME_MACHINE_TYPE=macbook-pro \
+  NIX_ME_NIX_BIN="$TEMP_DIR/fake-nix" \
+  NIX_ME_ADMINISTRATOR_RUNNER="$TEMP_DIR/fake-osascript" \
+  NIX_ME_TEST_NIX_MARKER="$TEMP_DIR/nix-was-called" \
+  "$REPO_DIR/packages/management-api/bin/nix-me-action" apply \
+    >"$TEMP_DIR/concurrent-apply.json" 2>"$TEMP_DIR/concurrent-apply-progress.log"
+kill "$active_runner_pid" >/dev/null 2>&1 || true
+wait "$active_runner_pid" 2>/dev/null || true
+jq -e '
+  .success == false and
+  (.message | contains("Another Nix Me activation is already running"))
+' "$TEMP_DIR/concurrent-apply.json" >/dev/null
+grep -Fq $'NIX_ME_PROGRESS\tpreparing\tAnother system activation is already running' \
+  "$TEMP_DIR/concurrent-apply-progress.log"
+test ! -e "$TEMP_DIR/nix-was-called"
 
 printf 'pause\n' >"$TEMP_DIR/install-control"
 NIX_ME_CONFIG_DIR="$APPLY_REPO" \
