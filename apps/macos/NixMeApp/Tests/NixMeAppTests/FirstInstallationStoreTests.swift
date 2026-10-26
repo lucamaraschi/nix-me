@@ -135,6 +135,21 @@ final class FirstInstallationStoreTests: XCTestCase {
         )
     }
 
+    func testRepeatedProgressDoesNotCreateDuplicateConsoleEntries() {
+        XCTAssertFalse(FirstInstallationStore.shouldAppendProgress(
+            currentPhase: .preparation,
+            currentMessage: "Checking the host, configuration, and required tools",
+            nextPhase: .preparation,
+            nextMessage: "Checking the host, configuration, and required tools"
+        ))
+        XCTAssertTrue(FirstInstallationStore.shouldAppendProgress(
+            currentPhase: .preparation,
+            currentMessage: "Checking the host, configuration, and required tools",
+            nextPhase: .build,
+            nextMessage: "Evaluating and building the new system generation"
+        ))
+    }
+
     func testInterruptedInstallationRestoresTheExplicitHostSelection() throws {
         let directory = try makeConfigurationDirectory(hostname: "bellerofonte")
         defer { try? FileManager.default.removeItem(at: directory) }
