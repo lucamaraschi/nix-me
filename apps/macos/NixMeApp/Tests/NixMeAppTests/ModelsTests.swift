@@ -496,6 +496,12 @@ final class ModelsTests: XCTestCase {
                 && $0.package?.state == .installing
         }))
         XCTAssertTrue(events.values.contains(where: {
+            $0.phase == .activating
+                && $0.package?.manager == .macAppStore
+                && $0.package?.name == "Xcode"
+                && $0.package?.state == .queued
+        }))
+        XCTAssertTrue(events.values.contains(where: {
             $0.package?.manager == .macAppStore
                 && $0.package?.name == "Xcode"
                 && $0.package?.state == .failed

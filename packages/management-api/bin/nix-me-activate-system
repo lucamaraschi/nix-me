@@ -136,6 +136,7 @@ if ! exec 9>"$lock_file"; then
 fi
 lock_fd_open=true
 if ! /usr/bin/lockf -t 0 9; then
+  printf 'NIX_ME_PROGRESS\tactivating\tWaiting for another system activation to finish\n'
   printf 'Another Nix Me activation is running; waiting for it to finish...\n'
   /usr/bin/lockf -t "$lock_timeout_seconds" 9 || \
     die "timed out waiting for the active system activation"

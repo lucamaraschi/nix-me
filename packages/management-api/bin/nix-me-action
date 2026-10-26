@@ -90,6 +90,16 @@ wait_for_install_control() {
   done
 }
 
+active_activation_pid() {
+  /bin/ps -axo pid=,command= 2>/dev/null \
+    | /usr/bin/awk -v current_pid="$$" '
+        $1 != current_pid && $0 ~ /\/etc\/nix-me\/activate-system([[:space:]]|$)/ {
+          print $1
+          exit
+        }
+      '
+}
+
 resolve_app_state_engine() {
   local candidate
   if [[ -n "${NIX_ME_APP_STATE_ENGINE:-}" ]]; then
@@ -430,6 +440,19 @@ run_apply() {
     return
   fi
 
+  local activation_pid
+  activation_pid="$(active_activation_pid)"
+  if [[ -n "$activation_pid" ]]; then
+    emit_apply_progress "preparing" "Another system activation is already running"
+    jq -n --arg pid "$activation_pid" '{
+      schemaVersion: 1,
+      action: "apply",
+      success: false,
+      message: ("Another Nix Me activation is already running (PID " + $pid + "). Return to that installer and let it finish. If no installer owns it, restart the Mac before retrying.")
+    }'
+    return
+  fi
+
   flake_ref="path:$CONFIG_DIR#darwinConfigurations.$host_name.system"
   build_output="$(mktemp "${TMPDIR:-/tmp}/nix-me-build-output.XXXXXX")"
   build_log="$(mktemp "${TMPDIR:-/tmp}/nix-me-build.XXXXXX")"
@@ -478,6 +501,7 @@ run_apply() {
     return
   fi
 
+  emit_apply_progress "activating" "Build complete; preparing configured software for activation"
   emit_system_packages "$system_path" "$skip_homebrew" "$skip_mas_apps"
 
   if ! wait_for_install_control; then
