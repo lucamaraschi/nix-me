@@ -27,6 +27,7 @@ grep -Fq 'wait_for_cleanup_process "$watchdog_pid" 2' "$REPO_DIR/packages/manage
 grep -Fq 'wait_for_cleanup_process "$sudo_cleanup_pid" 3' "$REPO_DIR/packages/management-api/bin/nix-me-activate-system"
 grep -Fq $'NIX_ME_PROGRESS\\tverifying\\tFinalizing activation' "$REPO_DIR/packages/management-api/bin/nix-me-activate-system"
 grep -Fq $'NIX_ME_PROGRESS\\tverifying\\tSystem activation completed' "$REPO_DIR/packages/management-api/bin/nix-me-activate-system"
+grep -Fq 'cleanup_stale_sudoers' "$REPO_DIR/packages/management-api/bin/nix-me-activate-system"
 grep -Fq 'migrate_legacy_lock' "$REPO_DIR/packages/management-api/bin/nix-me-activate-system"
 grep -Fq '/usr/bin/lockf -t "$lock_timeout_seconds" 9' "$REPO_DIR/packages/management-api/bin/nix-me-activate-system"
 grep -Fq $'NIX_ME_PROGRESS\\tactivating\\tWaiting for another system activation' "$REPO_DIR/packages/management-api/bin/nix-me-activate-system"
