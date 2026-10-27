@@ -130,6 +130,20 @@ activation_owner_is_running() {
   [[ "$command" == *"nix-me-activate-system"* ]]
 }
 
+cleanup_stale_sudoers() {
+  local candidate owner
+
+  for candidate in /etc/sudoers.d/nix-me-activation-*; do
+    [[ -e "$candidate" ]] || continue
+    owner="${candidate%.tmp}"
+    owner="${owner##*-}"
+    if ! activation_owner_is_running "$owner"; then
+      rm -f -- "$candidate"
+      printf 'Removed stale Nix Me activation authorization for pid %s.\n' "$owner"
+    fi
+  done
+}
+
 migrate_legacy_lock() {
   local started=$SECONDS
   local announced=false
@@ -167,6 +181,7 @@ migrate_legacy_lock() {
   done
 }
 
+cleanup_stale_sudoers
 migrate_legacy_lock
 if ! exec 9>"$lock_file"; then
   die "could not open the system activation lock"
