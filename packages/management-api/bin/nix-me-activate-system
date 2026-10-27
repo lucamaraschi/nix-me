@@ -30,6 +30,27 @@ sudoers_staging="${sudoers_file}.tmp"
 watchdog_pid=""
 lock_fd_open=false
 
+wait_for_cleanup_process() {
+  local pid="$1"
+  local timeout_seconds="$2"
+  local timeout_pid
+
+  (
+    if [[ "$lock_fd_open" == "true" ]]; then
+      exec 9>&-
+    fi
+    sleep "$timeout_seconds"
+    kill -TERM "$pid" >/dev/null 2>&1 || exit 0
+    sleep 1
+    kill -KILL "$pid" >/dev/null 2>&1 || true
+  ) &
+  timeout_pid=$!
+
+  wait "$pid" 2>/dev/null || true
+  kill "$timeout_pid" >/dev/null 2>&1 || true
+  wait "$timeout_pid" 2>/dev/null || true
+}
+
 case "$system_path" in
   /nix/store/*) ;;
   *) die "the system path must be in /nix/store" ;;
@@ -64,19 +85,35 @@ fi
 
 cleanup() {
   local status=$?
+  local sudo_cleanup_pid
   trap - EXIT INT TERM HUP
+
+  if [[ "$status" -eq 0 ]]; then
+    printf 'NIX_ME_PROGRESS\tverifying\tFinalizing activation and releasing temporary authorization\n'
+  fi
 
   if [[ -n "$watchdog_pid" ]]; then
     kill "$watchdog_pid" >/dev/null 2>&1 || true
-    wait "$watchdog_pid" 2>/dev/null || true
+    wait_for_cleanup_process "$watchdog_pid" 2
   fi
 
   rm -f -- "$sudoers_staging" "$sudoers_file"
   # NOPASSWD commands can create a sudo timestamp. Remove it with the rule.
-  /usr/bin/sudo -u "$username" /usr/bin/sudo -K >/dev/null 2>&1 || true
+  (
+    if [[ "$lock_fd_open" == "true" ]]; then
+      exec 9>&-
+    fi
+    exec /usr/bin/sudo -u "$username" /usr/bin/sudo -K </dev/null >/dev/null 2>&1
+  ) &
+  sudo_cleanup_pid=$!
+  wait_for_cleanup_process "$sudo_cleanup_pid" 3
 
   if [[ "$lock_fd_open" == "true" ]]; then
     exec 9>&-
+  fi
+
+  if [[ "$status" -eq 0 ]]; then
+    printf 'NIX_ME_PROGRESS\tverifying\tSystem activation completed\n'
   fi
 
   exit "$status"
