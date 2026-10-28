@@ -3004,12 +3004,12 @@
         "config_paths": []
       },
       "behavior": {
-        "mechanism": "cloud_or_opaque",
-        "confidence": "low",
-        "evidence": "homebrew_app_artifact",
-        "note": "No configuration path is exposed by the cask metadata; inspect with capture and export sniffing."
+        "mechanism": "defaults_dominant",
+        "confidence": "high",
+        "evidence": "curated",
+        "note": "The Homebrew direct build stores portable settings in com.dwarvesv.minimalbar CFPreferences; macOS-owned status-item positions remain a manual layout step."
       },
-      "local_recipe": null,
+      "local_recipe": "hiddenbar",
       "rank": 93
     },
     {

@@ -742,7 +742,7 @@ fn catalog_validation_and_metric_are_machine_readable() {
     assert!(validation.status.success());
     let validation: Value = serde_json::from_slice(&validation.stdout).unwrap();
     assert_eq!(validation["applications"], 200);
-    assert_eq!(validation["local_recipes"], 7);
+    assert_eq!(validation["local_recipes"], 8);
 
     let metric = run(
         &dir,
@@ -759,5 +759,8 @@ fn catalog_validation_and_metric_are_machine_readable() {
     assert!(metric.status.success());
     let metric: Value = serde_json::from_slice(&metric.stdout).unwrap();
     assert_eq!(metric["behavior_mapped_apps"], 200);
+    assert_eq!(metric["local_recipe_apps"], 8);
+    assert_eq!(metric["full_manual_apps"], 1);
+    assert_eq!(metric["uncovered_apps"], 192);
     assert_eq!(metric["zero_click_percent"], 3.0);
 }

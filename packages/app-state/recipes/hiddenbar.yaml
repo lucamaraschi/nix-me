@@ -1,0 +1,57 @@
+schema_version: 1
+id: hiddenbar
+name: Hidden Bar
+bundle_id: com.dwarvesv.minimalbar
+install:
+  cask: hiddenbar
+detect:
+  app_path: /Applications/Hidden Bar.app
+sandboxed: false
+requires: []
+app_version:
+  source: bundle_short_version
+  supported_majors: [1]
+config:
+  - kind: defaults
+    domain: com.dwarvesv.minimalbar
+    keys:
+      isAutoStart:
+        type: bool
+        ui: "Preferences > Start Hidden Bar when I log in"
+        doc: Hidden Bar reconciles this value with SMAppService when it launches.
+      isShowPreferences: {type: bool, ui: "Preferences > Show preferences on launch"}
+      isAutoHide: {type: bool, ui: "Preferences > Auto collapse"}
+      numberOfSecondForAutoHide:
+        type: float
+        ui: "Preferences > Auto collapse delay"
+        doc: The app accepts any positive delay even though its UI offers a fixed list.
+      areSeparatorsHidden:
+        type: bool
+        ui: "Option-click the menu bar arrow > Show or hide separators"
+      alwaysHiddenSectionEnabled:
+        type: bool
+        ui: "Preferences > Enable always hidden section"
+      useFullStatusBarOnExpandEnabled:
+        type: bool
+        ui: "Preferences > Use full menu bar on expanding"
+      hoverToExpand:
+        type: bool
+        ui: "Terminal-only preference > Expand by hovering"
+      AppleLanguages:
+        type: array
+        ui: "System Settings > General > Language & Region > Applications"
+      globalKey:
+        type: data
+        ui: "Preferences > Global shortcut"
+        doc: JSON-encoded GlobalKeybindPreferences data; capture it from Hidden Bar instead of authoring it by hand.
+    unknown_keys: reject
+    confirm: none
+  - kind: manual
+    step: After all menu bar applications have launched, Command-drag their status items across Hidden Bar's arrow or separators to establish the visible, hidden, and optional always-hidden sections.
+    doc: macOS owns each application's status-item position, and Hidden Bar exposes no portable layout inventory. On macOS 27 the Homebrew direct build also needs Accessibility permission to read the resulting sections; earlier supported macOS versions do not.
+    confirm: full_manual
+apply:
+  poke: restart_app
+  unsafe_to_kill: false
+verified: null
+maintainers: ["@lucamaraschi"]

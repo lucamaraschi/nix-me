@@ -4,7 +4,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
 use anyhow::{anyhow, Result};
-use nix_me_apps::engine::{checksum, Engine, Options};
+use nix_me_apps::engine::{checksum, poke_command, Engine, Options};
 use nix_me_apps::model::{load_recipe, load_values, Artifact, ConfigEntry, FileExport, Host};
 use nix_me_apps::prefs::FakePrefStore;
 use nix_me_apps::runner::{CommandRunner, FixedClock, ReplayCommandRunner};
@@ -674,6 +674,89 @@ fn repository_recipes_pass_schema_and_semantic_validation() {
 }
 
 #[test]
+fn shipped_hiddenbar_recipe_converges_preferences_and_reports_manual_layout() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let recipe_path = root.join("recipes/hiddenbar.yaml");
+    if !recipe_path.is_file() {
+        // The Nix package source contains engine/ only. Checkout CI exercises
+        // the complete registry recipe.
+        return;
+    }
+
+    let directory = TempDir::new().unwrap();
+    let mut recipe = load_recipe(&recipe_path).unwrap();
+    recipe.detect = None;
+    recipe.app_version = None;
+    assert!(
+        !recipe.sandboxed,
+        "the Homebrew direct build is not sandboxed"
+    );
+
+    let (_, values) = values(
+        &directory,
+        r#"hiddenbar:
+  isAutoStart: true
+  isShowPreferences: false
+  isAutoHide: true
+  numberOfSecondForAutoHide: 5.0
+  areSeparatorsHidden: false
+  alwaysHiddenSectionEnabled: true
+  useFullStatusBarOnExpandEnabled: false
+  hoverToExpand: true
+  AppleLanguages: [en]
+  globalKey: AQID
+"#,
+    );
+    let mut prefs = FakePrefStore::default();
+    prefs.set(
+        "com.dwarvesv.minimalbar",
+        "smAppServiceMigrated",
+        Host::Any,
+        Value::Bool(true),
+    );
+    let mut runner = ReplayCommandRunner::default();
+    let poke = poke_command(&recipe).unwrap();
+    runner.outputs.insert(poke.clone(), Ok(String::new()));
+    let clock = FixedClock(NOW.into());
+    let mut state = State::default();
+    let mut engine = Engine {
+        prefs: &mut prefs,
+        runner: &mut runner,
+        clock: &clock,
+        state: &mut state,
+        state_dir: directory.path().join("state"),
+        options: Options::default(),
+        warnings: vec![],
+    };
+
+    let plan = engine
+        .plan(std::slice::from_ref(&recipe), &values, "diff")
+        .unwrap();
+    assert_eq!(plan.exit_code, 2);
+    assert_eq!(plan.summary.writes, 10);
+    assert_eq!(plan.summary.manual, 1);
+    assert_eq!(plan.apps[0].pokes, ["restart_app"]);
+
+    let applied = engine.apply(std::slice::from_ref(&recipe), &values, plan);
+    assert_eq!(applied.exit_code, 3);
+    assert_eq!(engine.runner.recorded, [poke]);
+    assert_eq!(
+        engine.prefs.values.get(&(
+            "com.dwarvesv.minimalbar".into(),
+            Host::Any,
+            "smAppServiceMigrated".into()
+        )),
+        Some(&Value::Bool(true)),
+        "unowned migration state must be preserved"
+    );
+
+    let converged = engine.plan(&[recipe], &values, "diff").unwrap();
+    assert_eq!(converged.exit_code, 3);
+    assert_eq!(converged.summary.writes, 0);
+    assert_eq!(converged.summary.manual, 1);
+}
+
+#[test]
 fn local_top_200_catalog_is_complete_and_links_seed_recipes() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let catalog = root.join("catalog/homebrew-top-200-apps.json");
@@ -686,7 +769,7 @@ fn local_top_200_catalog_is_complete_and_links_seed_recipes() {
     let validation = nix_me_apps::catalog::validate(&catalog, &recipe_inputs).unwrap();
     assert!(validation.valid);
     assert_eq!(validation.applications, 200);
-    assert_eq!(validation.local_recipes, 7);
+    assert_eq!(validation.local_recipes, 8);
     assert_eq!(validation.confidence.values().sum::<usize>(), 200);
     assert_eq!(validation.mechanisms.values().sum::<usize>(), 200);
 
@@ -695,7 +778,8 @@ fn local_top_200_catalog_is_complete_and_links_seed_recipes() {
     assert_eq!(metric.behavior_mapped_apps, 200);
     assert_eq!(metric.zero_click_apps, 6);
     assert_eq!(metric.one_click_apps, 1);
-    assert_eq!(metric.uncovered_apps, 193);
+    assert_eq!(metric.full_manual_apps, 1);
+    assert_eq!(metric.uncovered_apps, 192);
 }
 
 #[test]

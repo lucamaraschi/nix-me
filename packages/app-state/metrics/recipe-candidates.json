@@ -3,21 +3,21 @@
   "generated_from": {
     "catalog": "packages/app-state/catalog/homebrew-top-200-apps.json",
     "catalog_version": 1,
-    "catalog_sha256": "7809eb7e3146cc971249bf8aba0cb472cb8f2343f10669b30c0b69c4eeef3649",
+    "catalog_sha256": "e23448e7f176435726c61cab07026edfc35ef99602f79777e6ed2422c5e40a4c",
     "metrics": "packages/app-state/metrics/zero-click.json",
     "metrics_version": 1,
-    "metrics_sha256": "e9e279afd9f1e3c31780d7c3727e7deecdf8418934b40a1a7298b747eb737430",
+    "metrics_sha256": "c7ed974a57b323d70ee36ea044948013ad4eb8940b8c2daaad6504050d87c91c",
     "analytics_start_date": "2025-09-08",
     "analytics_end_date": "2026-09-08"
   },
   "metric_summary": {
     "denominator": 200,
     "behavior_mapped_apps": 200,
-    "local_recipe_apps": 7,
+    "local_recipe_apps": 8,
     "zero_click_apps": 6,
     "one_click_apps": 1,
-    "full_manual_apps": 0,
-    "uncovered_apps": 193
+    "full_manual_apps": 1,
+    "uncovered_apps": 192
   },
   "policy": {
     "score_minimum": 0,
@@ -91,7 +91,7 @@
   },
   "exclusions": {
     "rule": "Exclude catalog entries whose local_recipe is not null.",
-    "already_supported_count": 7,
+    "already_supported_count": 8,
     "already_supported": [
       {
         "catalog_rank": 2,
@@ -127,10 +127,15 @@
         "catalog_rank": 37,
         "cask": "sublime-text",
         "local_recipe": "sublime-text"
+      },
+      {
+        "catalog_rank": 93,
+        "cask": "hiddenbar",
+        "local_recipe": "hiddenbar"
       }
     ]
   },
-  "candidate_count": 193,
+  "candidate_count": 192,
   "candidates": [
     {
       "catalog_rank": 1,
@@ -6904,38 +6909,6 @@
       "candidate_rank": 186
     },
     {
-      "catalog_rank": 93,
-      "analytics_rank": 148,
-      "cask": "hiddenbar",
-      "name": "Hidden Bar",
-      "description": "Utility to hide menu bar items",
-      "homepage": "https://github.com/dwarvesf/hidden/",
-      "installs": 29105,
-      "percent": 0.11,
-      "behavior": {
-        "mechanism": "cloud_or_opaque",
-        "confidence": "low",
-        "evidence": "homebrew_app_artifact",
-        "note": "No configuration path is exposed by the cask metadata; inspect with capture and export sniffing."
-      },
-      "signals": {
-        "preference_paths": [],
-        "config_paths": []
-      },
-      "score": {
-        "total": 8.99,
-        "impact": 19.97,
-        "feasibility": 0,
-        "risk": 100
-      },
-      "rationale": {
-        "impact": "5.38 normalized installs x 70%; 54.00 catalog reach x 30%",
-        "feasibility": "cloud_or_opaque base 20; confidence low -15; evidence homebrew_app_artifact -10; preference signal +0; config signal +0",
-        "risk": "cloud_or_opaque base 90; confidence low +15; evidence homebrew_app_artifact +10; no path +10; multi-surface +0"
-      },
-      "candidate_rank": 187
-    },
-    {
       "catalog_rank": 95,
       "analytics_rank": 150,
       "cask": "rustdesk",
@@ -6965,7 +6938,7 @@
         "feasibility": "cloud_or_opaque base 20; confidence low -15; evidence homebrew_app_artifact -10; preference signal +0; config signal +0",
         "risk": "cloud_or_opaque base 90; confidence low +15; evidence homebrew_app_artifact +10; no path +10; multi-surface +0"
       },
-      "candidate_rank": 188
+      "candidate_rank": 187
     },
     {
       "catalog_rank": 101,
@@ -6997,7 +6970,7 @@
         "feasibility": "cloud_or_opaque base 20; confidence low -15; evidence homebrew_app_artifact -10; preference signal +0; config signal +0",
         "risk": "cloud_or_opaque base 90; confidence low +15; evidence homebrew_app_artifact +10; no path +10; multi-surface +0"
       },
-      "candidate_rank": 189
+      "candidate_rank": 188
     },
     {
       "catalog_rank": 108,
@@ -7029,7 +7002,7 @@
         "feasibility": "cloud_or_opaque base 20; confidence low -15; evidence homebrew_app_artifact -10; preference signal +0; config signal +0",
         "risk": "cloud_or_opaque base 90; confidence low +15; evidence homebrew_app_artifact +10; no path +10; multi-surface +0"
       },
-      "candidate_rank": 190
+      "candidate_rank": 189
     },
     {
       "catalog_rank": 144,
@@ -7061,7 +7034,7 @@
         "feasibility": "cloud_or_opaque base 20; confidence low -15; evidence homebrew_app_artifact -10; preference signal +0; config signal +0",
         "risk": "cloud_or_opaque base 90; confidence low +15; evidence homebrew_app_artifact +10; no path +10; multi-surface +0"
       },
-      "candidate_rank": 191
+      "candidate_rank": 190
     },
     {
       "catalog_rank": 146,
@@ -7093,7 +7066,7 @@
         "feasibility": "cloud_or_opaque base 20; confidence low -15; evidence homebrew_app_artifact -10; preference signal +0; config signal +0",
         "risk": "cloud_or_opaque base 90; confidence low +15; evidence homebrew_app_artifact +10; no path +10; multi-surface +0"
       },
-      "candidate_rank": 192
+      "candidate_rank": 191
     },
     {
       "catalog_rank": 161,
@@ -7125,7 +7098,7 @@
         "feasibility": "cloud_or_opaque base 20; confidence low -15; evidence homebrew_app_artifact -10; preference signal +0; config signal +0",
         "risk": "cloud_or_opaque base 90; confidence low +15; evidence homebrew_app_artifact +10; no path +10; multi-surface +0"
       },
-      "candidate_rank": 193
+      "candidate_rank": 192
     }
   ]
 }

@@ -221,12 +221,13 @@ fn catalog_and_coverage_include_the_batch() {
     let validation = nix_me_apps::catalog::validate(&catalog, &recipes).unwrap();
     assert!(validation.valid);
     assert_eq!(validation.applications, 200);
-    assert_eq!(validation.local_recipes, 7);
+    assert_eq!(validation.local_recipes, 8);
 
     let metric = nix_me_apps::catalog::metric(&catalog, &recipes).unwrap();
-    assert_eq!(metric.local_recipe_apps, 7);
+    assert_eq!(metric.local_recipe_apps, 8);
     assert_eq!(metric.zero_click_apps, 6);
     assert_eq!(metric.one_click_apps, 1);
-    assert_eq!(metric.uncovered_apps, 193);
+    assert_eq!(metric.full_manual_apps, 1);
+    assert_eq!(metric.uncovered_apps, 192);
     assert_eq!(metric.zero_click_percent, 3.0);
 }

@@ -2,7 +2,7 @@
 
 Snapshot: **2025-09-08 through 2026-09-08** (365-day install window).
 
-This is the first 200 analytics-ranked official casks that install an `.app`; original Homebrew analytics rank is retained. Mechanisms: cloud_or_opaque=8, defaults_dominant=30, file_driven=29, hybrid=133; confidence: high=14, low=8, medium=178.
+This is the first 200 analytics-ranked official casks that install an `.app`; original Homebrew analytics rank is retained. Mechanisms: cloud_or_opaque=7, defaults_dominant=31, file_driven=29, hybrid=133; confidence: high=15, low=7, medium=178.
 
 | App rank | Analytics rank | Cask | Installs | Mechanism | Confidence | Local recipe |
 |---:|---:|---|---:|---|---|---|
@@ -98,7 +98,7 @@ This is the first 200 analytics-ranked official casks that install an `.app`; or
 | 90 | 143 | `jetbrains-toolbox` | 30088 | hybrid | medium | — |
 | 91 | 144 | `tableplus` | 30025 | hybrid | medium | — |
 | 92 | 146 | `keepassxc` | 29267 | hybrid | medium | — |
-| 93 | 148 | `hiddenbar` | 29105 | cloud_or_opaque | low | — |
+| 93 | 148 | `hiddenbar` | 29105 | defaults_dominant | high | hiddenbar |
 | 94 | 149 | `audacity` | 28745 | hybrid | medium | — |
 | 95 | 150 | `rustdesk` | 28513 | cloud_or_opaque | low | — |
 | 96 | 151 | `transmission` | 28056 | hybrid | medium | — |

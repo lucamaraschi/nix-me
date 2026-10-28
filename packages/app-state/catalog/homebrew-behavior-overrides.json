@@ -23,6 +23,12 @@
     "local_recipe": "rectangle",
     "note": "Typed settings in the com.knollsoft.Rectangle CFPreferences domain."
   },
+  "hiddenbar": {
+    "mechanism": "defaults_dominant",
+    "confidence": "high",
+    "local_recipe": "hiddenbar",
+    "note": "The Homebrew direct build stores portable settings in com.dwarvesv.minimalbar CFPreferences; macOS-owned status-item positions remain a manual layout step."
+  },
   "obsidian": {
     "mechanism": "file_driven",
     "confidence": "high",
