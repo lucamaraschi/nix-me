@@ -188,6 +188,22 @@ Status: in progress
 The detailed boundary, compatibility path, and verification commands live in
 `docs/FIRST_INSTALL.md`.
 
+## Machine reconciliation
+
+This is independent of repository-versus-applied revision checks. The desired
+configuration, last applied declaration, and live machine must be compared
+separately. No automatic cleanup, Git writes, or global-profile promotion.
+
+| ID | State | Scope |
+| --- | --- | --- |
+| DRIFT-001 | Implemented locally | Live Homebrew explicit additions/removals and single managed-dotfile content/mode differences; overview indication and selective review. |
+| DRIFT-002 | Implemented locally | Primary Mac-to-configuration review/save with exact repository diffs, reviewed support upgrade for known older checkouts, and saved-file publication status. Discarding local changes is a separate destructive action. Stale-review checks, rollback, backups, and post-action verification protect both directions. |
+| DRIFT-003 | Follow-up | Unify property-level App Settings comparisons and selective restore with Machine Drift, preserving access approval and recipe safety boundaries. |
+| DRIFT-004 | Implemented locally | Per-app/tool destination dropdowns with expandable source/path/host details. Mixed shared, type, profile, and machine destinations use one combined review and rollback-protected save. Evaluated membership and per-host effects preserve exceptions; stale assignments and conflicting peer profiles are rejected. Existing already-saved overrides are not automatically moved between scopes; dotfiles stay machine-only. |
+| DRIFT-005 | Follow-up | Extend coverage to directory-managed dotfiles, Nix user profiles, App Store inventory, and declared system preferences; define safe ownership and restore semantics before enabling actions. |
+| DRIFT-006 | Follow-up | Show expected versus observed package versions; explicitly distinguish pinned Nix outputs from unpinned Homebrew releases. Do not promise reproducible Homebrew downgrades. |
+| DRIFT-007 | Follow-up | Disposable-host acceptance run for real Homebrew install/uninstall and Home Manager re-activation. Current tests use isolated fixtures and read-only scans of the live Mac. |
+
 ## Decision log
 
 - 2026-10-04: Adopt an explicit monorepo structure rather than splitting the

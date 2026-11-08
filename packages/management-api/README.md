@@ -13,6 +13,32 @@ files under `config/app-state/{shared,profiles,machines}`; they never stage,
 commit, or push repository changes. Local evaluation and apply include newly
 created settings files before they are committed.
 
+Settings previews include `comparison.properties`: JSON Pointer paths, redacted
+`currentValue` JSON strings, and `notSaved`, `different`, `matching`, or `preserved` status
+against the selected destination only (not inherited values). Arrays and empty
+objects are atomic properties; an empty object cannot clear saved children under
+the merge contract and is marked `preserved`. `preservedCount` counts saved-only properties;
+these are not deleted or exposed in the preview. `preview` contains the redacted
+capture, not the merged destination, so unrelated saved secrets are never echoed.
+Clients should submit the returned `reviewToken` with `settings-save`. A changed
+capture or destination returns `review_outdated` without writing. The native app
+requires this token. Legacy CLI requests without a token remain supported.
+
+Configuration sources optionally include `propertyPaths` for JSON values files,
+without their values. Built-in defaults are not user exports. The native app
+automatically compares structured, allowlisted preferences when App Settings is
+opened; reviewed source files are excluded and still require individual approval.
+Comparison results are session-local and cleared
+when refreshing or changing destination. Git status is last-known upstream data,
+not evidence of a network fetch or successful publishing.
+
+An empty capture returns `no_preferences` only when every skipped entry is
+explicitly identified by the engine as `no_declared_values` or `file_missing`.
+This is an informational state, not a successful comparison or permission to
+save. Unknown reasons and read failures retain `nothing_captured`. Neither path
+modifies saved settings, and clients must never infer that an unchecked app
+matches the repository.
+
 `appStateSettings.applications` merges the recipe registry with user-installed
 bundles found in `/Applications` and `~/Applications`. Recipe-backed entries
 include their recipe path and active built-in, shared, profile, and machine
@@ -64,4 +90,67 @@ Run the contract tests from the repository root:
 
 ```sh
 make test-api test-actions test-details
+```
+
+## Selective machine reconciliation
+
+`bin/nix-me-drift` is the version 1 JSON boundary for `scan`, `preview`, `prepare`, `keep`,
+and `restore`. It requires Python 3.9+, `NIX_ME_CONFIG_DIR`, and
+`NIX_ME_HOSTNAME`, and runs as the logged-in user, never root. Nix-built app
+bundles include Python in their runtime path. `NIX_ME_APPLIED_MANIFEST` may
+override `/etc/nix-me/manifest.json` for tests.
+
+`scan` compares a freshly evaluated desired manifest, the applied manifest,
+and live Homebrew/file state. It returns `token`, `configurationToken`,
+`coverage`, `items`, `warnings`, and the machine-only save `destination`.
+Coverage is explicit: a failed tool, unrealized source, private path, or
+unsupported directory is never equivalent to a successful comparison.
+
+Other commands accept JSON on stdin: `{ "token": "...", "ids": ["..."] }`.
+Select 1-100 IDs from the latest scan. The backend regenerates all paths and
+commands from that scan; callers cannot supply mutation paths or shell code.
+`preview` returns selected files' complete current/expected text, a unified
+diff, and `reviewToken`. `prepare` previews every proposed repository edit and
+returns a `proposalToken`; `keep` requires that token for all selections.
+Preparing a file save reads only the selected managed files and rejects obvious
+credentials. A recognized older checkout may receive the reviewed support
+module and import along with its reviewed JSON file. Custom modules and
+ambiguous layouts are rejected. Writes recheck original bytes and evaluate Nix;
+validation failures roll back our writes without overwriting concurrent edits.
+Content remains plain text in
+the repository and Nix store; detection is not a substitute for human review.
+
+`restore` confirms each selected item still matches the review immediately
+before acting. It backs up file entries, runs scoped Homebrew actions without
+force/zap/autoremove, and verifies the resulting state. Partial failures are
+reported per item; a successful process exit alone is not proof of restoration.
+Actions serialize per checkout, never stage/commit/push, and never silently
+promote a machine override to a shared profile. `scan.publication` describes
+saved-file Git status using local metadata only; it never fetches or claims that
+the remote is current. Saved results list `filesWritten` for review and publishing
+in the user's Git client.
+
+`scan.destinations` lists the evaluated layers for this host, their original
+source modules, overlay paths, and exact host membership. Send
+`destinationsByItem` in `prepare` and `keep`, mapping every selected item ID to
+its destination ID. Missing/extra entries and inactive destinations are rejected.
+For older clients, a single `destinationID` still applies to the whole batch;
+omitting both fields means this machine. Do not combine the two fields. A client
+cannot supply arbitrary paths or inactive profiles. The proposal token binds
+the destination, edits, and per-host impact, not just the selected packages.
+Mixed saves evaluate all destination states together on every affected host,
+without writing files first. Review includes grouped `destinations`, the exact
+`destinationsByItem` map, and per-host effects for only the items reaching that
+host. All destination files are written in one rollback-protected action. More
+specific exceptions on other hosts are preserved and explained; an exception
+on this host blocks an ineffective save. Profile conflicts fail validation.
+Dotfiles cannot be saved to shared destinations. A host/type/profile membership
+change invalidates review. The app does not move existing saved overrides when
+choosing a new destination.
+
+Test without modifying the current machine:
+
+```sh
+python3 tests/integration/test_machine_drift.py
+nix eval --impure --json --file tests/integration/machine-state-eval.nix
 ```

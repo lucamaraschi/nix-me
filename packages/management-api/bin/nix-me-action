@@ -126,7 +126,7 @@ run_app_settings() {
   local mode="$1"
   local payload app_id scope profile host_name relative_path destination engine confirm_reviewed_text
   local settings_temp_dir capture_file existing_file proposed_file captured_values capture_reason
-  local changed preview tracked written message temporary
+  local changed preview tracked written message temporary review_token requested_token comparison
   local -a snapshot_args
 
   payload="$(cat)"
@@ -134,6 +134,7 @@ run_app_settings() {
     (.appId | type == "string" and test("^[a-z0-9][a-z0-9-]*$")) and
     (.scope | IN("shared", "profile", "machine")) and
     ((.confirmReviewedText // false) | type == "boolean") and
+    (.reviewToken == null or (.reviewToken | type == "string" and test("^[a-f0-9]{64}$"))) and
     (if .scope == "profile"
       then (.profile | type == "string" and test("^[a-z0-9][a-z0-9-]*$"))
       else (.profile == null or (.profile | not))
@@ -198,16 +199,28 @@ run_app_settings() {
     (.applications | length == 1) and
     (.redaction | type == "object")
   ' >/dev/null 2>&1 "$capture_file"; then
+    # Distinguish an unused app from a failed/denied read. Unknown skip reasons
+    # remain errors, including results from older engines without reason codes.
+    if jq -e --arg appId "$app_id" '
+      .version == 1 and (.values[$appId] == {}) and
+      (.applications | length == 1) and
+      (.applications[0].id == $appId) and
+      (.applications[0].skipped | length > 0) and
+      all(.applications[0].skipped[]; .code == "no_declared_values" or .code == "file_missing")
+    ' >/dev/null 2>&1 "$capture_file"; then
+      jq -n '{schemaVersion: 1, error: {code: "no_preferences", message: "No supported preferences have been saved by this app yet. Use the app and customize its settings, then check again. Existing repository settings were not changed."}}'
+      return 4
+    fi
     capture_reason="$(jq -r --arg appId "$app_id" '
       first(.applications[]? | select(.id == $appId) | .skipped[]?.reason) // empty
     ' "$capture_file" 2>/dev/null)"
     jq -n --arg appId "$app_id" --arg reason "$capture_reason" '
       {schemaVersion: 1, error: {
         code: "nothing_captured",
-        message: if $reason == ""
+        message: (if $reason == ""
           then ("No safe machine-readable settings were found for " + $appId)
           else ("Could not read settings for " + $appId + ": " + $reason)
-        end
+        end)
       }}'
     return 4
   fi
@@ -223,6 +236,44 @@ run_app_settings() {
   fi
 
   captured_values="$(jq -c '.values' "$capture_file")"
+  # Bind a GUI save to the exact reviewed capture and destination. Re-reading
+  # preferences must not silently save values that changed after the preview.
+  review_token="$(jq -Scn --arg destination "$relative_path" --arg appId "$app_id" --argjson captured "$captured_values" \
+    --slurpfile existing "$existing_file" '[$destination, $captured, $existing[0][$appId]]' | shasum -a 256 | cut -d ' ' -f 1)"
+  if [[ ! "$review_token" =~ ^[a-f0-9]{64}$ ]]; then
+    jq -n '{schemaVersion: 1, error: {code: "review_failed", message: "Could not fingerprint the settings comparison; nothing was written."}}'
+    return 5
+  fi
+  requested_token="$(jq -r '.reviewToken // empty' <<<"$payload")"
+  if [[ "$mode" == "save" && -n "$requested_token" && "$requested_token" != "$review_token" ]]; then
+    jq -n '{schemaVersion: 1, error: {code: "review_outdated", message: "Preferences or the destination file changed since your comparison. Compare again before saving; nothing was written."}}'
+    return 65
+  fi
+  # Only expose values from the redacted capture, never arbitrary values that
+  # already exist in the checkout. Saved-only values are preserved, not deleted.
+  comparison="$(jq -cn --arg appId "$app_id" --argjson captured "$captured_values" --slurpfile existing "$existing_file" '
+    def leaves($p):
+      if type == "object" and length > 0 then
+        to_entries[] | .key as $key | .value | leaves($p + [$key])
+      else $p end;
+    ($captured[$appId]) as $current |
+    ($existing[0][$appId] // {}) as $saved |
+    ($saved * $current) as $merged |
+    def present($root; $path):
+      reduce $path[] as $key ({found: true, value: $root};
+        if .found and (.value | type) == "object" and (.value | has($key))
+        then {found: true, value: .value[$key]} else {found: false, value: null} end) | .found;
+    [ $current | leaves([]) ] as $paths |
+    { properties: [ $paths[] as $path | {
+        path: ("/" + ($path | map(gsub("~"; "~0") | gsub("/"; "~1")) | join("/"))),
+        currentValue: ($current | getpath($path) | tojson),
+        status: (if (present($saved; $path) | not) then "notSaved"
+          elif ($saved | getpath($path)) == ($current | getpath($path)) then "matching"
+          elif ($saved | getpath($path)) == ($merged | getpath($path)) then "preserved" else "different" end)
+      } ],
+      preservedCount: ([$saved | leaves([]) | select(length > 0) | select(present($current; .) | not)] | length)
+    }
+  ')" || return 5
   if ! jq -S --argjson captured "$captured_values" '. * $captured' "$existing_file" >"$proposed_file"; then
     jq -n '{schemaVersion: 1, error: {code: "merge_failed", message: "Could not merge captured settings"}}'
     return 5
@@ -250,7 +301,7 @@ run_app_settings() {
   if command -v git >/dev/null 2>&1 && git -C "$CONFIG_DIR" ls-files --error-unmatch -- "$relative_path" >/dev/null 2>&1; then
     tracked=true
   fi
-  preview="$(jq --arg appId "$app_id" '.[$appId]' "$proposed_file")"
+  preview="$(jq --arg appId "$app_id" '.values[$appId]' "$capture_file")"
   if [[ "$changed" == "false" ]]; then
     message="Current settings already match $relative_path"
   elif [[ "$mode" == "preview" ]]; then
@@ -274,6 +325,8 @@ run_app_settings() {
     --arg destination "$relative_path" \
     --arg preview "$preview" \
     --arg message "$message" \
+    --arg reviewToken "$review_token" \
+    --argjson comparison "$comparison" \
     --argjson changed "$changed" \
     --argjson written "$written" \
     --argjson tracked "$tracked" \
@@ -295,7 +348,9 @@ run_app_settings() {
       redaction: $redaction,
       captured: $captured,
       skipped: $skipped,
-      message: $message
+      message: $message,
+      reviewToken: $reviewToken,
+      comparison: $comparison
     }'
 }
 

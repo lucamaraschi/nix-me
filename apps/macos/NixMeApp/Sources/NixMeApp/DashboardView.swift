@@ -3,7 +3,7 @@ import SwiftUI
 
 enum DashboardSection: String, Identifiable {
     case overview = "Overview"
-    case configuration = "Config Map"
+    case configuration = "Configuration"
     case harness = "App Settings"
     case localAI = "Local AI"
     case software = "Apps & Packages"
@@ -51,7 +51,7 @@ struct DashboardView: View {
                         SidebarRow(section: .software, count: store.snapshot?.softwareItems.count)
                         SidebarRow(
                             section: .configurationChanges,
-                            count: store.snapshot?.softwareDifferences.count,
+                            count: (store.snapshot?.softwareDifferences.count ?? 0) + (store.machineDrift?.items.count ?? 0),
                             needsAttention: store.snapshot.map { $0.configuration.applyState != "current" } ?? false
                         )
                         SidebarRow(section: .updates, count: store.snapshot?.softwareUpdateCount)
@@ -63,7 +63,7 @@ struct DashboardView: View {
                         SidebarRow(section: .projects, count: store.snapshot?.projectAttentionCount)
                         SidebarRow(
                             section: .harness,
-                            count: store.snapshot?.appState?.differenceCount,
+                            count: store.settingsReviews.values.filter { $0.differenceCount > 0 }.count,
                             needsAttention: store.snapshot?.appState?.needsAttention ?? false
                         )
                         SidebarRow(
@@ -76,7 +76,7 @@ struct DashboardView: View {
                     }
 
                     Section {
-                        SidebarRow(section: .configuration, count: store.configurationGraph?.activeNodes.count)
+                        SidebarRow(section: .configuration)
                     } header: {
                         Text("ADVANCED").oxideLabel()
                     }
@@ -141,7 +141,7 @@ struct DashboardView: View {
                             Label("Configuration", systemImage: "folder")
                         }
                         .help("Open, switch, or update the configuration checkout")
-                        .disabled(store.isConfiguring)
+                        .disabled(actionInProgress)
 
                         if store.snapshot?.configuration.applyState != "current",
                            store.selectedSection != .overview,
@@ -201,6 +201,8 @@ struct DashboardView: View {
     private var actionInProgress: Bool {
         store.isLoading || store.isUpdating || store.isApplying || store.isSyncingProjects
             || store.isSavingProject || store.isConfiguring || store.isCapturingSettings || store.isEnablingHarness
+            || store.isComparingSettings
+            || store.isReconciling || store.isScanningDrift
     }
 
     @ViewBuilder
@@ -209,6 +211,11 @@ struct DashboardView: View {
         case .overview:
             OverviewView(
                 snapshot: snapshot,
+                settingsScope: store.settingsScope,
+                settingsProfile: store.settingsProfile,
+                settingsReviews: store.settingsReviews,
+                openAppSettings: { store.selectedSection = .harness },
+                openRepository: store.openConfiguration,
                 openSoftware: { scope in
                     softwareScope = scope
                     store.selectedSection = .software
@@ -221,6 +228,14 @@ struct DashboardView: View {
                     store.selectedSection = .projects
                 },
                 openConfigurationChanges: {
+                    store.reviewingMachineDrift = false
+                    store.selectedSection = .configurationChanges
+                },
+                drift: store.machineDrift,
+                isScanningDrift: store.isScanningDrift,
+                driftError: store.machineDriftError,
+                reviewDrift: {
+                    store.reviewingMachineDrift = true
                     store.selectedSection = .configurationChanges
                 },
                 applyConfiguration: { showingApplyConfirmation = true },
@@ -232,7 +247,9 @@ struct DashboardView: View {
                 error: store.configurationGraphError,
                 host: snapshot.host,
                 openFile: store.openConfigurationFile,
-                revealFile: store.revealConfigurationFile
+                revealFile: store.revealConfigurationFile,
+                openAppSettings: { store.selectedSection = .harness },
+                openChanges: { store.selectedSection = .configurationChanges }
             )
         case .harness:
             HarnessStatusView(
@@ -240,17 +257,28 @@ struct DashboardView: View {
                 settings: snapshot.appStateSettings,
                 hostname: snapshot.host.hostname,
                 configurationApplyState: snapshot.configuration.applyState,
-                isCapturing: store.isCapturingSettings,
+                isCapturing: store.isCapturingSettings || store.isComparingSettings || store.isApplying || store.isLoading,
                 isEnabling: store.isEnablingHarness,
                 isApplying: store.isApplying,
                 harnessNotice: store.harnessNotice,
-                appSettingsError: store.appSettingsError,
+                appSettingsError: store.isComparingSettings ? nil : store.appSettingsError,
                 previewSettings: store.previewAppSettings,
                 saveSettings: store.saveAppSettings,
                 clearSettingsError: store.clearAppSettingsError,
                 enableHarness: store.enableHarness,
                 applyConfiguration: { showingApplyConfirmation = true },
-                revealFile: store.revealConfigurationFile
+                revealFile: store.revealConfigurationFile,
+                openChanges: { store.selectedSection = .configurationChanges },
+                openSoftware: { store.selectedSection = .software },
+                selectedScope: $store.settingsScope,
+                selectedProfile: $store.settingsProfile,
+                reviews: store.settingsReviews,
+                approvedSettingsAppIDs: store.approvedSettingsAppIDs,
+                comparisonProgress: store.settingsComparisonProgress,
+                compareSettings: { Task { await store.compareAppSettings() } },
+                checkUncheckedSettings: { Task { await store.compareAppSettings(onlyUnchecked: true) } },
+                stopCheckingSettings: store.stopComparingAppSettings,
+                openOverview: { store.selectedSection = .overview }
             )
         case .localAI:
             LocalAIStatusView(
@@ -264,7 +292,15 @@ struct DashboardView: View {
         case .software:
             SoftwareView(snapshot: snapshot, scope: $softwareScope, loadDetails: store.packageDetails)
         case .configurationChanges:
-            ConfigurationChangesView(
+            VStack(spacing: 0) {
+                Picker("Changes to review", selection: $store.reviewingMachineDrift) {
+                    Text("Repository → Mac").tag(false)
+                    Text("Machine Drift").tag(true)
+                }.pickerStyle(.segmented).padding(16)
+                if store.reviewingMachineDrift {
+                    MachineDriftView(store: store)
+                } else {
+                    ConfigurationChangesView(
                 snapshot: snapshot,
                 isApplying: store.isApplying,
                 applyOperation: store.applyOperation,
@@ -272,8 +308,10 @@ struct DashboardView: View {
                 applyConfiguration: { showingApplyConfirmation = true },
                 retryApply: { Task { await store.applyConfiguration() } },
                 dismissApplyOperation: store.dismissApplyOperation,
-                copyApplyDiagnostics: store.copyApplyDiagnostics
-            )
+                        copyApplyDiagnostics: store.copyApplyDiagnostics
+                    ).disabled(store.isReconciling || store.isScanningDrift)
+                }
+            }.navigationTitle("Changes")
         case .projects:
             ProjectsView(
                 snapshot: snapshot,
@@ -573,10 +611,19 @@ private struct SidebarRow: View {
 
 private struct OverviewView: View {
     let snapshot: ManagementSnapshot
+    let settingsScope: AppSettingsScope
+    let settingsProfile: String
+    let settingsReviews: [String: AppSettingsReview]
+    let openAppSettings: () -> Void
+    let openRepository: () -> Void
     let openSoftware: (SoftwareScope) -> Void
     let openUpdates: () -> Void
     let openProjects: () -> Void
     let openConfigurationChanges: () -> Void
+    let drift: MachineDriftPlan?
+    let isScanningDrift: Bool
+    let driftError: String?
+    let reviewDrift: () -> Void
     let applyConfiguration: () -> Void
     let isApplying: Bool
     @State private var showingConfigurationDetails = false
@@ -604,10 +651,19 @@ private struct OverviewView: View {
                     applyConfiguration: applyConfiguration
                 )
 
+                MachineDriftOverviewCard(plan: drift, isScanning: isScanningDrift, error: driftError, review: reviewDrift)
+
                 LazyVGrid(
                     columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)],
                     spacing: 16
                 ) {
+                    SettingsOverviewCard(
+                        catalog: snapshot.appStateSettings,
+                        target: AppSettingsTarget(scope: settingsScope, profile: settingsProfile, hostname: snapshot.host.hostname),
+                        reviews: settingsReviews,
+                        openSettings: openAppSettings
+                    )
+                    RepositoryOverviewCard(git: snapshot.configuration.git, openRepository: openRepository)
                     SoftwareOverviewCard(snapshot: snapshot, openSoftware: openSoftware)
                     UpdatesOverviewCard(snapshot: snapshot, openUpdates: openUpdates)
                     ProjectsOverviewCard(snapshot: snapshot, openProjects: openProjects)
@@ -694,7 +750,7 @@ private struct OverviewStatusHero: View {
 
     private var title: String {
         switch snapshot.configuration.applyState {
-        case "current": "Everything is in sync"
+        case "current": "System configuration applied"
         case "pending": "Changes are ready to apply"
         default: "Finish setting up this Mac"
         }
@@ -706,7 +762,7 @@ private struct OverviewStatusHero: View {
         }
         let differences = snapshot.softwareDifferences
         if snapshot.configuration.applyState == "current" {
-            return "The repository and active system configuration match."
+            return "This checkout matches the applied system. App preferences and Git publishing are checked separately below."
         }
         if differences.isEmpty {
             return "Configuration files or project settings changed; no software selections changed."
@@ -1059,15 +1115,6 @@ private struct ConfigurationDetailsCard: View {
 }
 
 private struct HarnessStatusView: View {
-    private enum ApplicationFilter: String, CaseIterable, Identifiable {
-        case exportable
-        case privateState
-        case manual
-        case all
-
-        var id: Self { self }
-    }
-
     let status: AppStateStatus?
     let settings: AppStateSettingsCatalog?
     let hostname: String
@@ -1078,489 +1125,566 @@ private struct HarnessStatusView: View {
     let harnessNotice: String?
     let appSettingsError: String?
     let previewSettings: (String, AppSettingsScope, String?, Bool) async -> AppSettingsCaptureResponse?
-    let saveSettings: (String, AppSettingsScope, String?, Bool) async -> AppSettingsCaptureResponse?
+    let saveSettings: (String, AppSettingsScope, String?) async -> AppSettingsCaptureResponse?
     let clearSettingsError: () -> Void
     let enableHarness: () async -> Bool
     let applyConfiguration: () -> Void
     let revealFile: (String) -> Void
+    let openChanges: () -> Void
+    let openSoftware: () -> Void
 
     @State private var selectedApplicationID = ""
-    @State private var selectedScope = AppSettingsScope.shared
-    @State private var selectedProfile = ""
-    @State private var capturePreview: AppSettingsCaptureResponse?
+    @Binding var selectedScope: AppSettingsScope
+    @Binding var selectedProfile: String
+    let reviews: [String: AppSettingsReview]
+    let approvedSettingsAppIDs: Set<String>
+    let comparisonProgress: String?
+    let compareSettings: () -> Void
+    let checkUncheckedSettings: () -> Void
+    let stopCheckingSettings: () -> Void
+    let openOverview: () -> Void
+
+    private var capturePreview: AppSettingsCaptureResponse? { reviews[selectedApplicationID]?.response }
+    private var target: AppSettingsTarget {
+        AppSettingsTarget(scope: selectedScope, profile: selectedProfile, hostname: hostname)
+    }
     @State private var applicationSearch = ""
-    @State private var applicationFilter = ApplicationFilter.exportable
+    @State private var showingOtherApps = false
+    @State private var showingEmptyApps = false
+    @State private var showingAttention = false
+    @State private var showingDiagnostics = false
+    @State private var showingDestination = false
+    @State private var draftScope = AppSettingsScope.machine
+    @State private var draftProfile = ""
+    @State private var pendingSettingsAction: String?
+    @State private var detailReadRequested = false
+    @State private var showingInspectorDetails = false
+    @State private var resolvingAccess: AppSettingsReadFailure?
+
+    private var reviewPhase: AppSettingsReviewPhase {
+        reviews[selectedApplicationID]?.phase ?? .unreviewed
+    }
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Application state")
-                            .font(.system(size: 34, weight: .semibold, design: .rounded))
-                        Text("Inspect managed state and save reviewed settings into this configuration")
-                            .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 28) {
+                HStack(alignment: .top, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Make your apps feel like yours.")
+                            .font(.system(size: 30, weight: .semibold))
+                        Text("Keep your preferences in the repository, ready for your next Mac.")
+                            .font(.callout).foregroundStyle(.secondary)
                     }
-                    Spacer()
-                    StatusBadge(label: statusLabel, color: statusColor, symbol: statusSymbol)
+                    Spacer(minLength: 12)
+                    Menu {
+                        Button("Check All Apps Again", systemImage: "arrow.clockwise", action: compareSettings)
+                            .disabled(isCapturing)
+                        Button("Apply & Diagnostics", systemImage: "gearshape") { showingDiagnostics = true }
+                        Button("Apps & Packages", systemImage: "square.stack.3d.up", action: openSoftware)
+                    } label: {
+                        Image(systemName: "ellipsis").frame(width: 28, height: 28)
+                    }
+                    .menuStyle(.borderlessButton).fixedSize()
+                    .help("App settings options")
                 }
 
-                if let status {
-                    harnessSetupCard
+                collectionSummary
 
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 170), spacing: 14)], spacing: 14) {
-                        HarnessMetricCard(
-                            title: "Configured integrations",
-                            value: status.configuredRecipeCount,
-                            symbol: "list.bullet.rectangle",
-                            tint: status.configuredRecipeCount == nil ? .secondary : .blue
-                        )
-                        HarnessMetricCard(
-                            title: "Configuration drift",
-                            value: status.driftCount,
-                            symbol: "arrow.left.arrow.right",
-                            tint: countTint(status.driftCount)
-                        )
-                        HarnessMetricCard(
-                            title: "Manual residue",
-                            value: status.manualResidueCount,
-                            symbol: "hand.raised.fill",
-                            tint: countTint(status.manualResidueCount)
-                        )
-                        HarnessMetricCard(
-                            title: "Verified integrations",
-                            value: status.verification.verifiedRecipeCount,
-                            symbol: "checkmark.seal.fill",
-                            tint: status.verification.verifiedRecipeCount == nil ? .secondary : .green
-                        )
-                        HarnessMetricCard(
-                            title: "Unverified integrations",
-                            value: status.verification.unverifiedRecipeCount,
-                            symbol: "questionmark.diamond.fill",
-                            tint: countTint(status.verification.unverifiedRecipeCount)
-                        )
+                HStack(spacing: 12) {
+                    Text("Keeping settings for").foregroundStyle(.secondary)
+                    Button {
+                        draftScope = selectedScope
+                        draftProfile = selectedProfile
+                        showingDestination = true
+                    } label: {
+                        Label(target.shortLabel, systemImage: "chevron.down")
                     }
-
-                    SectionCard(title: "Engine", symbol: "gearshape.2.fill") {
-                        Label(
-                            status.engine.available ? "Engine ready" : "Engine unavailable",
-                            systemImage: status.engine.available ? "checkmark.circle.fill" : "xmark.circle.fill"
-                        )
-                        .font(.headline)
-                        .foregroundStyle(status.engine.available ? .green : .orange)
-                        Text(engineDescription(status.engine))
-                            .foregroundStyle(.secondary)
-                    }
-
-                    SectionCard(title: "Last apply", symbol: "clock.arrow.circlepath") {
-                        if status.lastApply.status == nil {
-                            Label("No apply history yet", systemImage: "clock.badge.questionmark")
-                                .font(.headline)
-                            Text("Apply the configuration once to activate the harness and record its first result.")
-                                .foregroundStyle(.secondary)
-                        } else {
-                            DetailRow(label: "Result", value: applyResult(status.lastApply.status))
-                            DetailRow(label: "Time", value: applyTime(status.lastApply.time))
-                            DetailRow(label: "Message", value: status.lastApply.message ?? "No message")
-                        }
-                    }
-
-                    settingsCaptureCard
-
-                    SectionCard(title: "Notes and warnings", symbol: "info.circle.fill") {
-                        if displayWarnings.isEmpty {
-                            Label("No harness warnings", systemImage: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
-                        } else {
-                            ForEach(displayWarnings, id: \.self) { warning in
-                                if isVerificationWarning(warning) {
-                                    Label(friendlyWarning(warning), systemImage: "info.circle.fill")
-                                        .foregroundStyle(.secondary)
-                                } else {
-                                    Label(warning, systemImage: "exclamationmark.circle")
-                                        .foregroundStyle(.orange)
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    ContentUnavailableView {
-                        Label("Harness status unavailable", systemImage: "questionmark.circle")
-                    } description: {
-                        Text("This snapshot predates the optional app-state status contract. Refresh after updating the management API.")
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 360)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(OxidePalette.green)
+                    .disabled(isCapturing || isApplying || settings == nil)
+                    Spacer(minLength: 12)
+                    TextField("Find an app", text: $applicationSearch)
+                        .textFieldStyle(.roundedBorder).frame(maxWidth: 240)
                 }
+                .font(.callout)
+
+                settingsCollection
             }
-            .padding(28)
+            .padding(24)
         }
         .navigationTitle("App Settings")
-        .onAppear(perform: initializeSettingsSelection)
+        .sheet(isPresented: $showingDiagnostics) { diagnostics }
+        .sheet(isPresented: $showingDestination) { destinationPicker }
+        .sheet(isPresented: Binding(
+            get: { !selectedApplicationID.isEmpty },
+            set: { if !$0 { selectedApplicationID = "" } }
+        )) { appInspector }
+        .onAppear {
+            initializeSettingsSelection()
+            continueChecking()
+        }
+        .onDisappear(perform: stopCheckingSettings)
         .onChange(of: settings?.applications.filter(\.installed).map(\.id) ?? []) { _, _ in
             initializeSettingsSelection()
+            continueChecking()
         }
-        .onChange(of: selectedApplicationID) { _, _ in
-            capturePreview = nil
+        .onChange(of: selectedApplicationID) { _, value in
             clearSettingsError()
+            detailReadRequested = false
+            showingInspectorDetails = false
+            resolvingAccess = nil
+            if value.isEmpty {
+                continueChecking()
+            } else {
+                stopCheckingSettings()
+                previewSelectedAppIfNeeded()
+            }
         }
-        .onChange(of: selectedScope) { _, _ in
-            capturePreview = nil
+        .onChange(of: isCapturing) { _, busy in
+            if !busy {
+                if selectedApplicationID.isEmpty { continueChecking() }
+                else { previewSelectedAppIfNeeded() }
+            }
+        }
+        .onChange(of: target) { _, _ in
             clearSettingsError()
+            detailReadRequested = false
+            resolvingAccess = nil
+            if selectedApplicationID.isEmpty { continueChecking() }
+            else { previewSelectedAppIfNeeded() }
         }
-        .onChange(of: selectedProfile) { _, _ in
-            capturePreview = nil
-            clearSettingsError()
+    }
+
+    private var collectionSummary: some View {
+        HStack(alignment: .center, spacing: 18) {
+            Image(systemName: comparisonProgress != nil ? "arrow.triangle.2.circlepath" : "slider.horizontal.3")
+                .font(.system(size: 28, weight: .light))
+                .foregroundStyle(OxidePalette.green)
+                .frame(width: 56, height: 56)
+                .background(OxidePalette.green.opacity(0.10), in: RoundedRectangle(cornerRadius: 12))
+            VStack(alignment: .leading, spacing: 6) {
+                Text(collectionHeadline).font(.title3.weight(.semibold))
+                if let comparisonProgress {
+                    Text("Checking \(comparisonProgress). You can open an app while this runs.")
+                        .font(.callout).foregroundStyle(.secondary)
+                } else {
+                    Text("Open an app to see what is different. Nothing is saved automatically.")
+                        .font(.callout).foregroundStyle(.secondary)
+                }
+            }
+            Spacer(minLength: 8)
+            if let settings {
+                let summary = AppSettingsSummary(applications: settings.applications, target: target, reviews: reviews)
+                VStack(alignment: .trailing, spacing: 5) {
+                    Text("\(summary.exportedCount) saved copies").font(.callout.weight(.medium))
+                    Text("\(summary.uncheckedCount) not checked").font(.caption).foregroundStyle(.secondary)
+                }
+            }
         }
-        .onChange(of: applicationFilter) { _, _ in selectFirstVisibleApplication() }
-        .onChange(of: applicationSearch) { _, _ in selectFirstVisibleApplication() }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(OxidePalette.panel)
+        .overlay(Rectangle().stroke(OxidePalette.border))
+    }
+
+    private var collectionHeadline: String {
+        let changed = installedApplications.filter { cardState($0).collection == .changes }.count
+        if changed > 0 { return "\(changed) \(changed == 1 ? "app has" : "apps have") changes to keep" }
+        if comparisonProgress != nil { return "Finding your unsaved preferences" }
+        let ready = installedApplications.filter { reviews[$0.id]?.phase == .ready }.count
+        if ready > 0 { return "\(ready) \(ready == 1 ? "app is" : "apps are") ready for a first save" }
+        if reviews.values.contains(where: { [.unchanged, .saved].contains($0.phase) }) {
+            return "Your checked preferences are saved"
+        }
+        return "Keep the settings that matter to you"
+    }
+
+    private func continueChecking() {
+        guard selectedApplicationID.isEmpty, !isCapturing, !invalidProfileSelection else { return }
+        if installedApplications.contains(where: {
+            $0.canCheckSettingsAutomatically && reviews[$0.id] == nil
+        }) { checkUncheckedSettings() }
+    }
+
+    private func previewSelectedAppIfNeeded() {
+        guard !isCapturing, !detailReadRequested, let application = selectedApplication,
+            application.canCheckSettingsAutomatically || approvedSettingsAppIDs.contains(application.id),
+            reviews[application.id] == nil else { return }
+        detailReadRequested = true
+        runSettingsAction(application, saving: false)
+    }
+
+    private var destinationPicker: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("Who should use these settings?").font(.title2.weight(.semibold))
+            Text("This chooses where the copy is saved. It does not change any app on this Mac.")
+                .foregroundStyle(.secondary)
+            Picker("Save for", selection: $draftScope) {
+                ForEach(availableScopes) { scope in
+                    Text(scope == .machine ? "This Mac" : scope.label).tag(scope)
+                }
+            }
+            .pickerStyle(.segmented)
+            if draftScope == .profile {
+                Picker("Profile", selection: $draftProfile) {
+                    ForEach(settings?.activeProfiles ?? [], id: \.self) { Text($0).tag($0) }
+                }
+            }
+            Text(destinationDescription(scope: draftScope, profile: draftProfile))
+                .font(.callout)
+            DisclosureGroup("File location") {
+                Text(AppSettingsTarget(scope: draftScope, profile: draftProfile, hostname: hostname).destination)
+                    .font(.caption.monospaced()).textSelection(.enabled).padding(.top, 6)
+            }
+            Text("Changing this choice clears the current reviews so you can check against the new saved copy.")
+                .font(.caption).foregroundStyle(.secondary)
+            HStack {
+                Button("Cancel") { showingDestination = false }
+                    .keyboardShortcut(.cancelAction)
+                Spacer()
+                Button("Use This Location") {
+                    selectedScope = draftScope
+                    selectedProfile = draftProfile
+                    showingDestination = false
+                }
+                .buttonStyle(OxideButtonStyle(variant: .primary))
+                .disabled(draftScope == .profile && draftProfile.isEmpty)
+            }
+        }
+        .padding(24)
+        .frame(width: 510)
+        .background(OxidePalette.background)
     }
 
     @ViewBuilder
     private var harnessSetupCard: some View {
         if let settings, !settings.enabled {
-            SectionCard(title: "Set up the harness", symbol: "switch.2") {
-                VStack(alignment: .leading, spacing: 12) {
-                    Label("Ready to enable", systemImage: "checkmark.circle.fill")
+            HStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Label("Saving is available. Applying app settings is not enabled.", systemImage: "switch.2")
                         .font(.headline)
-                        .foregroundStyle(.green)
-                    Text("The app-state engine is already installed with Nix Me. Enable it for this Mac, then review the standard administrator prompt to apply it now.")
-                        .foregroundStyle(.secondary)
-                    Text("This changes config/app-state/machines/\(hostname)/enabled. It does not stage, commit, or push the repository change.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    HStack {
-                        Button("Enable and Apply…", systemImage: "power") {
-                            Task {
-                                if await enableHarness() {
-                                    applyConfiguration()
-                                }
-                            }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(isEnabling || isApplying)
-
-                        if isEnabling {
-                            ProgressView()
-                                .controlSize(.small)
-                            Text("Updating configuration…")
-                                .foregroundStyle(.secondary)
+                    Text(
+                        "Enable for \(hostname) when you want saved preferences applied during system updates. No Git commit or push is made."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button(isEnabling ? "Enabling…" : "Enable & Apply…", systemImage: "power") {
+                    Task {
+                        if await enableHarness() {
+                            showingDiagnostics = false
+                            applyConfiguration()
                         }
                     }
                 }
+                .buttonStyle(OxideButtonStyle(variant: .primary))
+                .disabled(isEnabling || isApplying)
             }
+            .oxidePanel()
         } else if settings?.enabled == true && configurationApplyState != "current" {
-            SectionCard(title: "Finish harness setup", symbol: "checkmark.circle.badge.questionmark") {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("The harness is enabled for this Mac, but the running system still uses the previous configuration.")
-                        .foregroundStyle(.secondary)
-                    Text("Applying activates the harness and creates its first status history.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    if let harnessNotice {
-                        Label(harnessNotice, systemImage: "checkmark.circle.fill")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Button("Apply Configuration", systemImage: "checkmark.circle") {
-                        applyConfiguration()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(isApplying || isEnabling)
+            HStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(
+                        configurationApplyState == "unknown"
+                            ? "System apply status is unavailable" : "This checkout has unapplied changes"
+                    )
+                    .font(.headline)
+                    Text(
+                        "App settings are enabled for \(hostname). Review all pending changes before applying; they may include more than app preferences."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 }
+                Spacer()
+                Button("Review Changes", systemImage: "arrow.right") {
+                    showingDiagnostics = false
+                    openChanges()
+                }
+                    .buttonStyle(OxideButtonStyle(variant: .secondary))
             }
+            .oxidePanel()
         }
     }
 
     @ViewBuilder
-    private var settingsCaptureCard: some View {
-        SectionCard(title: "Applications", symbol: "square.grid.2x2.fill") {
-            if let settings, !installedApplications.isEmpty {
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack {
-                        Text("Apps in this list can convert current settings into harness JSON. Reviewed-source apps ask before reading the file; select any app to see its exact boundary.")
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Text("\(installedApplicationCount) installed · \(exportableApplicationCount) exportable · \(privateApplicationCount) private · \(managedApplicationCount) integrations")
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(.secondary)
-                    }
-
-                    HStack(alignment: .top, spacing: 18) {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Picker("Applications", selection: $applicationFilter) {
-                                Text("Exportable \(exportableApplicationCount)")
-                                    .tag(ApplicationFilter.exportable)
-                                Text("Private \(privateApplicationCount)")
-                                    .tag(ApplicationFilter.privateState)
-                                Text("Manual \(manualApplicationCount)")
-                                    .tag(ApplicationFilter.manual)
-                                Text("All \(installedApplicationCount)")
-                                    .tag(ApplicationFilter.all)
-                            }
-                            .pickerStyle(.segmented)
-
-                            Text(applicationFilterDescription)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-
-                            TextField("Search this list", text: $applicationSearch)
-                                .textFieldStyle(.roundedBorder)
-
-                            ScrollView {
-                                LazyVStack(spacing: 6) {
-                                    if filteredApplications.isEmpty {
-                                        ContentUnavailableView.search(text: applicationSearch)
-                                            .frame(maxWidth: .infinity, minHeight: 220)
-                                    } else {
-                                        ForEach(filteredApplications) { application in
-                                            applicationListRow(application)
-                                        }
-                                    }
-                                }
-                            }
-                            .frame(minWidth: 270, idealWidth: 310, maxWidth: 340, minHeight: 390, maxHeight: 500)
-                        }
-
-                        Divider()
-
-                        if let application = selectedApplication {
-                            applicationDetails(application, settings: settings)
-                                .frame(maxWidth: .infinity, alignment: .topLeading)
-                        } else {
-                            ContentUnavailableView {
-                                Label("Select an application", systemImage: "app.dashed")
-                            } description: {
-                                Text("Choose an application to inspect its loaded configuration and export boundary.")
-                            }
-                            .frame(maxWidth: .infinity, minHeight: 390)
-                        }
-                    }
+    private var settingsCollection: some View {
+        if settings == nil || installedApplications.isEmpty {
+            ContentUnavailableView(
+                settings == nil ? "App settings could not be loaded" : "No installed apps found",
+                systemImage: "app.dashed", description: Text("Refresh to try again."))
+        } else {
+            let visible = searchedApplications
+            let attention = visible.filter { cardState($0).collection == .attention }
+            if !attention.isEmpty {
+                DisclosureGroup(isExpanded: $showingAttention) {
+                    Text("Nothing was saved for these apps. Open one to see why it could not be checked.")
+                        .font(.callout).foregroundStyle(.secondary).padding(.vertical, 12)
+                    appGrid(attention)
+                } label: {
+                    Label("\(attention.count) \(attention.count == 1 ? "app needs" : "apps need") attention", systemImage: "exclamationmark.circle")
+                        .font(.callout.weight(.medium)).foregroundStyle(OxidePalette.amber)
                 }
-            } else if settings == nil {
-                ContentUnavailableView {
-                    Label("Settings catalog unavailable", systemImage: "questionmark.folder")
-                } description: {
-                    Text("Refresh after updating the app-state engine and management API.")
+            }
+            ForEach([AppSettingsCollection.changes, .newApps, .saved]) { collection in
+                let applications = visible.filter { cardState($0).collection == collection }
+                if !applications.isEmpty {
+                    applicationCollection(collection, applications: applications)
                 }
-                .frame(maxWidth: .infinity, minHeight: 150)
-            } else {
-                ContentUnavailableView {
-                    Label("No applications found", systemImage: "tray")
-                } description: {
-                    Text("Applications installed in /Applications or ~/Applications will appear here after refresh.")
+            }
+            let empty = visible.filter { cardState($0).collection == .empty }
+            if !empty.isEmpty {
+                DisclosureGroup("Nothing to save yet (\(empty.count))", isExpanded: $showingEmptyApps) {
+                    Text(AppSettingsCollection.empty.subtitle)
+                        .font(.callout).foregroundStyle(.secondary).padding(.vertical, 12)
+                    appGrid(empty)
                 }
-                .frame(maxWidth: .infinity, minHeight: 150)
+                .font(.callout.weight(.medium))
+            }
+            let others = visible.filter { cardState($0).collection == .unavailable }
+            if !others.isEmpty {
+                DisclosureGroup("Other installed apps (\(others.count))", isExpanded: $showingOtherApps) {
+                    Text("These apps cannot save preferences automatically. Open one to learn why.")
+                        .font(.callout).foregroundStyle(.secondary).padding(.vertical, 12)
+                    appGrid(others)
+                }
+                .font(.callout.weight(.medium))
+            }
+            if visible.isEmpty {
+                ContentUnavailableView.search(text: applicationSearch)
             }
         }
     }
 
-    private func applicationListRow(_ application: AppStateSettingsApplication) -> some View {
-        let selected = application.id == selectedApplicationID
+    private func applicationCollection(
+        _ collection: AppSettingsCollection, applications: [AppStateSettingsApplication]
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text(collection.rawValue).font(.title3.weight(.semibold))
+                Text("\(applications.count)").font(.callout.monospaced()).foregroundStyle(.secondary)
+            }
+            Text(collection.subtitle).font(.callout).foregroundStyle(.secondary)
+            appGrid(applications)
+        }
+    }
+
+    private func appGrid(_ applications: [AppStateSettingsApplication]) -> some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 270, maximum: 420), spacing: 14)], alignment: .leading, spacing: 14) {
+            ForEach(applications) { application in
+                applicationCard(application)
+            }
+        }
+    }
+
+    private func cardState(_ application: AppStateSettingsApplication) -> AppSettingsCardState {
+        AppSettingsCardState(application: application, target: target, review: reviews[application.id],
+            readApproved: approvedSettingsAppIDs.contains(application.id))
+    }
+
+    private func readAccess(_ application: AppStateSettingsApplication) -> AppSettingsReadAccess {
+        AppSettingsReadAccess(application: application, approved: approvedSettingsAppIDs.contains(application.id))
+    }
+
+    private func applicationCard(_ application: AppStateSettingsApplication) -> some View {
+        let state = cardState(application)
         return Button {
             selectedApplicationID = application.id
         } label: {
-            HStack(spacing: 11) {
-                applicationIcon(application, size: 34)
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(application.name)
-                        .font(.callout.weight(.semibold))
-                        .lineLimit(1)
-                    Text(application.bundleId)
-                        .font(.caption2.monospaced())
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 12) {
+                    applicationIcon(application, size: 44)
+                    Text(application.name).font(.headline).lineLimit(2)
+                    Spacer(minLength: 0)
                 }
-
-                Spacer(minLength: 8)
-
-                if application.configured {
-                    Image(systemName: "checkmark.seal.fill")
-                        .font(.caption)
-                        .foregroundStyle(.green)
-                        .help("Saved configuration loaded")
+                Text(state.summary).font(.callout).foregroundStyle(.secondary)
+                    .lineLimit(2).frame(height: 36, alignment: .topLeading)
+                HStack {
+                    Text(state.action).font(.callout.weight(.medium))
+                    Spacer()
+                    Image(systemName: "arrow.up.right").font(.caption.weight(.semibold))
                 }
-
-                Label(applicationListLabel(application), systemImage: applicationListSymbol(application))
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(applicationListColor(application))
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 4)
-                    .background(applicationListColor(application).opacity(0.12), in: Capsule())
+                .foregroundStyle(state.collection == .attention ? OxidePalette.amber : OxidePalette.green)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 9)
+            .padding(18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(OxidePalette.panel)
+            .overlay(Rectangle().stroke(OxidePalette.border))
             .contentShape(Rectangle())
-            .background(
-                selected ? Color.accentColor.opacity(0.16) : Color.clear,
-                in: RoundedRectangle(cornerRadius: 10, style: .continuous)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(selected ? Color.accentColor.opacity(0.45) : Color.clear, lineWidth: 1)
-            }
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(application.name), \(applicationListLabel(application))")
-        .accessibilityHint(application.configured ? "Saved configuration loaded" : "No saved configuration loaded")
+        .accessibilityLabel("\(application.name), \(state.summary), \(state.action)")
     }
+
+    private var searchedApplications: [AppStateSettingsApplication] {
+        let query = applicationSearch.trimmingCharacters(in: .whitespacesAndNewlines)
+        return installedApplications.filter {
+            query.isEmpty || $0.name.localizedCaseInsensitiveContains(query) || $0.bundleId.localizedCaseInsensitiveContains(query)
+        }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    @ViewBuilder
+    private var appInspector: some View {
+        if let application = selectedApplication, let settings {
+            VStack(spacing: 0) {
+                HStack(spacing: 12) {
+                    applicationIcon(application, size: 40)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(application.name).font(.title2.weight(.semibold))
+                        Text(resolvingAccess != nil ? "Resolve Access" : showingInspectorDetails ? "Files & details" : "App preferences")
+                            .font(.callout).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    if application.capturable && !readAccess(application).requiresApproval && resolvingAccess == nil {
+                        Button("Check for newer changes", systemImage: "arrow.clockwise") {
+                            runSettingsAction(application, saving: false)
+                        }
+                        .labelStyle(.iconOnly).buttonStyle(.borderless)
+                        .help("Check for newer changes").disabled(isCapturing)
+                    }
+                    if application.privateState == nil {
+                        Button(showingInspectorDetails || resolvingAccess != nil ? "Back to preferences" : "Details") {
+                            if resolvingAccess != nil { resolvingAccess = nil }
+                            else { showingInspectorDetails.toggle() }
+                        }
+                        .buttonStyle(OxideButtonStyle(variant: .ghost))
+                    }
+                    Button("Close", systemImage: "xmark") { selectedApplicationID = "" }
+                        .labelStyle(.iconOnly).buttonStyle(.borderless)
+                        .keyboardShortcut(.cancelAction)
+                }
+                .padding(20)
+                Divider()
+                ScrollView {
+                    Group {
+                        if let resolvingAccess {
+                            SettingsAccessView(application: application, failure: resolvingAccess,
+                                review: reviews[application.id], isChecking: isCapturing,
+                                canVerify: !readAccess(application).requiresApproval && !invalidProfileSelection,
+                                verify: { runSettingsAction(application, saving: false) },
+                                finish: { self.resolvingAccess = nil })
+                        } else if showingInspectorDetails {
+                            SettingsDetailsView(application: application, target: target,
+                                review: reviews[application.id], readAccess: readAccess(application), revealFile: revealFile)
+                        }
+                        else { applicationDetails(application, settings: settings) }
+                    }
+                    .padding(24).frame(maxWidth: .infinity, alignment: .topLeading)
+                }
+                .id("\(target.destination):\(showingInspectorDetails):\(resolvingAccess != nil)")
+                if application.capturable && resolvingAccess == nil {
+                    Divider()
+                    settingsActionBar(application)
+                }
+            }
+            .frame(width: 760, height: 720)
+            .background(OxidePalette.background)
+        }
+    }
+
+    private var diagnostics: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("Apply & Diagnostics").font(.title2.weight(.semibold))
+                Spacer()
+                Button("Done") { showingDiagnostics = false }
+                    .keyboardShortcut(.cancelAction)
+            }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Saving keeps a copy of your current preferences. Apply is the opposite: it sets up this Mac using the saved configuration.")
+                        .font(.callout).foregroundStyle(.secondary)
+                    harnessSetupCard
+                    StatusBadge(label: statusLabel, color: statusColor, symbol: statusSymbol)
+                    if let status {
+                        Text(engineDescription(status.engine)).foregroundStyle(.secondary)
+                        DetailRow(label: "Configured apps", value: status.configuredRecipeCount.map(String.init) ?? "Unknown")
+                        DetailRow(label: "Preferences that differ", value: status.driftCount.map(String.init) ?? "Unknown")
+                        DetailRow(
+                            label: "Manual actions remaining", value: status.manualResidueCount.map(String.init) ?? "Unknown")
+                        DetailRow(
+                            label: "Verified integrations",
+                            value: status.verification.verifiedRecipeCount.map(String.init) ?? "Unknown")
+                        DetailRow(
+                            label: "Not yet verified",
+                            value: status.verification.unverifiedRecipeCount.map(String.init) ?? "Unknown")
+                        Divider()
+                        Text("Last attempt to apply app settings").font(.headline)
+                        DetailRow(label: "Result", value: applyResult(status.lastApply.status))
+                        DetailRow(label: "Time", value: applyTime(status.lastApply.time))
+                        if let message = status.lastApply.message { Text(message).textSelection(.enabled) }
+                        if let harnessNotice { Text(harnessNotice).foregroundStyle(.secondary) }
+                        Divider()
+                        Text("Notes & warnings").font(.headline)
+                        if displayWarnings.isEmpty { Text("No additional warnings.").foregroundStyle(.secondary) }
+                        ForEach(displayWarnings, id: \.self) { warning in
+                            Label(friendlyWarning(warning), systemImage: "info.circle")
+                                .foregroundStyle(isVerificationWarning(warning) ? OxidePalette.secondary : OxidePalette.amber)
+                        }
+                    } else {
+                        Text(
+                            "App settings status is unavailable. Refresh the dashboard to retry. The app list remains available when its catalog can be loaded."
+                        )
+                    }
+                }
+            }
+        }
+        .padding(24)
+        .frame(width: 560, height: 560)
+        .background(OxidePalette.background)
+    }
+
 
     @ViewBuilder
     private func applicationDetails(
         _ application: AppStateSettingsApplication,
         settings: AppStateSettingsCatalog
     ) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top, spacing: 14) {
-                applicationIcon(application, size: 50)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(application.name)
-                        .font(.title2.weight(.semibold))
-                    Text(application.bundleId)
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
+        VStack(alignment: .leading, spacing: 20) {
+            if let message = reviews[application.id]?.error ?? appSettingsError {
+                appSettingsErrorCard(message).id("settings-error")
+            } else if reviews[application.id]?.noPreferences != nil {
+                VStack(alignment: .leading, spacing: 10) {
+                    Label("No preferences to save yet", systemImage: "info.circle").font(.headline)
+                    Text("Use \(application.name) and set your preferences first, then check again. Any existing saved copy is unchanged.")
+                        .font(.callout).foregroundStyle(.secondary)
                 }
-                Spacer()
-                StatusBadge(
-                    label: application.installed ? "Installed" : "Not installed",
-                    color: application.installed ? .green : .secondary,
-                    symbol: application.installed ? "checkmark.circle.fill" : "minus.circle"
-                )
-            }
-
-            HStack(spacing: 8) {
-                ApplicationPill(
-                    label: application.recipeAvailable ? "Integration available" : "Integration needed",
-                    color: application.recipeAvailable ? .blue : .orange
-                )
-                if application.privateState == nil {
-                    if application.configured {
-                        ApplicationPill(
-                            label: "\(application.configurationSources.count) loaded \(application.configurationSources.count == 1 ? "source" : "sources")",
-                            color: .green
-                        )
-                    } else {
-                        ApplicationPill(label: "No saved settings", color: .secondary)
-                    }
+                .padding(.vertical, 24)
+            } else if let capturePreview {
+                settingsPreview(capturePreview).id("settings-preview")
+            } else if application.capturable && !readAccess(application).requiresApproval {
+                HStack(spacing: 12) {
+                    ProgressView().controlSize(.small)
+                    Text("Finding the preferences you can keep…").font(.callout)
                 }
-                if let readiness = application.privateReadinessLabel {
-                    ApplicationPill(
-                        label: "Private state · \(readiness)",
-                        color: privateStateColor(application.privateState?.readiness ?? .unknown)
-                    )
-                } else if application.capturable {
-                    ApplicationPill(
-                        label: application.requiresExportConfirmation ? "Review before saving" : "Exportable to harness",
-                        color: application.requiresExportConfirmation ? .orange : .green
-                    )
-                } else if application.managedPaths.isEmpty, application.recipeAvailable {
-                    ApplicationPill(label: "Not exportable", color: .orange)
-                } else if application.recipeAvailable {
-                    ApplicationPill(label: "Manual authoring only", color: .secondary)
-                }
-            }
-
-            harnessExportCard(application, settings: settings)
-
-            if let appSettingsError {
-                appSettingsErrorCard(appSettingsError)
-            }
-
-            if let capturePreview {
-                settingsPreview(capturePreview)
-            }
-
-            if application.privateState == nil {
-                if let appPath = application.appPath {
-                    configurationReferenceRow(
-                        label: "Application",
-                        path: appPath,
-                        symbol: "app.fill",
-                        revealable: false
-                    )
-                }
-
-                if let recipePath = application.recipePath {
-                    configurationReferenceRow(
-                        label: "Management integration",
-                        path: recipePath,
-                        symbol: "doc.badge.gearshape",
-                        revealable: true
-                    )
-                }
-
-                ForEach(application.managedPaths, id: \.self) { path in
-                    configurationReferenceRow(
-                        label: "Managed configuration",
-                        path: path,
-                        symbol: "doc.text.fill",
-                        revealable: true
-                    )
-                }
-
-                if !application.manualSteps.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Manual setup")
-                            .font(.headline)
-                        ForEach(Array(application.manualSteps.enumerated()), id: \.offset) { index, step in
-                            Label(step, systemImage: "\(index + 1).circle.fill")
-                                .font(.callout)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .padding(12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
-                }
-            }
-
-            if application.privateState == nil {
-                Divider()
-
-                VStack(alignment: .leading, spacing: 9) {
-                    Text("Loaded configuration")
-                        .font(.headline)
-                    if application.configurationSources.isEmpty {
-                        Text(application.recipeAvailable
-                            ? "The integration is ready, but no shared, active-profile, machine, or built-in settings are currently loaded."
-                            : "This installed application does not have a Nix Me management integration yet, so no settings configuration is loaded.")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(application.configurationSources) { source in
-                            configurationReferenceRow(
-                                label: source.label,
-                                path: source.path,
-                                symbol: configurationSourceSymbol(source.scope),
-                                revealable: true
-                            )
-                        }
-                    }
-                }
-
+                .padding(.vertical, 24)
+            } else {
+                harnessExportCard(application, settings: settings)
             }
         }
     }
 
     private func appSettingsErrorCard(_ message: String) -> some View {
-        HStack(alignment: .top, spacing: 12) {
+        let failure = AppSettingsReadFailure(message: message)
+        return HStack(alignment: .top, spacing: 12) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.title3)
                 .foregroundStyle(.orange)
             VStack(alignment: .leading, spacing: 5) {
-                Text("Preview could not be created")
+                Text(failure.title)
                     .font(.headline)
-                Text(message)
+                Text(failure.guidance ?? message)
                     .font(.callout)
                     .foregroundStyle(.secondary)
+                    .lineLimit(4)
                     .textSelection(.enabled)
-                Text("Nothing was saved. Resolve the issue above, then try the preview again.")
+                Text("Nothing was saved. Your existing saved copy is unchanged.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Button("See error details") { showingInspectorDetails = true }
+                    .buttonStyle(.link)
             }
             Spacer()
-            Button("Dismiss", action: clearSettingsError)
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1594,45 +1718,37 @@ private struct HarnessStatusView: View {
                 in: RoundedRectangle(cornerRadius: 10)
             )
         } else if application.capturable {
-            VStack(alignment: .leading, spacing: 10) {
-                Label(
-                    application.requiresExportConfirmation ? "Review source, then save" : "Save current settings",
-                    systemImage: application.requiresExportConfirmation ? "doc.text.magnifyingglass" : "square.and.arrow.up.fill"
-                )
-                    .font(.headline)
-                    .foregroundStyle(application.requiresExportConfirmation ? .orange : .green)
-                Text(application.requiresExportConfirmation
-                    ? "Nix Me has not read this file. Choose where the settings should apply, then explicitly allow a local preview. Nothing is uploaded or saved until you choose Save to Harness."
-                    : "Choose where these settings should apply, preview the portable values, then save them to the harness. Nothing is written during preview.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-
-                if application.exportableSettings.count > 4 {
-                    DisclosureGroup("\(application.exportableSettings.count) exportable settings") {
-                        exportableSettingsList(application)
-                            .padding(.top, 8)
-                    }
-                    .font(.callout.weight(.semibold))
-                } else if !application.exportableSettings.isEmpty {
+            VStack(alignment: .leading, spacing: 14) {
+                Text(readAccess(application).requiresApproval ? "May Nix Me read this settings file?" : "Preview your settings")
+                    .font(.title3.weight(.semibold))
+                Text(readAccess(application).requiresApproval
+                    ? "Allow access to this settings file for this session. You will see its contents before deciding what to keep. Nothing is uploaded or saved automatically."
+                    : "See the preferences on this Mac and which are new or different from your saved copy. Reviewing does not change any files.")
+                    .font(.callout).foregroundStyle(.secondary)
+                if application.requiresExportConfirmation {
                     exportableSettingsList(application)
                 } else {
-                    ForEach(application.captureKinds, id: \.self) { kind in
-                        Label(exportKindDescription(kind), systemImage: exportKindSymbol(kind))
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
+                    Text("SETTINGS YOU CAN SAVE").oxideLabel(color: OxidePalette.secondary)
+                    if application.exportableSettings.isEmpty {
+                        ForEach(application.captureKinds, id: \.self) { kind in
+                            Text(exportKindDescription(kind)).font(.callout)
+                        }
+                    } else {
+                        ForEach(Array(application.exportableSettings.prefix(5))) { setting in
+                            Label(setting.label, systemImage: exportSettingSymbol(setting.kind))
+                                .font(.callout)
+                        }
+                        if application.exportableSettings.count > 5 {
+                            Text("Plus \(application.exportableSettings.count - 5) more. See Supported settings & file details below.")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
                     }
                 }
-
-                Divider()
-
-                settingsCaptureControls(application, settings: settings)
             }
-            .padding(12)
+            .padding(18)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                (application.requiresExportConfirmation ? Color.orange : Color.green).opacity(0.08),
-                in: RoundedRectangle(cornerRadius: 10)
-            )
+            .background(OxidePalette.panel)
+            .overlay(Rectangle().stroke(OxidePalette.border))
         } else if application.recipeAvailable, !application.managedPaths.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
                 Label("Manual authoring only", systemImage: "doc.badge.ellipsis")
@@ -1686,9 +1802,13 @@ private struct HarnessStatusView: View {
                             .foregroundStyle(.secondary)
                             .textSelection(.enabled)
                         if setting.requiresConfirmation == true {
-                            Label("Not read until you choose Allow Read & Show Preview", systemImage: "hand.raised.fill")
+                            Label(
+                                readAccess(application).requiresApproval
+                                    ? "Permission needed before reading" : "Read access allowed for this session",
+                                systemImage: readAccess(application).requiresApproval ? "hand.raised.fill" : "checkmark.shield"
+                            )
                                 .font(.caption2)
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(readAccess(application).requiresApproval ? OxidePalette.amber : OxidePalette.green)
                         }
                     }
                 }
@@ -1705,15 +1825,6 @@ private struct HarnessStatusView: View {
         }
     }
 
-    private func exportKindSymbol(_ kind: String) -> String {
-        switch kind {
-        case "defaults": "switch.2"
-        case "file": "doc.text.fill"
-        case "command": "list.bullet.rectangle"
-        default: "square.and.arrow.up"
-        }
-    }
-
     private func exportKindDescription(_ kind: String) -> String {
         switch kind {
         case "defaults": "Declared application preferences"
@@ -1723,127 +1834,78 @@ private struct HarnessStatusView: View {
         }
     }
 
-    @ViewBuilder
-    private func settingsCaptureControls(
-        _ application: AppStateSettingsApplication,
-        settings: AppStateSettingsCatalog
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if !application.installed {
-                Label("Install this application before exporting its current settings.", systemImage: "arrow.down.app")
-                    .foregroundStyle(.secondary)
-            } else if !application.recipeAvailable {
-                Label("A management integration is required before Nix Me can safely read or apply this application's settings.", systemImage: "doc.badge.plus")
-                    .foregroundStyle(.orange)
-            } else if !application.capturable {
-                Label(nonCapturableDescription(application), systemImage: "hand.raised.fill")
-                    .foregroundStyle(.secondary)
+    private func settingsActionBar(_ application: AppStateSettingsApplication) -> some View {
+        HStack(spacing: 20) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    Text("Save for").font(.callout).foregroundStyle(.secondary)
+                    Menu {
+                        Button("This Mac (\(hostname))") { selectedScope = .machine }
+                        Button("All machines") { selectedScope = .shared }
+                        if let profiles = settings?.activeProfiles, !profiles.isEmpty {
+                            Divider()
+                            ForEach(profiles, id: \.self) { profile in
+                                Button("Profile: \(profile)") {
+                                    selectedProfile = profile
+                                    selectedScope = .profile
+                                }
+                            }
+                        }
+                    } label: {
+                        Text(target.shortLabel).font(.callout.weight(.medium)).foregroundStyle(OxidePalette.green)
+                    }
+                    .fixedSize().menuStyle(.borderlessButton).disabled(isCapturing)
+                }
+                Text("Local repository only. Nothing is uploaded.").font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+            if isCapturing {
+                ProgressView().controlSize(.small)
+                Text(pendingSettingsAction?.hasPrefix("Saving") == true ? "Saving…" : "Checking…")
+                    .font(.callout).foregroundStyle(.secondary)
+            } else if reviewPhase == .ready {
+                Button(target.isExported(application) ? "Save changes" : "Save settings", systemImage: "square.and.arrow.down") {
+                    runSettingsAction(application, saving: true)
+                }
+                .buttonStyle(OxideButtonStyle(variant: .primary)).disabled(invalidProfileSelection)
+            } else if readAccess(application).requiresApproval {
+                Button(readAccess(application).previewLabel, systemImage: readAccess(application).previewSymbol) {
+                    runSettingsAction(application, saving: false)
+                }
+                .buttonStyle(OxideButtonStyle(variant: .primary)).disabled(invalidProfileSelection)
+            } else if let message = reviews[application.id]?.error, AppSettingsReadFailure(message: message).isAccessDenied {
+                Button("Resolve Access", systemImage: "lock.open") {
+                    showingInspectorDetails = false
+                    resolvingAccess = AppSettingsReadFailure(message: message)
+                }
+                .buttonStyle(OxideButtonStyle(variant: .primary))
+            } else if [.failed, .needsUpdate, .unreviewed].contains(reviewPhase) {
+                Button(reviewPhase == .failed ? "Try again" : "Check again", systemImage: "arrow.clockwise") {
+                    runSettingsAction(application, saving: false)
+                }
+                .buttonStyle(OxideButtonStyle(variant: .primary)).disabled(invalidProfileSelection)
             } else {
-                Text("1. Choose where these settings apply")
-                    .font(.callout.weight(.semibold))
-
-                Picker("Scope", selection: $selectedScope) {
-                    ForEach(availableScopes) { scope in
-                        Text(scope.label).tag(scope)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 430)
-
-                if selectedScope == .profile {
-                    Picker("Profile", selection: $selectedProfile) {
-                        ForEach(settings.activeProfiles, id: \.self) { profile in
-                            Text(profile).tag(profile)
-                        }
-                    }
-                    .frame(maxWidth: 300)
-                }
-
-                Text(scopeDescription)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-
-                Divider()
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(application.requiresExportConfirmation
-                        ? "2. Allow a local read and review the preview"
-                        : "2. Review the preview")
-                        .font(.callout.weight(.semibold))
-                    Text(application.requiresExportConfirmation
-                        ? "This reads the exact source file shown above into Nix Me. The contents stay on this Mac and are not written to the harness yet."
-                        : "Nix Me reads only the portable settings listed above. The preview is not written to the harness.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                HStack(spacing: 10) {
-                    Button(
-                        application.requiresExportConfirmation
-                            ? "Allow Read & Show Preview"
-                            : "Show Settings Preview",
-                        systemImage: application.requiresExportConfirmation
-                            ? "hand.thumbsup.fill"
-                            : "doc.text.magnifyingglass"
-                    ) {
-                        Task {
-                            capturePreview = await previewSettings(
-                                application.id,
-                                selectedScope,
-                                selectedScope == .profile ? selectedProfile : nil,
-                                application.requiresExportConfirmation
-                            )
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(isCapturing || invalidProfileSelection)
-
-                    if isCapturing {
-                        ProgressView()
-                            .controlSize(.small)
-                        Text("Reading exportable settings…")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                Text("3. Inspect the complete preview, then choose Save to Harness.")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.secondary)
+                Button("Back to apps", systemImage: "checkmark") { selectedApplicationID = "" }
+                    .buttonStyle(OxideButtonStyle(variant: .primary))
             }
         }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(OxidePalette.panel)
     }
 
-    private func configurationReferenceRow(
-        label: String,
-        path: String,
-        symbol: String,
-        revealable: Bool
-    ) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: symbol)
-                .frame(width: 18)
-                .foregroundStyle(.secondary)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(label)
-                    .font(.caption.weight(.semibold))
-                Text(path)
-                    .font(.caption2.monospaced())
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                    .textSelection(.enabled)
-            }
-            Spacer()
-            if revealable {
-                Button("Reveal", systemImage: "folder") {
-                    revealFile(path)
-                }
-                .labelStyle(.iconOnly)
-                .buttonStyle(.borderless)
-                .help("Reveal \(path)")
+    private func runSettingsAction(_ application: AppStateSettingsApplication, saving: Bool) {
+        let scope = selectedScope
+        let profile = scope == .profile ? selectedProfile : nil
+        pendingSettingsAction = saving ? "Saving \(application.name) settings…" : "Reading \(application.name) settings…"
+        Task {
+            defer { pendingSettingsAction = nil }
+            if saving {
+                _ = await saveSettings(application.id, scope, profile)
+            } else {
+                _ = await previewSettings(application.id, scope, profile, readAccess(application).requiresApproval)
             }
         }
-        .padding(10)
-        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 9))
     }
 
     @ViewBuilder
@@ -1864,122 +1926,76 @@ private struct HarnessStatusView: View {
 
     @ViewBuilder
     private func settingsPreview(_ preview: AppSettingsCaptureResponse) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(preview.destination)
-                        .font(.system(.callout, design: .monospaced))
-                        .textSelection(.enabled)
-                    Text(preview.message)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+        if let application = selectedApplication, let review = reviews[application.id] {
+            let summary = AppSettingsDetailSummary(application: application, target: target, review: review)
+            VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 10) {
+                    if [.saved, .unchanged].contains(review.phase) {
+                        Image(systemName: "checkmark.circle.fill").font(.system(size: 32)).foregroundStyle(OxidePalette.green)
+                    }
+                    Text(summary.title).font(.system(size: 24, weight: .semibold))
+                    Text(summary.message).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
-                Spacer()
-                StatusBadge(
-                    label: preview.written ? "Saved" : (preview.changed ? "Changes found" : "Already current"),
-                    color: preview.written || !preview.changed ? .green : .blue,
-                    symbol: preview.written || !preview.changed ? "checkmark.circle.fill" : "pencil.circle.fill"
-                )
-            }
-
-            if !preview.tracked {
-                Label(
-                    "This settings file is local to this checkout. Apply uses it immediately; commit it when you want to share it.",
-                    systemImage: "info.circle.fill"
-                )
-                .font(.callout)
-                .foregroundStyle(.secondary)
-            }
-
-            HStack(spacing: 16) {
-                Label("\(preview.captured.reduce(0) { $0 + $1.valueCount }) captured values", systemImage: "checkmark.circle")
-                if preview.redaction.count > 0 {
-                    Label("\(preview.redaction.count) secrets omitted", systemImage: "hand.raised.fill")
-                        .foregroundStyle(.orange)
+                HStack(spacing: 14) {
+                    settingsCopyCard("This Mac", value: "Current preferences", symbol: "laptopcomputer")
+                    Image(systemName: preview.changed && !preview.written ? "arrow.right" : "checkmark")
+                        .foregroundStyle(OxidePalette.green)
+                    settingsCopyCard("Repository · \(target.shortLabel)", value: summary.repositoryStatus, symbol: "folder")
                 }
-                if !preview.skipped.isEmpty {
-                    Label("\(preview.skipped.count) unsupported sources", systemImage: "questionmark.circle")
-                        .foregroundStyle(.secondary)
+                if preview.written {
+                    Button("Review repository changes", systemImage: "arrow.right") {
+                        selectedApplicationID = ""
+                        openOverview()
+                    }
+                    .buttonStyle(.link)
                 }
-            }
-            .font(.caption)
-
-            ScrollView {
-                Text(preview.preview)
-                    .font(.system(.caption, design: .monospaced))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .textSelection(.enabled)
-                    .padding(12)
-            }
-            .frame(maxHeight: 230)
-            .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
-            .overlay {
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(Color(nsColor: .separatorColor).opacity(0.5), lineWidth: 1)
-            }
-
-            if !preview.skipped.isEmpty {
-                DisclosureGroup("Skipped sources") {
-                    VStack(alignment: .leading, spacing: 6) {
-                        ForEach(preview.skipped) { item in
-                            Text("\(item.bind ?? item.kind): \(item.reason)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                if let comparison = preview.comparison {
+                    SettingsPropertyComparisonView(comparison: comparison, written: preview.written,
+                        settings: application.exportableSettings)
+                } else {
+                    Text("Preferences in this preview").font(.headline)
+                    Text(preview.preview)
+                        .font(.caption.monospaced()).textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                let unread = preview.skipped.filter { $0.kind != "manual" }
+                if !unread.isEmpty {
+                    DisclosureGroup("\(unread.count) \(unread.count == 1 ? "source couldn't" : "sources couldn't") be read; those settings won't be saved") {
+                        ForEach(unread) { item in
+                            Text(item.reason).font(.caption).textSelection(.enabled).padding(.top, 6)
+                            if AppSettingsReadFailure(message: item.reason).isAccessDenied {
+                                Button("Resolve Access") {
+                                    resolvingAccess = AppSettingsReadFailure(message: "\(item.bind ?? item.kind): \(item.reason)")
+                                }
+                                .buttonStyle(.link)
+                            }
                         }
                     }
-                    .padding(.top, 6)
+                    .font(.callout).foregroundStyle(OxidePalette.amber)
                 }
-            }
-
-            HStack {
-                Button("Save to Harness", systemImage: "square.and.arrow.down") {
-                    Task {
-                        capturePreview = await saveSettings(
-                            selectedApplicationID,
-                            selectedScope,
-                            selectedScope == .profile ? selectedProfile : nil,
-                            selectedApplication?.requiresExportConfirmation == true
-                        )
-                    }
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "info.circle")
+                    Text("Only the supported preferences shown here are included, not the app's entire setup.")
+                    Button("What's included?") { showingInspectorDetails = true }.buttonStyle(.link)
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(isCapturing || !preview.changed || preview.written)
-
-                if preview.written || !preview.changed {
-                    Button("Reveal File", systemImage: "folder") {
-                        revealFile(preview.destination)
-                    }
+                .font(.caption).foregroundStyle(.secondary)
+                if preview.redaction.count > 0 {
+                    Label("\(preview.redaction.count) sensitive values excluded", systemImage: "lock.shield")
+                        .font(.caption).foregroundStyle(OxidePalette.amber)
                 }
             }
         }
     }
 
-    private var filteredApplications: [AppStateSettingsApplication] {
-        let applications = installedApplications.filter { application in
-            switch applicationFilter {
-            case .exportable:
-                application.settingsCategory == .exportable
-            case .privateState:
-                application.settingsCategory == .privateState
-            case .manual:
-                application.settingsCategory == .manual
-            case .all:
-                true
-            }
+    private func settingsCopyCard(_ title: String, value: String, symbol: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(title, systemImage: symbol).font(.caption).foregroundStyle(.secondary)
+            Text(value).font(.callout.weight(.medium))
         }
-        let query = applicationSearch.trimmingCharacters(in: .whitespacesAndNewlines)
-        let matches = query.isEmpty ? applications : applications.filter {
-            $0.name.localizedCaseInsensitiveContains(query)
-                || $0.bundleId.localizedCaseInsensitiveContains(query)
-        }
-        return matches.sorted {
-            let leftRank = applicationCapabilityRank($0)
-            let rightRank = applicationCapabilityRank($1)
-            if leftRank != rightRank { return leftRank < rightRank }
-            if $0.configured != $1.configured { return $0.configured }
-            return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
-        }
+        .frame(maxWidth: .infinity, alignment: .leading).padding(16)
+        .background(OxidePalette.panel).overlay(Rectangle().stroke(OxidePalette.border))
     }
+
 
     private var selectedApplication: AppStateSettingsApplication? {
         installedApplications.first { $0.id == selectedApplicationID }
@@ -1987,43 +2003,6 @@ private struct HarnessStatusView: View {
 
     private var installedApplications: [AppStateSettingsApplication] {
         settings?.applications.filter(\.installed) ?? []
-    }
-
-    private var installedApplicationCount: Int {
-        installedApplications.count
-    }
-
-    private var managedApplicationCount: Int {
-        installedApplications.filter(\.recipeAvailable).count
-    }
-
-    private var exportableApplicationCount: Int {
-        installedApplications.filter { $0.settingsCategory == .exportable }.count
-    }
-
-    private var privateApplicationCount: Int {
-        installedApplications.filter { $0.settingsCategory == .privateState }.count
-    }
-
-    private var manualApplicationCount: Int {
-        installedApplications.filter { $0.settingsCategory == .manual }.count
-    }
-
-    private var unsupportedApplicationCount: Int {
-        installedApplications.filter { $0.settingsCategory == .unsupported }.count
-    }
-
-    private var applicationFilterDescription: String {
-        switch applicationFilter {
-        case .exportable:
-            "Settings that Nix Me can read, preview, and save into the harness."
-        case .privateState:
-            "Private integrations report readiness without exposing account identity, credentials, sessions, or command output."
-        case .manual:
-            "Integrated apps that require manual setup or manual configuration-file authoring."
-        case .all:
-            "Includes \(unsupportedApplicationCount) installed apps without a management integration."
-        }
     }
 
     private var availableScopes: [AppSettingsScope] {
@@ -2035,67 +2014,22 @@ private struct HarnessStatusView: View {
         selectedScope == .profile && selectedProfile.isEmpty
     }
 
-    private var scopeDescription: String {
-        switch selectedScope {
+    private func destinationDescription(scope: AppSettingsScope, profile: String) -> String {
+        switch scope {
         case .shared:
-            "Shared settings apply to every machine using this configuration."
+            "Share these preferences with every machine using this repository."
         case .profile:
-            "Profile settings apply only when the \(selectedProfile.isEmpty ? "selected" : selectedProfile) profile is active."
+            "Share these preferences with machines using the \(profile.isEmpty ? "selected" : profile) profile."
         case .machine:
-            "Machine settings apply only to \(hostname) and override shared and profile settings."
+            "Keep a copy specifically for \(hostname). Other machines keep their own preferences."
         }
     }
 
     private func initializeSettingsSelection() {
-        selectFirstVisibleApplication()
         let profiles = settings?.activeProfiles ?? []
-        if !profiles.contains(selectedProfile) {
-            selectedProfile = profiles.first ?? ""
-        }
-        if selectedScope == .profile && profiles.isEmpty {
-            selectedScope = .shared
-        }
-    }
-
-    private func selectFirstVisibleApplication() {
-        let applications = filteredApplications
-        if !applications.contains(where: { $0.id == selectedApplicationID }) {
-            selectedApplicationID = applications.first?.id ?? ""
-        }
-    }
-
-    private func applicationCapabilityRank(_ application: AppStateSettingsApplication) -> Int {
-        if application.capturable { return 0 }
-        if application.privateState != nil { return 1 }
-        if application.recipeAvailable, !application.managedPaths.isEmpty { return 2 }
-        if application.recipeAvailable { return 3 }
-        return 4
-    }
-
-    private func applicationListLabel(_ application: AppStateSettingsApplication) -> String {
-        if application.requiresExportConfirmation { return "Review first" }
-        if application.capturable { return "Exportable" }
-        if let readiness = application.privateReadinessLabel { return "Private · \(readiness)" }
-        if application.recipeAvailable, !application.managedPaths.isEmpty { return "Manual file" }
-        return "Not exportable"
-    }
-
-    private func applicationListSymbol(_ application: AppStateSettingsApplication) -> String {
-        if application.requiresExportConfirmation { return "doc.text.magnifyingglass" }
-        if application.capturable { return "square.and.arrow.up.fill" }
-        if application.privateState != nil { return "lock.shield.fill" }
-        if application.recipeAvailable, !application.managedPaths.isEmpty { return "doc.badge.ellipsis" }
-        return "nosign"
-    }
-
-    private func applicationListColor(_ application: AppStateSettingsApplication) -> Color {
-        if application.requiresExportConfirmation { return .orange }
-        if application.capturable { return .green }
-        if let privateState = application.privateState {
-            return privateStateColor(privateState.readiness)
-        }
-        if application.recipeAvailable, !application.managedPaths.isEmpty { return .secondary }
-        return .orange
+        if !profiles.contains(selectedProfile) { selectedProfile = profiles.first ?? "" }
+        if selectedScope == .profile && profiles.isEmpty { selectedScope = .machine }
+        if !selectedApplicationID.isEmpty && selectedApplication == nil { selectedApplicationID = "" }
     }
 
     private func privateStateColor(_ readiness: AppStatePrivateReadiness) -> Color {
@@ -2114,28 +2048,10 @@ private struct HarnessStatusView: View {
         }
     }
 
-    private func nonCapturableDescription(_ application: AppStateSettingsApplication) -> String {
-        if application.managedPaths.isEmpty {
-            return "This app keeps credentials, cloud state, licenses, or opaque data outside a safe portable boundary. Follow the documented manual setup; Nix Me will not copy that state into the repository."
-        }
-        return "This app uses an unstructured configuration file. Nix Me can apply reviewed settings, but it will not automatically capture opaque or executable content."
-    }
-
-    private func configurationSourceSymbol(_ scope: String) -> String {
-        switch scope {
-        case "builtIn": "shippingbox.fill"
-        case "shared": "desktopcomputer"
-        case "profile": "person.crop.circle"
-        case "machine": "laptopcomputer"
-        case "external": "doc.badge.plus"
-        default: "doc.fill"
-        }
-    }
-
     private var statusLabel: String {
         guard let status else { return "Status unavailable" }
         if settings?.enabled == true && configurationApplyState != "current" {
-            return "Ready to apply"
+            return configurationApplyState == "unknown" ? "Apply status unknown" : "Unapplied changes"
         }
         if !status.engine.available { return "Engine unavailable" }
         if status.hasUnavailableCounts { return "Status incomplete" }
@@ -2172,11 +2088,6 @@ private struct HarnessStatusView: View {
             return warning != "The last app-state apply status is unavailable"
                 && warning != "The persisted app-state status is unavailable"
         }
-    }
-
-    private func countTint(_ count: Int?) -> Color {
-        guard let count else { return .secondary }
-        return count == 0 ? .green : .orange
     }
 
     private func applyResult(_ result: String?) -> String {
@@ -4906,38 +4817,6 @@ private struct MetricCard: View {
         .onHover { isHovered = $0 }
         .accessibilityLabel("\(title), \(value)")
         .accessibilityHint("Open details")
-    }
-}
-
-private struct HarnessMetricCard: View {
-    let title: String
-    let value: Int?
-    let symbol: String
-    let tint: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Image(systemName: symbol)
-                .font(.title2)
-                .foregroundStyle(tint)
-            if let value {
-                Text(value, format: .number)
-                    .font(.system(size: 30, weight: .semibold, design: .monospaced))
-            } else {
-                Text("Unavailable")
-                    .font(.system(size: 20, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(OxidePalette.secondary)
-            }
-            Text(title)
-                .font(.system(.caption, design: .monospaced))
-                .foregroundStyle(OxidePalette.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(18)
-        .background(OxidePalette.panel.opacity(0.86))
-        .overlay(Rectangle().stroke(OxidePalette.border, lineWidth: 1))
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(title), \(value.map(String.init) ?? "unavailable")")
     }
 }
 

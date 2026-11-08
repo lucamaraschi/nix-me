@@ -9,6 +9,7 @@
     ./fonts.nix
     ./keyboard.nix
     ./management-api.nix
+    ./machine-state.nix
     ./project-sync.nix
     ./shell.nix
     ./system.nix

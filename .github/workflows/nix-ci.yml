@@ -10,6 +10,8 @@ on:
       - "nix/**"
       - "packages/app-state/engine/**"
       - "packages/management-api/**"
+      - "config/machine-state/**"
+      - "tests/integration/machine-state-eval.nix"
       - "tools/automation/**"
       - "tools/installation/**"
       - "Makefile"
@@ -25,6 +27,8 @@ on:
       - "nix/**"
       - "packages/app-state/engine/**"
       - "packages/management-api/**"
+      - "config/machine-state/**"
+      - "tests/integration/machine-state-eval.nix"
       - "tools/automation/**"
       - "tools/installation/**"
       - "Makefile"
@@ -45,6 +49,8 @@ jobs:
         run: tools/automation/check-nix-host-matrix.sh
       - name: Check flake outputs
         run: nix flake check --no-build
+      - name: Check reviewed machine overrides
+        run: nix eval --impure --json --file tests/integration/machine-state-eval.nix
       - name: Check profile boundaries and app installation
         run: |
           test "$(nix eval .#darwinConfigurations.vm-test.config.apps.state.enable)" = "true"

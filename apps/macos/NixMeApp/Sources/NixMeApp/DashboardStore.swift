@@ -21,6 +21,7 @@ struct ApplyOperationState: Equatable {
 @MainActor
 final class DashboardStore: ObservableObject {
     @Published var selectedSection: DashboardSection = .overview
+    @Published var reviewingMachineDrift = false
     @Published private(set) var snapshot: ManagementSnapshot?
     @Published private(set) var setupStatus: ConfigurationSetupStatus?
     @Published private(set) var configurationGraph: ConfigurationGraph?
@@ -34,6 +35,12 @@ final class DashboardStore: ObservableObject {
     @Published private(set) var isLocalAIModelActionRunning = false
     @Published private(set) var isCapturingSettings = false
     @Published private(set) var isEnablingHarness = false
+    @Published private(set) var machineDrift: MachineDriftPlan?
+    @Published private(set) var machineDriftError: String?
+    @Published private(set) var machineDriftResult: MachineDriftResult?
+    @Published private(set) var machineDriftProgress: String?
+    @Published private(set) var isScanningDrift = false
+    @Published private(set) var isReconciling = false
     @Published private(set) var applyOperation: ApplyOperationState?
     @Published private(set) var localAIModelOperation: LocalAIModelOperation?
     @Published private(set) var updatingItemCount = 0
@@ -42,6 +49,29 @@ final class DashboardStore: ObservableObject {
     @Published private(set) var updateNoticeDetails: String?
     @Published private(set) var harnessNotice: String?
     @Published private(set) var appSettingsError: String?
+    @Published var settingsScope = AppSettingsScope.machine {
+        didSet { if settingsScope != oldValue { clearSettingsReviews() } }
+    }
+    @Published var settingsProfile = "" {
+        didSet { if settingsProfile != oldValue { clearSettingsReviews() } }
+    }
+    @Published private(set) var settingsReviews: [String: AppSettingsReview] = [:]
+    @Published private var settingsReadApprovals = AppSettingsReadApprovals()
+    @Published private(set) var isComparingSettings = false
+    @Published private(set) var settingsComparisonProgress: String?
+    private var stopSettingsComparisonRequested = false
+
+    var approvedSettingsAppIDs: Set<String> {
+        guard let snapshot, let directory = client?.configurationDirectory else { return [] }
+        return Set((snapshot.appStateSettings?.applications ?? []).filter {
+            settingsReadApprovals.contains($0, checkout: directory.path, hostname: snapshot.host.hostname)
+        }.map(\.id))
+    }
+
+    private func clearSettingsReviews() {
+        settingsReviews = [:]
+        appSettingsError = nil
+    }
 
     private var client: ManagementAPIClient?
     private var monitoringTask: Task<Void, Never>?
@@ -60,8 +90,9 @@ final class DashboardStore: ObservableObject {
         }
     }
 
-    func refresh() async {
-        guard !isLoading else { return }
+    func refresh(preservingSettingsReviews: Bool = false) async {
+        guard !isLoading, !isComparingSettings, !isCapturingSettings, !isReconciling, !isScanningDrift else { return }
+        if !preservingSettingsReviews { clearSettingsReviews() }
         isLoading = true
         errorMessage = nil
 
@@ -73,6 +104,7 @@ final class DashboardStore: ObservableObject {
             snapshot = nil
             configurationGraph = nil
             configurationGraphError = nil
+            machineDrift = nil
             isLoading = false
             return
         }
@@ -88,6 +120,11 @@ final class DashboardStore: ObservableObject {
             self.client = client
             let snapshot = try await client.snapshot()
             self.snapshot = snapshot
+            machineDrift = nil
+            await scanMachineDrift()
+            let profiles = snapshot.appStateSettings?.activeProfiles ?? []
+            if !profiles.contains(settingsProfile) { settingsProfile = profiles.first ?? "" }
+            if settingsScope == .profile && profiles.isEmpty { settingsScope = .machine }
             do {
                 configurationGraph = try await client.configurationGraph(
                     hostname: snapshot.host.hostname,
@@ -110,6 +147,63 @@ final class DashboardStore: ObservableObject {
         NSWorkspace.shared.open(directory)
     }
 
+    func scanMachineDrift() async {
+        guard !isScanningDrift, !isReconciling, !isApplying, !isUpdating,
+              let snapshot, let directory = client?.configurationDirectory else { return }
+        isScanningDrift = true
+        machineDriftError = nil
+        defer { isScanningDrift = false }
+        do {
+            machineDrift = try await ManagementActionClient(configurationDirectory: directory)
+                .machineDrift("scan", hostname: snapshot.host.hostname)
+        } catch {
+            machineDrift = nil
+            machineDriftError = error.localizedDescription
+        }
+    }
+
+    func previewMachineFiles(_ request: MachineDriftRequest) async throws -> MachineDriftPreview {
+        guard !isReconciling, !isApplying, !isLoading, !isScanningDrift,
+              let snapshot, let directory = client?.configurationDirectory else {
+            throw ManagementAPIError.invalidResponse("Wait for the current operation to finish.")
+        }
+        return try await ManagementActionClient(configurationDirectory: directory)
+            .machineDrift("preview", hostname: snapshot.host.hostname, request: request)
+    }
+
+    func prepareMachineChanges(_ request: MachineDriftRequest) async throws -> MachineDriftProposal {
+        guard !isReconciling, !isApplying, !isUpdating, !isLoading, !isScanningDrift,
+              let snapshot, let directory = client?.configurationDirectory else {
+            throw ManagementAPIError.invalidResponse("Wait for the current operation to finish.")
+        }
+        return try await ManagementActionClient(configurationDirectory: directory)
+            .machineDrift("prepare", hostname: snapshot.host.hostname, request: request)
+    }
+
+    func reconcileMachine(_ command: String, request: MachineDriftRequest) async {
+        guard ["keep", "restore"].contains(command), !isReconciling, !isLoading, !isScanningDrift,
+              !isApplying, !isUpdating, !isCapturingSettings, !isComparingSettings, !isSavingProject,
+              let snapshot, let directory = client?.configurationDirectory else { return }
+        isReconciling = true
+        machineDriftError = nil
+        machineDriftResult = nil
+        machineDriftProgress = "Rechecking the selected changes…"
+        do {
+            machineDriftResult = try await ManagementActionClient(configurationDirectory: directory)
+                .machineDrift(command, hostname: snapshot.host.hostname, request: request, onProgress: { [weak self] line in
+                    Task { @MainActor in self?.machineDriftProgress = line }
+                })
+        } catch {
+            machineDriftError = error.localizedDescription
+        }
+        isReconciling = false
+        machineDriftProgress = nil
+        let actionError = machineDriftError
+        // Refresh also replaces the review token so an old selection cannot be reused.
+        await refresh(preservingSettingsReviews: true)
+        if let actionError { machineDriftError = actionError }
+    }
+
     func openInstallationGuide() {
         NSWorkspace.shared.open(ConfigurationBootstrap.installationGuideURL)
     }
@@ -128,7 +222,7 @@ final class DashboardStore: ObservableObject {
     }
 
     func cloneDefaultConfiguration() async {
-        guard !isConfiguring else { return }
+        guard !isConfiguring, !isReconciling, !isScanningDrift else { return }
         isConfiguring = true
         let destination = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".config/nixpkgs", isDirectory: true)
@@ -144,7 +238,7 @@ final class DashboardStore: ObservableObject {
 
     func updateConfigurationCheckout() async {
         guard
-            !isConfiguring,
+            !isConfiguring, !isReconciling, !isScanningDrift,
             setupStatus?.canUpdateCheckout == true,
             let directory = setupStatus?.configurationDirectory
         else { return }
@@ -215,7 +309,7 @@ final class DashboardStore: ObservableObject {
     }
 
     func updateSoftware(_ updates: [SoftwareUpdate]) async {
-        guard !updates.isEmpty, !isUpdating, !isApplying, !isLoading else { return }
+        guard !updates.isEmpty, !isUpdating, !isApplying, !isLoading, !isReconciling, !isScanningDrift else { return }
         isUpdating = true
         updatingItemCount = updates.count
         updateNotice = nil
@@ -243,13 +337,15 @@ final class DashboardStore: ObservableObject {
 
         await refresh()
         isUpdating = false
+        await scanMachineDrift()
         updatingItemCount = 0
         updateNotice = notice
     }
 
     func applyConfiguration() async {
-        guard !isApplying, !isUpdating, !isLoading, let snapshot else { return }
+        guard !isApplying, !isUpdating, !isLoading, !isReconciling, !isScanningDrift, let snapshot else { return }
         selectedSection = .configurationChanges
+        reviewingMachineDrift = false
         isApplying = true
         updateNotice = nil
         updateNoticeDetails = nil
@@ -308,6 +404,7 @@ final class DashboardStore: ObservableObject {
             }
         }
         isApplying = false
+        await scanMachineDrift()
     }
 
     func dismissApplyOperation() {
@@ -348,7 +445,7 @@ final class DashboardStore: ObservableObject {
     }
 
     func syncProjects() async {
-        guard !isSyncingProjects, !isApplying, !isUpdating, !isLoading, let snapshot else { return }
+        guard !isSyncingProjects, !isApplying, !isUpdating, !isLoading, !isReconciling, !isScanningDrift, let snapshot else { return }
         isSyncingProjects = true
         updateNotice = nil
         var notice: String
@@ -379,7 +476,7 @@ final class DashboardStore: ObservableObject {
     }
 
     func saveProject(_ project: ProjectConfigurationInput) async throws -> ProjectConfigurationResponse {
-        guard !isSavingProject, !isSyncingProjects, !isApplying, !isLoading, let snapshot else {
+        guard !isSavingProject, !isSyncingProjects, !isApplying, !isLoading, !isReconciling, !isScanningDrift, let snapshot else {
             throw ManagementAPIError.invalidResponse("Project configuration is busy")
         }
         isSavingProject = true
@@ -399,7 +496,7 @@ final class DashboardStore: ObservableObject {
     }
 
     func enableHarness() async -> Bool {
-        guard !isEnablingHarness, !isApplying, !isLoading, let snapshot else { return false }
+        guard !isEnablingHarness, !isApplying, !isLoading, !isReconciling, !isScanningDrift, let snapshot else { return false }
         isEnablingHarness = true
         updateNotice = nil
         harnessNotice = nil
@@ -426,7 +523,7 @@ final class DashboardStore: ObservableObject {
         profile: String?,
         confirmReviewedText: Bool
     ) async -> AppSettingsCaptureResponse? {
-        guard !isCapturingSettings, let snapshot else { return nil }
+        guard !isCapturingSettings, !isLoading, !isApplying, !isReconciling, !isScanningDrift, let snapshot else { return nil }
         isCapturingSettings = true
         appSettingsError = nil
         defer { isCapturingSettings = false }
@@ -434,26 +531,71 @@ final class DashboardStore: ObservableObject {
             let managementClient = try client ?? ManagementAPIClient()
             self.client = managementClient
             let actionClient = ManagementActionClient(configurationDirectory: managementClient.configurationDirectory)
-            return try await actionClient.previewSettings(
+            if confirmReviewedText, let application = snapshot.appStateSettings?.applications.first(where: { $0.id == appId }) {
+                settingsReadApprovals.grant(application, checkout: managementClient.configurationDirectory.path,
+                    hostname: snapshot.host.hostname)
+            }
+            let response = try await actionClient.previewSettings(
                 appId: appId,
                 scope: scope,
                 profile: profile,
                 hostname: snapshot.host.hostname,
-                confirmReviewedText: confirmReviewedText
+                confirmReviewedText: approvedSettingsAppIDs.contains(appId)
             )
+            settingsReviews[appId] = AppSettingsReview(response: response, error: nil, checkedAt: Date())
+            return response
+        } catch AppSettingsCaptureError.noPreferences(let message) {
+            settingsReviews[appId] = AppSettingsReview(response: nil, error: nil, noPreferences: message, checkedAt: Date())
+            return nil
         } catch {
             appSettingsError = appSettingsFailureMessage(error)
+            settingsReviews[appId] = AppSettingsReview(response: nil, error: appSettingsError, checkedAt: Date())
             return nil
+        }
+    }
+
+    func stopComparingAppSettings() {
+        stopSettingsComparisonRequested = true
+    }
+
+    func compareAppSettings(onlyUnchecked: Bool = false) async {
+        guard !isComparingSettings, !isCapturingSettings, !isLoading, !isApplying, !isReconciling, !isScanningDrift,
+              let catalog = snapshot?.appStateSettings else { return }
+        let applications = catalog.applications.filter {
+            $0.canCheckSettingsAutomatically
+                && (!onlyUnchecked || settingsReviews[$0.id] == nil)
+        }
+        guard !applications.isEmpty else { return }
+        stopSettingsComparisonRequested = false
+        isComparingSettings = true
+        defer {
+            isComparingSettings = false
+            settingsComparisonProgress = nil
+            appSettingsError = nil
+        }
+        for (index, app) in applications.enumerated() {
+            if stopSettingsComparisonRequested || Task.isCancelled { break }
+            settingsComparisonProgress = "\(index + 1)/\(applications.count): \(app.name)"
+            _ = await previewAppSettings(
+                appId: app.id, scope: settingsScope,
+                profile: settingsScope == .profile ? settingsProfile : nil,
+                confirmReviewedText: false
+            )
         }
     }
 
     func saveAppSettings(
         appId: String,
         scope: AppSettingsScope,
-        profile: String?,
-        confirmReviewedText: Bool
+        profile: String?
     ) async -> AppSettingsCaptureResponse? {
-        guard !isCapturingSettings, let snapshot else { return nil }
+        guard !isCapturingSettings, !isComparingSettings, !isReconciling, !isScanningDrift, let snapshot else { return nil }
+        guard let review = settingsReviews[appId]?.response,
+              review.scope == scope, review.profile == profile,
+              let reviewToken = review.reviewToken else {
+            appSettingsError = "Compare these settings with the current management API before saving."
+            return nil
+        }
         isCapturingSettings = true
         appSettingsError = nil
         do {
@@ -465,15 +607,18 @@ final class DashboardStore: ObservableObject {
                 scope: scope,
                 profile: profile,
                 hostname: snapshot.host.hostname,
-                confirmReviewedText: confirmReviewedText
+                confirmReviewedText: approvedSettingsAppIDs.contains(appId),
+                reviewToken: reviewToken
             )
             harnessNotice = response.message
             isCapturingSettings = false
-            await refresh()
+            await refresh(preservingSettingsReviews: true)
+            settingsReviews[appId] = AppSettingsReview(response: response, error: nil, checkedAt: Date())
             return response
         } catch {
             isCapturingSettings = false
             appSettingsError = appSettingsFailureMessage(error)
+            settingsReviews[appId] = AppSettingsReview(response: nil, error: appSettingsError, checkedAt: Date())
             return nil
         }
     }

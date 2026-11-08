@@ -133,13 +133,23 @@ append_configuration_source() {
   local scope="$2"
   local label="$3"
   local file="$4"
-  local relative_path
+  local app_id="$5"
+  local relative_path property_paths='null'
   relative_path="$(configuration_relative_path "$file")"
+  if [[ "$file" == *.json ]]; then
+    property_paths="$(jq -c --arg appId "$app_id" '
+      def leaves($p): if type == "object" and length > 0 then
+        to_entries[] | .key as $key | .value | leaves($p + [$key]) else $p end;
+      [.[$appId] | leaves([]) | select(length > 0) |
+        "/" + (map(gsub("~"; "~0") | gsub("/"; "~1")) | join("/"))]
+    ' "$file" 2>/dev/null)" || property_paths='null'
+  fi
   jq -c \
     --arg scope "$scope" \
     --arg label "$label" \
     --arg path "$relative_path" \
-    '. + [{scope: $scope, label: $label, path: $path}]' <<<"$sources"
+    --argjson propertyPaths "$property_paths" \
+    '. + [{scope: $scope, label: $label, path: $path, propertyPaths: $propertyPaths}]' <<<"$sources"
 }
 
 application_configuration_sources() {
@@ -164,7 +174,7 @@ application_configuration_sources() {
             config/app-state/machines/*) scope=machine; label="This machine" ;;
             *) scope=external; label="Additional values" ;;
           esac
-          sources="$(append_configuration_source "$sources" "$scope" "$label" "$file")"
+          sources="$(append_configuration_source "$sources" "$scope" "$label" "$file" "$app_id")"
         fi
       done < <(find "$values_path" -type f \( -name '*.json' -o -name '*.yaml' -o -name '*.yml' \) -print 2>/dev/null | sort)
     elif [[ -f "$values_path" ]] && values_file_has_application "$values_path" "$app_id"; then
@@ -180,7 +190,7 @@ application_configuration_sources() {
         config/app-state/machines/*) scope=machine; label="This machine" ;;
         *) scope=external; label="Additional values" ;;
       esac
-      sources="$(append_configuration_source "$sources" "$scope" "$label" "$values_path")"
+      sources="$(append_configuration_source "$sources" "$scope" "$label" "$values_path" "$app_id")"
     fi
   done
 

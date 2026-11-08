@@ -174,6 +174,42 @@ struct AppSettingsCaptureResponse: Codable {
     let captured: [AppSettingsCaptureEntry]
     let skipped: [AppSettingsSkippedEntry]
     let message: String
+    let reviewToken: String?
+    let comparison: AppSettingsComparison?
+}
+
+enum AppSettingsCaptureError: LocalizedError {
+    case noPreferences(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .noPreferences(let message): message
+        }
+    }
+}
+
+struct AppSettingsComparison: Codable {
+    let properties: [AppSettingsProperty]
+    let preservedCount: Int
+    var differenceCount: Int { properties.filter { [.notSaved, .different].contains($0.status) }.count }
+}
+
+struct AppSettingsProperty: Codable, Identifiable {
+    enum Status: String, Codable {
+        case notSaved, different, matching, preserved
+        var label: String {
+            switch self {
+            case .notSaved: "Not saved here"
+            case .different: "Different"
+            case .matching: "Matches"
+            case .preserved: "Saved value kept"
+            }
+        }
+    }
+    let path: String
+    let currentValue: String
+    let status: Status
+    var id: String { path }
 }
 
 struct AppSettingsRedaction: Codable {
@@ -264,6 +300,7 @@ private struct AppSettingsCaptureRequest: Codable {
     let scope: AppSettingsScope
     let profile: String?
     let confirmReviewedText: Bool
+    let reviewToken: String?
 }
 
 struct ManagementActionClient {
@@ -286,6 +323,21 @@ struct ManagementActionClient {
             named: "nix-me-action",
             configurationDirectory: configurationDirectory
         )
+    }
+
+    func machineDrift<T: Decodable>(
+        _ command: String, hostname: String, request: MachineDriftRequest? = nil,
+        onProgress: (@Sendable (String) -> Void)? = nil
+    ) async throws -> T {
+        let executable = ManagementBackend.executable(named: "nix-me-drift", configurationDirectory: configurationDirectory)
+        let data = try await run(action: executable, command: command,
+            request: try request.map { try JSONEncoder().encode($0) } ?? Data(),
+            additionalEnvironment: ["NIX_ME_HOSTNAME": hostname], onStandardErrorLine: onProgress)
+        let header = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        guard header?["schemaVersion"] as? Int == 1 else {
+            throw ManagementAPIError.invalidResponse("Unsupported machine-drift response version.")
+        }
+        return try JSONDecoder().decode(T.self, from: data)
     }
 
     func update(_ items: [SoftwareUpdate]) async throws -> UpdateActionResponse {
@@ -764,7 +816,8 @@ struct ManagementActionClient {
         scope: AppSettingsScope,
         profile: String?,
         hostname: String,
-        confirmReviewedText: Bool
+        confirmReviewedText: Bool,
+        reviewToken: String
     ) async throws -> AppSettingsCaptureResponse {
         try await runSettings(
             command: "settings-save",
@@ -772,7 +825,8 @@ struct ManagementActionClient {
             scope: scope,
             profile: profile,
             hostname: hostname,
-            confirmReviewedText: confirmReviewedText
+            confirmReviewedText: confirmReviewedText,
+            reviewToken: reviewToken
         )
     }
 
@@ -782,7 +836,8 @@ struct ManagementActionClient {
         scope: AppSettingsScope,
         profile: String?,
         hostname: String,
-        confirmReviewedText: Bool
+        confirmReviewedText: Bool,
+        reviewToken: String? = nil
     ) async throws -> AppSettingsCaptureResponse {
         let action = actionExecutable
         let request = try JSONEncoder().encode(
@@ -790,7 +845,8 @@ struct ManagementActionClient {
                 appId: appId,
                 scope: scope,
                 profile: scope == .profile ? profile : nil,
-                confirmReviewedText: confirmReviewedText
+                confirmReviewedText: confirmReviewedText,
+                reviewToken: reviewToken
             )
         )
         let data = try await run(
@@ -911,6 +967,11 @@ struct ManagementActionClient {
                         let message = structuredMessage?["message"] as? String
                             ?? (stderrMessage?.isEmpty == false ? stderrMessage : nil)
                             ?? "Unknown action error"
+                        if ["settings-preview", "settings-save"].contains(command),
+                           structuredMessage?["code"] as? String == "no_preferences" {
+                            continuation.resume(throwing: AppSettingsCaptureError.noPreferences(message))
+                            return
+                        }
                         continuation.resume(throwing: ManagementAPIError.commandFailed(process.terminationStatus, message))
                         return
                     }

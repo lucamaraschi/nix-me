@@ -150,6 +150,7 @@ jq -e '
     all(.configurationSources[];
       (.scope | IN("builtIn", "shared", "profile", "machine", "external")) and
       (.label | type == "string") and
+      (.propertyPaths == null or (.propertyPaths | type == "array")) and
       (.path | type == "string"))) and
   any(.appStateSettings.applications[];
     .bundleId == "com.example.UnsupportedFixture" and

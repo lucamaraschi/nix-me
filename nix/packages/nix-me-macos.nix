@@ -8,6 +8,7 @@
 , jq
 , nix
 , gnumake
+, python3
 }:
 
 swiftPackages.stdenv.mkDerivation {
@@ -21,6 +22,7 @@ swiftPackages.stdenv.mkDerivation {
         ../../apps/macos/NixMeApp
         (lib.fileset.maybeMissing ../../apps/macos/NixMeApp/.build))
       ../../packages/management-api/bin
+      ../../nix/modules/darwin/machine-state.nix
     ];
   };
 
@@ -97,7 +99,10 @@ swiftPackages.stdenv.mkDerivation {
       packages/management-api/bin/nix-me-api \
       packages/management-api/bin/nix-me-action \
       packages/management-api/bin/nix-me-details \
+      packages/management-api/bin/nix-me-drift \
       "$contents/Resources/management-api/"
+    install -m 0644 packages/management-api/bin/machine_drift.py "$contents/Resources/management-api/"
+    install -m 0644 nix/modules/darwin/machine-state.nix "$contents/Resources/management-api/"
     ${lib.optionalString includeAppStateEngine ''
       install -m 0755 \
         ${nixMeApps}/bin/nix-me-apps \
@@ -113,7 +118,7 @@ swiftPackages.stdenv.mkDerivation {
       /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.nix-me.setup" "$contents/Info.plist"
       /usr/libexec/PlistBuddy -c "Add :NixMeSetupOnly bool true" "$contents/Info.plist"
     ''}
-    /usr/libexec/PlistBuddy -c "Add :NixMeRuntimePath string '${lib.makeBinPath [ git jq nix gnumake ]}'" "$contents/Info.plist"
+    /usr/libexec/PlistBuddy -c "Add :NixMeRuntimePath string '${lib.makeBinPath [ git jq nix gnumake python3 ]}'" "$contents/Info.plist"
     /usr/bin/plutil -lint "$contents/Info.plist" >/dev/null
 
     runHook postInstall

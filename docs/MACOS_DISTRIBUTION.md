@@ -17,7 +17,8 @@ apps.manager.enable = false;
 The `nix-me-macos` package builds only from the native app and management API
 sources, bundles the matching `nix-me-apps` engine, and ad-hoc signs the final
 application after Nix fixups. Activation copies the signed bundle to
-`/Applications/Nix Me.app`, records its Nix source under `/var/db/nix-me`, and
+an installation staging directory, signs it with the user's existing certificate
+when available, then moves it to `/Applications/Nix Me.app`. It records its Nix source under `/var/db/nix-me` and
 registers it with Launch Services. Nix reuses the store result until one of
 those inputs changes and reinstalls the matching app when the system generation
 is switched or rolled back.
@@ -121,7 +122,7 @@ environment deployment policy.
 
 ## Local validation
 
-Development builds stay ad-hoc signed:
+Development builds automatically reuse a certificate identity when available:
 
 ```bash
 make app-run
@@ -132,3 +133,51 @@ To exercise a Developer ID build locally, set `CODE_SIGN_IDENTITY`,
 `APP_VERSION`, `BUILD_NUMBER`, and optionally `NIX_ME_ARCHS` before running the
 build and package scripts. Notarization additionally requires the App Store
 Connect API variables accepted by `tools/release/notarize-macos-app.sh`.
+
+## Stable signing and privacy approvals
+
+`tools/release/sign-macos-app.sh` signs the app, bundled app-state engine, and
+Sparkle's nested executables. It selects an existing Developer ID Application
+identity, or Apple Development for local builds, in deterministic fingerprint
+order. After successful signing and verification it stores only the public
+certificate fingerprint in
+`~/Library/Application Support/Nix Me/signing-identity` (mode 0600).
+Subsequent builds reuse that pin even if another certificate is added. A missing
+or expired pinned certificate fails with recovery instructions; it never silently
+switches identities or downgrades to ad-hoc signing.
+
+Select or deliberately rotate a certificate with:
+
+```bash
+CODE_SIGN_IDENTITY="CERTIFICATE_SHA1_FINGERPRINT" make app
+```
+
+`CODE_SIGN_IDENTITY=-` explicitly requests ad-hoc signing, for example in CI.
+`NIX_ME_REQUIRE_STABLE_SIGNING=1` refuses ad-hoc fallback.
+`NIX_ME_SIGNING_TIMESTAMP=none` permits offline local signing; release builds
+use secure timestamps. `NIX_ME_SIGNING_IDENTITY_FILE` overrides the local pin
+location for isolated builds/tests. Neither certificates nor private keys should
+be stored in Git or the Nix store.
+
+Nix builds remain reproducible and ad-hoc signed inside the build sandbox.
+Activation signs the staged application as the target user, outside that sandbox,
+using the same pin and the user's Keychain. The login Keychain must be unlocked;
+macOS may ask to allow codesign to use the selected private key. Signing failures
+leave the previously installed app untouched. Optional host controls:
+
+```nix
+apps.manager.signingIdentity = "auto"; # or an explicit certificate fingerprint
+apps.manager.requireStableSigning = true;
+```
+
+On a new Mac with no signing certificate, the default remains a working ad-hoc
+local build with a prominent warning. It cannot promise persistent privacy
+approvals across rebuilds. No certificate is minted, no trust settings are
+changed, and no private key is transferred automatically. End users who do not
+have signing credentials should use a consistently Developer ID-signed release;
+Apple Development is for local testing, not general distribution.
+
+The Resolve Access guide inspects the running signature and exposes that warning
+when appropriate. Stable signing helps macOS recognize app updates, but does not
+grant Full Disk Access, bypass app-container protections, or replace explicit user
+approval. Notarization is a separate distribution check, not a privacy grant.

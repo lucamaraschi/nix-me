@@ -12,7 +12,9 @@ APP_ICON_SOURCE="$PACKAGE_DIR/App/AppIcon.png"
 APP_ICONSET="$OUTPUT_DIR/NixMe.iconset"
 APP_VERSION="${APP_VERSION:-0.1.0}"
 BUILD_NUMBER="${BUILD_NUMBER:-1}"
-CODE_SIGN_IDENTITY="${CODE_SIGN_IDENTITY:--}"
+# Resolve before replacing the existing bundle; never silently rotate a pinned identity.
+CODE_SIGN_IDENTITY="$(/bin/bash "$SCRIPT_DIR/sign-macos-app.sh" --resolve)"
+export CODE_SIGN_IDENTITY
 NIX_ME_ARCHS="${NIX_ME_ARCHS:-$(uname -m)}"
 
 build_args=(--package-path "$PACKAGE_DIR" --configuration release)
@@ -93,7 +95,10 @@ install -m 0755 \
   "$REPO_DIR/packages/management-api/bin/nix-me-api" \
   "$REPO_DIR/packages/management-api/bin/nix-me-action" \
   "$REPO_DIR/packages/management-api/bin/nix-me-details" \
+  "$REPO_DIR/packages/management-api/bin/nix-me-drift" \
   "$APP_BUNDLE/Contents/Resources/management-api/"
+install -m 0644 "$REPO_DIR/packages/management-api/bin/machine_drift.py" "$APP_BUNDLE/Contents/Resources/management-api/"
+install -m 0644 "$REPO_DIR/nix/modules/darwin/machine-state.nix" "$APP_BUNDLE/Contents/Resources/management-api/"
 install -m 0755 "$APP_STATE_ENGINE" "$APP_BUNDLE/Contents/Resources/management-api/nix-me-apps"
 ditto "$BIN_DIR/Sparkle.framework" "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
 install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP_BUNDLE/Contents/MacOS/NixMeApp"
@@ -103,20 +108,6 @@ install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP_BUNDLE/Conte
 
 plutil -lint "$INFO_PLIST" >/dev/null
 
-if [[ "$CODE_SIGN_IDENTITY" == "-" ]]; then
-  codesign --force --sign - "$APP_BUNDLE" >/dev/null
-else
-  sparkle="$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
-  sign_args=(--force --sign "$CODE_SIGN_IDENTITY" --options runtime --timestamp)
-
-  codesign "${sign_args[@]}" "$sparkle/Versions/B/XPCServices/Installer.xpc"
-  codesign "${sign_args[@]}" --preserve-metadata=entitlements "$sparkle/Versions/B/XPCServices/Downloader.xpc"
-  codesign "${sign_args[@]}" "$sparkle/Versions/B/Autoupdate"
-  codesign "${sign_args[@]}" "$sparkle/Versions/B/Updater.app"
-  codesign "${sign_args[@]}" "$sparkle"
-  codesign "${sign_args[@]}" "$APP_BUNDLE"
-fi
-
-codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE"
+/bin/bash "$SCRIPT_DIR/sign-macos-app.sh" "$APP_BUNDLE"
 
 echo "Built $APP_BUNDLE"

@@ -18,7 +18,7 @@ USERNAME := $(shell whoami)
 # Force hostname to lowercase in all commands
 FINAL_HOSTNAME := $(shell echo "$(HOSTNAME)" | tr '[:upper:]' '[:lower:]')
 
-.PHONY: switch switch-fast build clean update check check-host-matrix fmt help list-machines sync-projects reset-raycast-window api test-api test-actions test-details test-mas test-cli test-local-ai test-app-state app app-run app-package tui-build
+.PHONY: switch switch-fast build clean update check check-host-matrix fmt help list-machines sync-projects reset-raycast-window api test-api test-actions test-details test-drift test-mas test-cli test-local-ai test-app-state app app-run app-package tui-build
 
 # Default target
 help:
@@ -35,6 +35,7 @@ help:
 	@echo "  test-api        Validate the JSON API contract"
 	@echo "  test-actions    Validate update actions without changing the system"
 	@echo "  test-details    Validate package metadata responses"
+	@echo "  test-drift      Test selective machine reconciliation in fixtures"
 	@echo "  test-cli        Validate CLI syntax and management contracts"
 	@echo "  test-local-ai   Validate local AI preflight, status, and lifecycle"
 	@echo "  test-app-state  Run app-state formatting and tests"
@@ -188,19 +189,22 @@ test-actions:
 test-details:
 	@./tests/integration/test-details.sh
 
+test-drift:
+	@python3 tests/integration/test_machine_drift.py
+
 test-mas:
 	@./tests/integration/test-mas-install.sh
 
 test-cli:
 	@bash -n install.sh
-	@for script in apps/cli/bin/nix-me apps/cli/lib/*.sh packages/management-api/bin/* tools/installation/*.sh tools/local-ai/*.sh; do \
+	@for script in apps/cli/bin/nix-me apps/cli/lib/*.sh packages/management-api/bin/nix-me-* tools/installation/*.sh tools/local-ai/*.sh; do \
 		bash -n "$$script" || exit; \
 	done
 	@./tests/integration/test-install-prerequisites.sh
 	@./tests/integration/test-create-machine.sh
 	@$(MAKE) test-local-ai
 	@./apps/cli/tests/test-harness-status.sh
-	@$(MAKE) test-api test-actions test-details test-mas
+	@$(MAKE) test-api test-actions test-details test-drift test-mas
 
 test-local-ai:
 	@./tests/integration/test-local-ai-preflight.sh

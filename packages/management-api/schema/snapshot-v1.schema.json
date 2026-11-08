@@ -165,7 +165,8 @@
                   "properties": {
                     "scope": { "enum": ["builtIn", "shared", "profile", "machine", "external"] },
                     "label": { "type": "string", "minLength": 1 },
-                    "path": { "type": "string", "minLength": 1 }
+                    "path": { "type": "string", "minLength": 1 },
+                    "propertyPaths": { "type": ["array", "null"], "items": { "type": "string" } }
                   },
                   "additionalProperties": true
                 }

@@ -340,6 +340,10 @@ extension AppStateSettingsApplication {
         exportableSettings.contains { $0.requiresConfirmation == true }
     }
 
+    var canCheckSettingsAutomatically: Bool {
+        installed && capturable && privateState == nil && !requiresExportConfirmation
+    }
+
     var privateReadinessLabel: String? {
         switch privateState?.readiness {
         case .ready: "Ready"
@@ -354,6 +358,7 @@ struct AppStateConfigurationSource: Codable, Identifiable {
     let scope: String
     let label: String
     let path: String
+    let propertyPaths: [String]?
 
     var id: String { "\(scope):\(path)" }
 }

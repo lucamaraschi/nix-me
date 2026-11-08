@@ -1,0 +1,4 @@
+#!/bin/bash
+set -euo pipefail
+export PATH="/run/current-system/sw/bin:/etc/profiles/per-user/${USER:-$(id -un)}/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/usr/local/bin:${PATH:-/usr/bin:/bin}"
+exec python3 "$(cd "$(dirname "$0")" && pwd)/machine_drift.py" "$@"

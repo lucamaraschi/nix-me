@@ -88,6 +88,17 @@ in
     description = "Whether to install the locally built Nix Me macOS app in /Applications.";
   };
 
+  options.apps.manager.signingIdentity = lib.mkOption {
+    type = lib.types.str;
+    default = "auto";
+    description = "Signing certificate fingerprint/name, auto to reuse the local pin, or - for explicitly ad-hoc signing. Private keys stay in the user's Keychain, outside Nix.";
+  };
+  options.apps.manager.requireStableSigning = lib.mkOption {
+    type = lib.types.bool;
+    default = false;
+    description = "Fail installation when no certificate identity is available, instead of warning and using ad-hoc signing.";
+  };
+
   config = {
     apps.state.enable = lib.mkIf machineEnableDefault (lib.mkForce true);
     apps.state.resolvedValues = resolvedValues;
@@ -114,6 +125,21 @@ in
         rm -rf "$manager_stage"
         echo "Installing Nix Me in $manager_target..." >&2
         /usr/bin/ditto "$manager_source" "$manager_stage"
+        # Sign outside the Nix sandbox using the user's existing Keychain identity.
+        # Resolve first so a missing pinned certificate cannot replace the installed app.
+        chown -R ${lib.escapeShellArg username}:staff "$manager_stage"
+        chmod -R u+w "$manager_stage"
+        if ! /usr/bin/sudo -H -u ${lib.escapeShellArg username} /usr/bin/env \
+          PATH=/usr/bin:/bin:/usr/sbin:/sbin \
+          HOME=${lib.escapeShellArg config.users.users.${username}.home} \
+          CODE_SIGN_IDENTITY=${lib.escapeShellArg config.apps.manager.signingIdentity} \
+          NIX_ME_REQUIRE_STABLE_SIGNING=${if config.apps.manager.requireStableSigning then "1" else "0"} \
+          NIX_ME_SIGNING_TIMESTAMP=none \
+          /bin/bash ${../../../../tools/release/sign-macos-app.sh} "$manager_stage"; then
+          rm -rf "$manager_stage"
+          echo "Nix Me signing failed. The installed app has not been replaced. Unlock the login Keychain and retry." >&2
+          exit 1
+        fi
         chown -R root:wheel "$manager_stage"
 
         if [ -e "$manager_target" ] || [ -L "$manager_target" ]; then

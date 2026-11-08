@@ -793,4 +793,43 @@ fn structured_capture_without_an_allowlist_is_default_closed() {
         snapshot["applications"][0]["skipped"][0]["reason"],
         "structured file export requires an explicit path allowlist"
     );
+    assert!(snapshot["applications"][0]["skipped"][0]["code"].is_null());
+}
+
+#[test]
+fn empty_preferences_are_distinguishable_from_read_failures() {
+    let dir = TempDir::new().unwrap();
+    let target = dir.path().join("missing-settings.json");
+    let recipe = recipe(
+        &dir,
+        &format!(
+            "config:\n  - kind: defaults\n    domain: com.example.TestApp\n    keys:\n      theme:\n        type: string\n  - kind: file\n    binds: settings\n    path: {:?}\n    format: json\n    paths:\n      allow: [/theme]",
+            target.display().to_string()
+        ),
+    );
+    let prefs = FakePrefStore::default();
+    let mut runner = ReplayCommandRunner::default();
+    let snapshot = current_values(
+        std::slice::from_ref(&recipe),
+        &BTreeSet::new(),
+        &prefs,
+        &mut runner,
+    );
+    assert_eq!(snapshot["values"]["test-app"], json!({}));
+    assert_eq!(
+        snapshot["applications"][0]["skipped"][0]["code"],
+        "no_declared_values"
+    );
+    assert_eq!(
+        snapshot["applications"][0]["skipped"][1]["code"],
+        "file_missing"
+    );
+
+    write(&target, "not-json");
+    let failed = current_values(&[recipe], &BTreeSet::new(), &prefs, &mut runner);
+    assert!(failed["applications"][0]["skipped"][1]["code"].is_null());
+    assert!(failed["applications"][0]["skipped"][1]["reason"]
+        .as_str()
+        .unwrap()
+        .contains("could not read"));
 }

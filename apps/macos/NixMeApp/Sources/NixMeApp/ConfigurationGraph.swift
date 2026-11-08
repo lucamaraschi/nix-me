@@ -78,6 +78,31 @@ struct ConfigurationGraph {
         nodes.filter { $0.imports.contains(path) }.sorted { $0.path < $1.path }
     }
 
+    func composition(machineType: String?) -> [ConfigurationComponent] {
+        [
+            ConfigurationComponent(
+                id: "shared", title: "Shared defaults", symbol: "square.stack.3d.up",
+                explanation: "Common software and system defaults reused across machines.",
+                nodes: [node(at: "nix/hosts/types/shared/default.nix")].compactMap { $0 }
+            ),
+            ConfigurationComponent(
+                id: "hardware", title: "Machine type", symbol: "laptopcomputer",
+                explanation: "Hardware-specific defaults for \(machineType ?? "this type of Mac").",
+                nodes: machineType.flatMap { node(at: "nix/hosts/types/\($0)/default.nix") }.map { [$0] } ?? []
+            ),
+            ConfigurationComponent(
+                id: "profiles", title: "Selected profiles", symbol: "slider.horizontal.3",
+                explanation: "Reusable groups of software and settings included for this machine.",
+                nodes: activeProfiles
+            ),
+            ConfigurationComponent(
+                id: "machine", title: "This machine", symbol: "desktopcomputer",
+                explanation: "Settings specific to \(hostname), including its enabled features.",
+                nodes: [node(at: "nix/hosts/machines/\(hostname)/default.nix")].compactMap { $0 }
+            ),
+        ]
+    }
+
     func tree(for nodes: [ConfigurationNode]) -> [ConfigurationTreeNode] {
         let root = MutableConfigurationTreeNode(name: "", relativePath: "")
         for node in nodes.sorted(by: { $0.path < $1.path }) {
@@ -97,6 +122,14 @@ struct ConfigurationGraph {
         }
         return root.children.values.map(\.frozen).sorted(by: ConfigurationTreeNode.sort)
     }
+}
+
+struct ConfigurationComponent: Identifiable {
+    let id: String
+    let title: String
+    let symbol: String
+    let explanation: String
+    let nodes: [ConfigurationNode]
 }
 
 private final class MutableConfigurationTreeNode {
@@ -192,11 +225,12 @@ struct ConfigurationGraphScanner {
 
         var files: [URL] = []
         for case let url as URL in enumerator {
+            let values = try url.resourceValues(forKeys: Set(keys))
             if ["build", ".build", "result"].contains(url.lastPathComponent) {
-                enumerator.skipDescendants()
+                // Calling this for a result symlink can skip the next sibling directory.
+                if values.isDirectory == true { enumerator.skipDescendants() }
                 continue
             }
-            let values = try url.resourceValues(forKeys: Set(keys))
             if values.isRegularFile == true && (url.pathExtension == "nix" || url.lastPathComponent == "flake.nix") {
                 files.append(url.standardizedFileURL)
             }

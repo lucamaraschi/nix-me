@@ -7,6 +7,10 @@ on:
       - "packages/app-state/**"
       - "packages/management-api/**"
       - "tools/release/**"
+      - "tests/integration/test-macos-signing.sh"
+      - "tests/integration/test_machine_drift.py"
+      - "nix/modules/darwin/machine-state.nix"
+      - "nix/modules/darwin/apps/nix-me.nix"
       - "Makefile"
       - ".github/workflows/macos-app-ci.yml"
       - ".github/workflows/release-macos.yml"
@@ -17,6 +21,10 @@ on:
       - "packages/app-state/**"
       - "packages/management-api/**"
       - "tools/release/**"
+      - "tests/integration/test-macos-signing.sh"
+      - "tests/integration/test_machine_drift.py"
+      - "nix/modules/darwin/machine-state.nix"
+      - "nix/modules/darwin/apps/nix-me.nix"
       - "Makefile"
       - ".github/workflows/macos-app-ci.yml"
       - ".github/workflows/release-macos.yml"
@@ -33,9 +41,14 @@ jobs:
         run: bash -n tools/release/*.sh
       - name: Test Swift package
         run: swift test --package-path apps/macos/NixMeApp
+      - name: Test signing identity selection and persistence
+        run: bash tests/integration/test-macos-signing.sh
+      - name: Test selective machine reconciliation
+        run: python3 tests/integration/test_machine_drift.py
       - name: Build ad-hoc signed application
         env:
           NIX_ME_ARCHS: arm64
+          CODE_SIGN_IDENTITY: "-"
         run: tools/release/build-macos-app.sh
       - name: Package local DMG
         run: tools/release/package-macos-app.sh

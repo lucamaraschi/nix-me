@@ -91,6 +91,7 @@ pub fn current_values_with_options<P: PrefStore, R: CommandRunner>(
                         skipped.push(serde_json::json!({
                             "kind":"defaults",
                             "bind":defaults.binds.as_deref().unwrap_or("defaults"),
+                            "code":"no_declared_values",
                             "reason":"no declared values were present"
                         }));
                     } else {
@@ -135,6 +136,7 @@ pub fn current_values_with_options<P: PrefStore, R: CommandRunner>(
                         Ok(path) => skipped.push(serde_json::json!({
                             "kind":"file",
                             "bind":bind,
+                            "code":"file_missing",
                             "reason":format!("{} does not exist", path.display())
                         })),
                         Err(error) => skipped.push(serde_json::json!({

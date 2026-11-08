@@ -302,6 +302,10 @@ cat >"$TEMP_DIR/fake-nix-me-apps" <<'SH'
 if [[ "${1:-}" != "snapshot" ]]; then
   exit 64
 fi
+if [[ -n "${NIX_ME_TEST_CAPTURE:-}" ]]; then
+  cat "$NIX_ME_TEST_CAPTURE"
+  exit 0
+fi
 [[ -n "${NIX_ME_TEST_ENGINE_ARGS:-}" ]] && printf '%s\n' "$*" >"$NIX_ME_TEST_ENGINE_ARGS"
 app_id=''
 while [[ $# -gt 0 ]]; do
@@ -364,6 +368,37 @@ jq -e '
   (.preview | fromjson | .gapSize == 12)
 ' "$TEMP_DIR/settings-preview.json" >/dev/null
 jq -e 'length == 0' "$SETTINGS_REPO/config/app-state/shared/settings.json" >/dev/null
+# Empty captures must return a usable structured result, not a jq parser error.
+for capture_reason in '' 'no declared values were present' 'could not read settings: permission denied'; do
+  jq -n --arg reason "$capture_reason" '{version:1,values:{rectangle:{}},
+    applications:[{id:"rectangle",captured:[],skipped:[{reason:$reason}]}],
+    redaction:{policy:"default_closed",count:0,items:[]}}' >"$TEMP_DIR/empty-capture.json"
+  if printf '%s\n' "$settings_request" | \
+    NIX_ME_CONFIG_DIR="$SETTINGS_REPO" NIX_ME_APP_STATE_ENGINE="$TEMP_DIR/fake-nix-me-apps" \
+    NIX_ME_TEST_CAPTURE="$TEMP_DIR/empty-capture.json" \
+    "$REPO_DIR/apps/cli/bin/nix-me" action settings-preview >"$TEMP_DIR/empty-preview.json"; then
+    echo "Empty settings capture unexpectedly succeeded" >&2
+    exit 1
+  fi
+  jq -e --arg reason "$capture_reason" '.error.code == "nothing_captured" and
+    (.error.message | length > 0 and contains($reason))' "$TEMP_DIR/empty-preview.json" >/dev/null
+done
+for skip_codes in '["no_declared_values"]' '["file_missing"]' '["file_missing","read_failed"]'; do
+  jq -n --argjson codes "$skip_codes" '{version:1,values:{rectangle:{}},
+    applications:[{id:"rectangle",captured:[],skipped:($codes | map({code:.,reason:"Nothing captured"}))}],
+    redaction:{policy:"default_closed",count:0,items:[]}}' >"$TEMP_DIR/empty-capture.json"
+  if printf '%s\n' "$settings_request" | \
+    NIX_ME_CONFIG_DIR="$SETTINGS_REPO" NIX_ME_APP_STATE_ENGINE="$TEMP_DIR/fake-nix-me-apps" \
+    NIX_ME_TEST_CAPTURE="$TEMP_DIR/empty-capture.json" \
+    "$REPO_DIR/apps/cli/bin/nix-me" action settings-preview >"$TEMP_DIR/empty-preview.json"; then
+    echo "Empty settings capture unexpectedly succeeded" >&2
+    exit 1
+  fi
+  jq -e --argjson codes "$skip_codes" '.error.code ==
+    (if ($codes | index("read_failed")) != null then "nothing_captured" else "no_preferences" end)' \
+    "$TEMP_DIR/empty-preview.json" >/dev/null
+done
+jq -e 'length == 0' "$SETTINGS_REPO/config/app-state/shared/settings.json" >/dev/null
 if grep -Fq -- '--confirm-reviewed-text' "$TEMP_DIR/engine-args"; then
   echo "Structured settings capture unexpectedly confirmed reviewed text" >&2
   exit 1
@@ -391,6 +426,77 @@ printf '%s\n' "$settings_request" | \
 jq -e '.success and .action == "settings-save" and .changed and .written' "$TEMP_DIR/settings-save.json" >/dev/null
 jq -e '.rectangle == {gapSize: 12, launchOnLogin: true}' \
   "$SETTINGS_REPO/config/app-state/shared/settings.json" >/dev/null
+
+# Compare only redacted captured properties with the exact target. Never echo
+# unrelated saved secrets, and never overwrite a destination changed after review.
+cat >"$SETTINGS_REPO/config/app-state/shared/settings.json" <<'JSON'
+{"rectangle":{"gapSize":5,"launchOnLogin":true,"apiToken":"saved-secret-never-echo"},"other":{"enabled":true}}
+JSON
+printf '%s\n' "$settings_request" | \
+  NIX_ME_CONFIG_DIR="$SETTINGS_REPO" NIX_ME_APP_STATE_ENGINE="$TEMP_DIR/fake-nix-me-apps" \
+  "$REPO_DIR/apps/cli/bin/nix-me" action settings-preview >"$TEMP_DIR/comparison.json"
+jq -e '
+  (.reviewToken | test("^[a-f0-9]{64}$")) and
+  .comparison.preservedCount == 1 and
+  (.comparison.properties | map({key: .path, value: .status}) | from_entries) ==
+    {"/gapSize":"different", "/launchOnLogin":"matching"} and
+  (.preview | fromjson | has("apiToken") | not)
+' "$TEMP_DIR/comparison.json" >/dev/null
+if grep -q 'saved-secret-never-echo' "$TEMP_DIR/comparison.json"; then
+  echo "Settings preview leaked saved-only secret values" >&2
+  exit 1
+fi
+review_request="$(jq -cn --argjson request "$settings_request" --arg token "$(jq -r .reviewToken "$TEMP_DIR/comparison.json")" '$request + {reviewToken:$token}')"
+printf '%s\n' '{"rectangle":{"gapSize":7}}' >"$SETTINGS_REPO/config/app-state/shared/settings.json"
+if printf '%s\n' "$review_request" | \
+  NIX_ME_CONFIG_DIR="$SETTINGS_REPO" NIX_ME_APP_STATE_ENGINE="$TEMP_DIR/fake-nix-me-apps" \
+  NIX_ME_ACTION_DRY_RUN=0 "$REPO_DIR/apps/cli/bin/nix-me" action settings-save >"$TEMP_DIR/outdated.json"; then
+  echo "A stale settings preview was saved" >&2
+  exit 1
+fi
+jq -e '.error.code == "review_outdated"' "$TEMP_DIR/outdated.json" >/dev/null
+jq -e '.rectangle.gapSize == 7' "$SETTINGS_REPO/config/app-state/shared/settings.json" >/dev/null
+
+cat >"$TEMP_DIR/nested-capture.json" <<'JSON'
+{"version":1,"values":{"rectangle":{"editor.fontSize":14,"nested":{"a/b":false},"empty":{},"array":[1,2],"nullable":null}},"applications":[{"id":"rectangle","captured":[],"skipped":[]}],"redaction":{"policy":"default_closed","count":0,"items":[]}}
+JSON
+cat >"$SETTINGS_REPO/config/app-state/shared/settings.json" <<'JSON'
+{"rectangle":{"nested":{"a/b":true},"empty":{"keep":1},"array":[1,2],"nullable":null}}
+JSON
+printf '%s\n' "$settings_request" | \
+  NIX_ME_CONFIG_DIR="$SETTINGS_REPO" NIX_ME_APP_STATE_ENGINE="$TEMP_DIR/fake-nix-me-apps" \
+  NIX_ME_TEST_CAPTURE="$TEMP_DIR/nested-capture.json" \
+  "$REPO_DIR/apps/cli/bin/nix-me" action settings-preview >"$TEMP_DIR/nested-preview.json"
+jq -e '(.comparison.properties | map({key: .path, value: .status}) | from_entries) == {
+  "/editor.fontSize":"notSaved", "/nested/a~1b":"different", "/empty":"preserved", "/array":"matching", "/nullable":"matching"
+}' "$TEMP_DIR/nested-preview.json" >/dev/null
+review_request="$(jq -c '{appId,scope,profile,reviewToken}' "$TEMP_DIR/nested-preview.json")"
+# The original fake capture differs from the reviewed nested capture.
+if printf '%s\n' "$review_request" | \
+  NIX_ME_CONFIG_DIR="$SETTINGS_REPO" NIX_ME_APP_STATE_ENGINE="$TEMP_DIR/fake-nix-me-apps" \
+  NIX_ME_ACTION_DRY_RUN=0 "$REPO_DIR/apps/cli/bin/nix-me" action settings-save >"$TEMP_DIR/changed-capture.json"; then
+  echo "Unreviewed current preferences were saved" >&2
+  exit 1
+fi
+jq -e '.error.code == "review_outdated"' "$TEMP_DIR/changed-capture.json" >/dev/null
+printf '%s\n' "$review_request" | \
+  NIX_ME_CONFIG_DIR="$SETTINGS_REPO" NIX_ME_APP_STATE_ENGINE="$TEMP_DIR/fake-nix-me-apps" \
+  NIX_ME_TEST_CAPTURE="$TEMP_DIR/nested-capture.json" NIX_ME_ACTION_DRY_RUN=0 \
+  "$REPO_DIR/apps/cli/bin/nix-me" action settings-save >"$TEMP_DIR/nested-save.json"
+jq -e '.written' "$TEMP_DIR/nested-save.json" >/dev/null
+jq -e '.rectangle.empty.keep == 1 and .rectangle.nested["a/b"] == false' "$SETTINGS_REPO/config/app-state/shared/settings.json" >/dev/null
+
+printf '%s\n' '{"appId":"rectangle","scope":"profile","profile":"work"}' | \
+  NIX_ME_CONFIG_DIR="$SETTINGS_REPO" NIX_ME_APP_STATE_ENGINE="$TEMP_DIR/fake-nix-me-apps" \
+  "$REPO_DIR/apps/cli/bin/nix-me" action settings-preview >"$TEMP_DIR/profile-preview.json"
+jq -e 'all(.comparison.properties[]; .status == "notSaved")' "$TEMP_DIR/profile-preview.json" >/dev/null
+review_request="$(jq -c '{appId,scope,profile,reviewToken}' "$TEMP_DIR/profile-preview.json")"
+printf '%s\n' "$review_request" | \
+  NIX_ME_CONFIG_DIR="$SETTINGS_REPO" NIX_ME_APP_STATE_ENGINE="$TEMP_DIR/fake-nix-me-apps" \
+  NIX_ME_ACTION_DRY_RUN=0 "$REPO_DIR/apps/cli/bin/nix-me" action settings-save >"$TEMP_DIR/profile-save.json"
+jq -e '.written' "$TEMP_DIR/profile-save.json" >/dev/null
+jq -e '.rectangle.gapSize == 12' "$SETTINGS_REPO/config/app-state/profiles/work/settings.json" >/dev/null
+jq -e '.rectangle.empty.keep == 1 and (.rectangle | has("gapSize") | not)' "$SETTINGS_REPO/config/app-state/shared/settings.json" >/dev/null
 
 if printf '%s\n' '{"appId":"rectangle","scope":"profile","profile":"../unsafe"}' | \
   NIX_ME_CONFIG_DIR="$SETTINGS_REPO" \
