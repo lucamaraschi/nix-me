@@ -40,7 +40,7 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v7
-      - uses: cachix/install-nix-action@v31
+      - uses: cachix/install-nix-action@v32
       - name: Evaluate every host configuration
         run: tools/automation/check-nix-host-matrix.sh
       - name: Check flake outputs

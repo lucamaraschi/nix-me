@@ -40,6 +40,6 @@ jobs:
         run: node dist/index.js --version
       - working-directory: apps/post-install-tui
         run: npm audit --omit=dev
-      - uses: cachix/install-nix-action@v31
+      - uses: cachix/install-nix-action@v32
       - name: Build Nix package
         run: nix build .#nix-me-tui --no-link
